@@ -21,7 +21,7 @@
   },
   "homepage": "https://github.com/firecow/git-local-devops#readme",
   "dependencies": {
-    "chalk": "^4.1.2",
+    "chalk": "^5.0.0",
     "fs-extra": "^10.0.1",
     "js-yaml": "^4.1.0",
     "promisify-child-process": "^4.1.1"
