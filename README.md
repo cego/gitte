@@ -15,7 +15,7 @@ projects:
     default_branch: main
     scripts:
       up:
-        firecow.dk: ["bash -c", "start-docker-stack.sh"]
+        firecow.dk: ["bash", "-c", "start-docker-stack.sh"]
         firecow.net: ["docker-compose", "up"]
       down:
         firecow.dk: ["docker", "stack", "rm", "firecow.dk"]
