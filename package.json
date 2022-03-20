@@ -29,5 +29,15 @@
   },
   "devDependencies": {
     "jest": "^27.5.1"
+  },
+  "jest": {
+    "collectCoverageFrom": [
+      "**/*.js"
+    ],
+    "coverageReporters": [
+      "lcov",
+      "json-summary",
+      "text-summary"
+    ]
   }
 }

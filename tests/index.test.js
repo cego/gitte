@@ -1,6 +1,6 @@
-const {getProjectDirFromRemote} = require("./project");
+const {getProjectDirFromRemote} = require("../src/project");
 
-describe("Retrieve project dir from remote", () => {
+describe("Project dir from remote", () => {
 
 	test("valid ssh remote", () => {
 		const dir = getProjectDirFromRemote("/home/user/git-local-devops", "git@gitlab.com:firecow/example.git");
