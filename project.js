@@ -15,7 +15,7 @@ async function gitOperations(cwd, projectObj) {
 	assert(defaultBranch != null, `default_branch not set for ${remote}`);
 	const dir = `${cwd}/${remote.replace(/.*?:/, "").replace(".git", "")}`;
 
-	let currentBranch = null;
+	let err, res, currentBranch = null;
 	[err, res] = await to(cp.spawn("git", ["rev-parse", "--abbrev-ref", "HEAD"], {cwd: dir, encoding: "utf8"}));
 	if (!err) currentBranch = `${res.stdout}`.trim();
 
@@ -34,14 +34,14 @@ async function gitOperations(cwd, projectObj) {
 			console.log(chalk`Pulled {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 		}
 	} else {
-		[err, res] = await to(cp.spawn("git", ["rebase", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
+		[err, _] = await to(cp.spawn("git", ["rebase", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
 		if (!err) {
 			console.log(chalk`Rebased {yellow ${currentBranch} on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 			return;
 		}
 		await cp.spawn("git", ["rebase", `--abort`], {cwd: dir, encoding: "utf8"});
 
-		[err, res] = await to(cp.spawn("git", ["merge", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
+		[err, _] = await to(cp.spawn("git", ["merge", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
 		if (!err) {
 			console.log(chalk`Merged {yellow {magenta origin/${defaultBranch}} with ${currentBranch} in {cyan ${dir}}`);
 			return;
