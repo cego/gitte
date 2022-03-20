@@ -31,7 +31,7 @@ projects:
 
 Run `git-local-devops up firecow.dk` inside `~/git-local-devops` folder
 
-All projects specified will pull latest changes if on default branch
+All projects specified will pull the latest changes if on default branch
 
 All projects on custom branch, will attempt to rebase `origin/<default_branch>` first, if that fails a merge with `origin/<default_branch>` will be attempted.
 
