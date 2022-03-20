@@ -4,17 +4,17 @@ const {runScripts} = require("./run_scripts");
 const {gitOperations} = require("./git_operations");
 const assert = require("assert");
 
-process.on("uncaughtException", (e) => {
-	if (e instanceof assert.AssertionError) {
-		console.log(`AssertionError: ${e.message}`);
-	} else if (e.message.startsWith("Process exited")) {
-		process.stderr.write(`${e["stderr"]}`);
-	} else {
-		throw e;
-	}
-});
+async function start() {
+	process.on("uncaughtException", (e) => {
+		if (e instanceof assert.AssertionError) {
+			console.log(`AssertionError: ${e.message}`);
+		} else if (e.message.startsWith("Process exited")) {
+			process.stderr.write(`${e["stderr"]}`);
+		} else {
+			throw e;
+		}
+	});
 
-(async () => {
 	const scriptToRun = process.argv[2];
 	assert(scriptToRun != null, "1st argument must be specified (script to run)");
 	const domainToRun = process.argv[3];
@@ -35,9 +35,6 @@ process.on("uncaughtException", (e) => {
 	for (const projectObj of cnf["projects"]) {
 		await runScripts(cwd, projectObj, scriptToRun, domainToRun);
 	}
+}
 
-})();
-
-
-
-
+module.exports = {start};

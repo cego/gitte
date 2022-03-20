@@ -1,5 +1,6 @@
 const {getProjectDirFromRemote} = require("../src/project");
 const {runScripts} = require("../src/run_scripts");
+const {gitOperations} = require("../src/git_operations");
 const cp = require("promisify-child-process");
 const fs = require("fs-extra");
 const chalk = require("chalk");
@@ -53,10 +54,19 @@ describe("Project dir from remote", () => {
 
 });
 
-describe("Script execution", () => {
+describe("Run scripts", () => {
 
-	test("runScripts start firecow.dk", async () => {
+	test("start firecow.dk", async () => {
 		await runScripts(cwd, projectObj, "start", "firecow.dk");
+		expect(console.log).toHaveBeenCalledWith(chalk`Executing {blue docker-compose up} in {cyan /home/user/git-local-devops/firecow/example}`);
+	});
+
+});
+
+describe("Git Operations", () => {
+
+	test("start firecow.dk", async () => {
+		await gitOperations(cwd, projectObj);
 		expect(console.log).toHaveBeenCalledWith(chalk`Executing {blue docker-compose up} in {cyan /home/user/git-local-devops/firecow/example}`);
 	});
 
