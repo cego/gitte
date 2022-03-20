@@ -9,6 +9,37 @@ async function hasLocalChanges(dir) {
 	return `${res.stdout}`.trim().length !== 0;
 }
 
+async function pull(dir, currentBranch) {
+	[err, res] = await to(cp.spawn("git", ["pull"], {cwd: dir, encoding: "utf8"}));
+	if (err) throw err;
+	const msg = `${res.stdout}`.trim();
+	if (msg === "Already up to date.") {
+		console.log(chalk`Already up to date {cyan ${dir}}`);
+	} else {
+		console.log(chalk`Pulled {magenta origin/${currentBranch}} in {cyan ${dir}}`);
+	}
+}
+
+async function rebase(dir, currentBranch, defaultBranch) {
+	[err] = await to(cp.spawn("git", ["rebase", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
+	if (!err) {
+		console.log(chalk`Rebased {yellow ${currentBranch}} on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
+		return true;
+	}
+	await cp.spawn("git", ["rebase", `--abort`], {cwd: dir, encoding: "utf8"});
+	return false;
+}
+
+async function merge(dir, currentBranch, defaultBranch) {
+	[err] = await to(cp.spawn("git", ["merge", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
+	if (!err) {
+		console.log(chalk`Merged {magenta origin/${defaultBranch}} with {yellow ${currentBranch}} in {cyan ${dir}}`);
+		return;
+	}
+	await cp.spawn("git", ["merge", `--abort`], {cwd: dir, encoding: "utf8"});
+	console.log(chalk`Merged failed in {cyan ${dir}}`);
+}
+
 async function gitOperations(cwd, projectObj) {
 	const remote = projectObj["remote"];
 	const defaultBranch = projectObj["default_branch"];
@@ -24,28 +55,11 @@ async function gitOperations(cwd, projectObj) {
 	} else if (await hasLocalChanges(dir)) {
 		console.log(chalk`Local changes found, no git operations will be applied in {cyan ${dir}}`);
 	} else if (currentBranch === defaultBranch) {
-		[err, res] = await to(cp.spawn("git", ["pull"], {cwd: dir, encoding: "utf8"}));
-		if (err) throw err;
-		const msg = `${res.stdout}`.trim();
-		if (msg === "Already up to date.") {
-			console.log(chalk`Already up to date {cyan ${dir}}`);
-		} else {
-			console.log(chalk`Pulled {magenta origin/${currentBranch}} in {cyan ${dir}}`);
-		}
+		await pull(dir, currentBranch);
 	} else {
-		[err] = await to(cp.spawn("git", ["rebase", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
-		if (!err) {
-			console.log(chalk`Rebased {yellow ${currentBranch} on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
-			return;
+		if (!await rebase(dir, currentBranch, defaultBranch)) {
+			await merge(dir, currentBranch, defaultBranch);
 		}
-		await cp.spawn("git", ["rebase", `--abort`], {cwd: dir, encoding: "utf8"});
-
-		[err] = await to(cp.spawn("git", ["merge", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
-		if (!err) {
-			console.log(chalk`Merged {yellow {magenta origin/${defaultBranch}} with ${currentBranch} in {cyan ${dir}}`);
-			return;
-		}
-		await cp.spawn("git", ["merge", `--abort`], {cwd: dir, encoding: "utf8"});
 	}
 }
 

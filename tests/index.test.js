@@ -4,17 +4,37 @@ const {gitOperations} = require("../src/git_operations");
 const cp = require("promisify-child-process");
 const fs = require("fs-extra");
 const chalk = require("chalk");
+const {when} = require("jest-when");
 
-let cwd, projectObj, readFileSpy, pathExistsSpy, cpSpawnSpy;
+function mockHasNoChanges() {
+	when(spawnSpy).calledWith("git", ["status", "--porcelain"], expect.objectContaining({})).mockResolvedValue({stdout: ""});
+}
+
+function mockCustomBranch() {
+	when(spawnSpy).calledWith("git", ["rev-parse", "--abbrev-ref", "HEAD"], expect.objectContaining({})).mockResolvedValue({stdout: "custom"});
+}
+
+function mockRebaseFailed() {
+	when(spawnSpy).calledWith("git", ["rebase", `origin/main`], expect.objectContaining({})).mockRejectedValue("Rebase wasn't possible");
+}
+
+function mockMergeFailed() {
+	when(spawnSpy).calledWith("git", ["merge", `origin/main`], expect.objectContaining({})).mockRejectedValue("Merge wasn't possible");
+}
+
+let cwd, projectObj, readFileSpy, pathExistsSpy, spawnSpy;
 beforeEach(() => {
 	cp.spawn = jest.fn();
 	console.log = jest.fn();
 
-	cpSpawnSpy = jest.spyOn(cp, "spawn").mockImplementation(() => {
+	spawnSpy = jest.spyOn(cp, "spawn").mockImplementation(() => {
 		return new Promise((resolve) => {
 			resolve({stdout: "Mocked Stdout"});
 		});
 	});
+	when(spawnSpy).calledWith(
+		"git", ["rev-parse", "--abbrev-ref", "HEAD"], expect.objectContaining({}),
+	).mockResolvedValue({stdout: "main"});
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => "---");
 	pathExistsSpy = jest.spyOn(fs, "pathExists").mockImplementation(() => true);
 
@@ -41,17 +61,17 @@ afterEach(() => {
 
 describe("Project dir from remote", () => {
 
-	test("valid ssh remote", () => {
+	test("Valid ssh remote", () => {
 		const dir = getProjectDirFromRemote(cwd, "git@gitlab.com:firecow/example.git");
 		expect(dir).toEqual(`${cwd}/firecow/example`);
 	});
 
-	test("valid ssh remote with cwd ending in slash", () => {
+	test("Valid ssh remote with cwd ending in slash", () => {
 		const dir = getProjectDirFromRemote(`${cwd}/`, "git@gitlab.com:firecow/example.git");
 		expect(dir).toEqual(`${cwd}/firecow/example`);
 	});
 
-	test("invalid remote", () => {
+	test("Invalid remote", () => {
 		expect(() => {
 			getProjectDirFromRemote(cwd, "git@gitlab.coinvalidirecow/example.git");
 		}).toThrowError("git@gitlab.coinvalidirecow/example.git is not a valid project remote. Use git@gitlab.com:example/firecow.git syntax");
@@ -61,23 +81,105 @@ describe("Project dir from remote", () => {
 
 describe("Run scripts", () => {
 
-	test("start firecow.dk", async () => {
+	test("Start firecow.dk", async () => {
 		await runScripts(cwd, projectObj, "start", "firecow.dk");
-		expect(console.log).toHaveBeenCalledWith(chalk`Executing {blue docker-compose up} in {cyan /home/user/git-local-devops/firecow/example}`);
+		expect(console.log).toHaveBeenCalledWith(
+			chalk`Executing {blue docker-compose up} in {cyan /home/user/git-local-devops/firecow/example}`,
+		);
 	});
 
 });
 
 describe("Git Operations", () => {
 
-	test("existing project directory", async () => {
+	test("Changes found", async () => {
 		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(true);
 		await gitOperations(cwd, projectObj);
+		expect(console.log).toHaveBeenCalledWith(
+			chalk`Local changes found, no git operations will be applied in {cyan ${cwd}/firecow/example}`,
+		);
 	});
 
-	test("non existing project directory", async () => {
+	test("Cloning project", async () => {
 		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 		await gitOperations(cwd, projectObj);
+		expect(spawnSpy).toHaveBeenCalledWith(
+			"git", ["clone", "git@gitlab.com:firecow/example.git", "/home/user/git-local-devops/firecow/example"],
+			expect.objectContaining({}),
+		);
 	});
 
+	describe("Default branch", () => {
+		test("Already up to date", async () => {
+			mockHasNoChanges();
+			when(spawnSpy).calledWith(
+				"git", ["pull"], expect.objectContaining({}),
+			).mockResolvedValue({stdout: "Already up to date."});
+			await gitOperations(cwd, projectObj);
+			expect(console.log).toHaveBeenCalledWith(chalk`Already up to date {cyan ${cwd}/firecow/example}`);
+			expect(spawnSpy).toHaveBeenCalledWith(
+				"git", ["pull"],
+				expect.objectContaining({}),
+			);
+		});
+
+		test("Pulling latest changes", async () => {
+			mockHasNoChanges();
+			await gitOperations(cwd, projectObj);
+			expect(console.log).toHaveBeenCalledWith(chalk`Pulled {magenta origin/main} in {cyan ${cwd}/firecow/example}`);
+			expect(spawnSpy).toHaveBeenCalledWith(
+				"git", ["pull"],
+				expect.objectContaining({}),
+			);
+		});
+	});
+
+	describe("Custom branch", () => {
+
+		test("Rebasing", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+			await gitOperations(cwd, projectObj);
+			expect(console.log).toHaveBeenCalledWith(
+				chalk`Rebased {yellow custom} on top of {magenta origin/main} in {cyan ${cwd}/firecow/example}`,
+			);
+			expect(spawnSpy).toHaveBeenCalledWith(
+				"git", ["rebase", `origin/main`],
+				expect.objectContaining({}),
+			);
+		});
+
+		test("Rebase failed. Merging", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+			mockRebaseFailed();
+			await gitOperations(cwd, projectObj);
+			expect(console.log).toHaveBeenCalledWith(
+				chalk`Merged {magenta origin/main} with {yellow custom} in {cyan ${cwd}/firecow/example}`,
+			);
+			expect(spawnSpy).toHaveBeenCalledWith(
+				"git", ["rebase", `--abort`],
+				expect.objectContaining({}),
+			);
+			expect(spawnSpy).toHaveBeenCalledWith(
+				"git", ["merge", `origin/main`],
+				expect.objectContaining({}),
+			);
+		});
+
+		test("Merging failed", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+			mockRebaseFailed();
+			mockMergeFailed();
+			await gitOperations(cwd, projectObj);
+			expect(console.log).toHaveBeenCalledWith(
+				chalk`Merged failed in {cyan ${cwd}/firecow/example}`,
+			);
+			expect(spawnSpy).toHaveBeenCalledWith(
+				"git", ["merge", `--abort`],
+				expect.objectContaining({}),
+			);
+		});
+	});
 });

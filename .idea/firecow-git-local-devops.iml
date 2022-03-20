@@ -6,5 +6,6 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="@types/fs-extra" level="application" />
     <orderEntry type="library" name="@types/js-yaml" level="application" />
+    <orderEntry type="library" name="@types/jest-when" level="application" />
   </component>
 </module>

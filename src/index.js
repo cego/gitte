@@ -4,7 +4,7 @@ const {runScripts} = require("./run_scripts");
 const {gitOperations} = require("./git_operations");
 const assert = require("assert");
 
-async function start() {
+async function start(scriptToRun, domainToRun) {
 	process.on("uncaughtException", (e) => {
 		if (e instanceof assert.AssertionError) {
 			console.log(`AssertionError: ${e.message}`);
@@ -15,9 +15,7 @@ async function start() {
 		}
 	});
 
-	const scriptToRun = process.argv[2];
 	assert(scriptToRun != null, "1st argument must be specified (script to run)");
-	const domainToRun = process.argv[3];
 	assert(domainToRun != null, "2nd argument must be specified (domain to run)");
 	const home = process.env.HOME;
 	assert(home != null, "Could not find home directory");
