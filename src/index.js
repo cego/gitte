@@ -3,6 +3,7 @@ const yaml = require("js-yaml");
 const {runScripts} = require("./run_scripts");
 const {gitOperations} = require("./git_operations");
 const assert = require("assert");
+const {startup} = require("./startup");
 
 async function start(scriptToRun, domainToRun) {
 	process.on("uncaughtException", (e) => {
@@ -23,6 +24,8 @@ async function start(scriptToRun, domainToRun) {
 
 	const fileContent = await fs.readFile("example.yml", "utf8");
 	const cnf = yaml.load(fileContent);
+
+	await startup(cnf["startup"] ?? []);
 
 	// General fail-early assertions
 	for (const projectObj of cnf["projects"]) {

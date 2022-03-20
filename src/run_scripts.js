@@ -1,5 +1,4 @@
 const {getProjectDirFromRemote} = require("./project");
-
 const cp = require("promisify-child-process");
 const chalk = require("chalk");
 
