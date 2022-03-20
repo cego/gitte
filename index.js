@@ -1,13 +1,14 @@
 const fs = require("fs-extra");
 const yaml = require("js-yaml");
-const {gitOperations, runScripts} = require("./project");
+const {runScripts} = require("./run_scripts");
+const {gitOperations} = require("./git_operations");
 const assert = require("assert");
 
 process.on("uncaughtException", (e) => {
 	if (e instanceof assert.AssertionError) {
 		console.log(`AssertionError: ${e.message}`);
 	} else if (e.message.startsWith("Process exited")) {
-		process.stderr.write(`${e.stderr}`);
+		process.stderr.write(`${e["stderr"]}`);
 	} else {
 		throw e;
 	}
