@@ -1,6 +1,5 @@
 const {getProjectDirFromRemote} = require("./project");
 const cp = require("promisify-child-process");
-const assert = require("assert");
 const {default: to} = require("await-to-js");
 const fs = require("fs-extra");
 const chalk = require("chalk");
@@ -13,7 +12,6 @@ async function hasLocalChanges(dir) {
 async function gitOperations(cwd, projectObj) {
 	const remote = projectObj["remote"];
 	const defaultBranch = projectObj["default_branch"];
-	assert(defaultBranch != null, `default_branch not set for ${remote}`);
 	const dir = getProjectDirFromRemote(cwd, remote);
 	let err, res, currentBranch = null;
 

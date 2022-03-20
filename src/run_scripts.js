@@ -2,13 +2,10 @@ const {getProjectDirFromRemote} = require("./project");
 
 const cp = require("promisify-child-process");
 const chalk = require("chalk");
-const assert = require("assert");
 
 async function runScripts(cwd, projectObj, scriptToRun, domainToRun) {
 	const remote = projectObj["remote"];
 	const scriptsObj = projectObj["scripts"];
-	const defaultBranch = projectObj["default_branch"];
-	assert(defaultBranch != null, `default_branch not set for ${remote}`);
 	const dir = getProjectDirFromRemote(cwd, remote);
 
 	for (const [scriptName, domainsObj] of Object.entries(scriptsObj)) {

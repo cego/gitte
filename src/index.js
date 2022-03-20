@@ -26,6 +26,13 @@ async function start() {
 	const fileContent = await fs.readFile("example.yml", "utf8");
 	const cnf = yaml.load(fileContent);
 
+	// General fail-early assertions
+	for (const projectObj of cnf["projects"]) {
+		const remote = projectObj["remote"];
+		const defaultBranch = projectObj["default_branch"];
+		assert(defaultBranch != null, `default_branch not set for ${remote}`);
+	}
+
 	const gitOperationsPromises = [];
 	for (const projectObj of cnf["projects"]) {
 		gitOperationsPromises.push(gitOperations(cwd, projectObj));

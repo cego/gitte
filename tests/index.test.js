@@ -1,14 +1,20 @@
 const {getProjectDirFromRemote} = require("../src/project");
 const {runScripts} = require("../src/run_scripts");
+const {gitOperations} = require("../src/git_operations");
 const cp = require("promisify-child-process");
 const fs = require("fs-extra");
 const chalk = require("chalk");
 
-let cwd, projectObj, readFileSpy, pathExistsSpy;
+let cwd, projectObj, readFileSpy, pathExistsSpy, cpSpawnSpy;
 beforeEach(() => {
 	cp.spawn = jest.fn();
 	console.log = jest.fn();
 
+	cpSpawnSpy = jest.spyOn(cp, "spawn").mockImplementation(() => {
+		return new Promise((resolve) => {
+			resolve({stdout: "Mocked Stdout"});
+		});
+	});
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => "---");
 	pathExistsSpy = jest.spyOn(fs, "pathExists").mockImplementation(() => true);
 
@@ -58,6 +64,20 @@ describe("Run scripts", () => {
 	test("start firecow.dk", async () => {
 		await runScripts(cwd, projectObj, "start", "firecow.dk");
 		expect(console.log).toHaveBeenCalledWith(chalk`Executing {blue docker-compose up} in {cyan /home/user/git-local-devops/firecow/example}`);
+	});
+
+});
+
+describe("Git Operations", () => {
+
+	test("existing project directory", async () => {
+		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(true);
+		await gitOperations(cwd, projectObj);
+	});
+
+	test("non existing project directory", async () => {
+		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(false);
+		await gitOperations(cwd, projectObj);
 	});
 
 });
