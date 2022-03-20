@@ -28,7 +28,7 @@
     "promisify-child-process": "^4.1.1"
   },
   "devDependencies": {
-    "jest": "^27.5.1"
+    "jest": "27.5.1"
   },
   "jest": {
     "collectCoverageFrom": [
