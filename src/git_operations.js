@@ -10,6 +10,7 @@ async function hasLocalChanges(dir) {
 }
 
 async function pull(dir, currentBranch) {
+	let err, res;
 	[err, res] = await to(cp.spawn("git", ["pull"], {cwd: dir, encoding: "utf8"}));
 	if (err) throw err;
 	const msg = `${res.stdout}`.trim();
@@ -21,6 +22,7 @@ async function pull(dir, currentBranch) {
 }
 
 async function rebase(dir, currentBranch, defaultBranch) {
+	let err;
 	[err] = await to(cp.spawn("git", ["rebase", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
 	if (!err) {
 		console.log(chalk`Rebased {yellow ${currentBranch}} on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
@@ -31,6 +33,7 @@ async function rebase(dir, currentBranch, defaultBranch) {
 }
 
 async function merge(dir, currentBranch, defaultBranch) {
+	let err;
 	[err] = await to(cp.spawn("git", ["merge", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
 	if (!err) {
 		console.log(chalk`Merged {magenta origin/${defaultBranch}} with {yellow ${currentBranch}} in {cyan ${dir}}`);

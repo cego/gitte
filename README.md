@@ -1,5 +1,13 @@
 # git-local-devop
 
+[![quality](https://img.shields.io/github/workflow/status/firecow/git-local-devops/Quality)](https://github.com/firecow/git-local-devops/actions)
+[![license](https://img.shields.io/github/license/firecow/git-local-devops)](https://npmjs.org/package/git-local-devops)
+[![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com)
+
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=firecow_gitlab-ci-local&metric=alert_status)](https://sonarcloud.io/dashboard?id=firecow_gitlab-ci-local)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=firecow_gitlab-ci-local&metric=coverage)](https://sonarcloud.io/dashboard?id=firecow_gitlab-ci-local)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=firecow_gitlab-ci-local&metric=code_smells)](https://sonarcloud.io/dashboard?id=firecow_gitlab-ci-local)
+
 Put `config.yml` in `~/git-local-devops`
 
 ```
