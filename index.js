@@ -1,6 +1,6 @@
 const fs = require("fs-extra");
 const yaml = require("js-yaml");
-const {doProject} = require("./project");
+const {gitOperations, runScripts} = require("./project");
 const assert = require("assert");
 
 process.on("uncaughtException", (e) => {
@@ -25,8 +25,14 @@ process.on("uncaughtException", (e) => {
 	const fileContent = await fs.readFile("example.yml", "utf8");
 	const cnf = yaml.load(fileContent);
 
+	const gitOperationsPromises = [];
 	for (const projectObj of cnf["projects"]) {
-		await doProject(cwd, projectObj, scriptToRun, domainToRun);
+		gitOperationsPromises.push(gitOperations(cwd, projectObj));
+	}
+	await Promise.all(gitOperationsPromises);
+
+	for (const projectObj of cnf["projects"]) {
+		await runScripts(cwd, projectObj, scriptToRun, domainToRun);
 	}
 
 })();
