@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="Relevant" pattern="file[firecow-git-local-devops]:*/&amp;&amp;!file[firecow-git-local-devops]:.github//*&amp;&amp;!file[firecow-git-local-devops]:.idea//*&amp;&amp;!file[firecow-git-local-devops]:coverage//*" />
+</component>
