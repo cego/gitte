@@ -1,4 +1,4 @@
-# git-local-devop
+# git-local-devops
 
 [![quality](https://img.shields.io/github/workflow/status/firecow/git-local-devops/Quality)](https://github.com/firecow/git-local-devops/actions)
 [![license](https://img.shields.io/github/license/firecow/git-local-devops)](https://npmjs.org/package/git-local-devops)
