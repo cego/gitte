@@ -5,7 +5,7 @@
       <option name="FORCE_SEMICOLON_STYLE" value="true" />
       <option name="FORCE_QUOTE_STYlE" value="true" />
       <option name="ENFORCE_TRAILING_COMMA" value="WhenMultiline" />
-      <option name="INDENT_CHAINED_CALLS" value="false" />
+      <option name="USE_CHAINED_CALLS_GROUP_INDENTS" value="true" />
     </JSCodeStyleSettings>
     <codeStyleSettings language="JavaScript">
       <indentOptions>

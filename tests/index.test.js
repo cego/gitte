@@ -26,6 +26,7 @@ let cwd, projectObj, readFileSpy, pathExistsSpy, spawnSpy;
 beforeEach(() => {
 	cp.spawn = jest.fn();
 	console.log = jest.fn();
+	console.error = jest.fn();
 
 	spawnSpy = jest.spyOn(cp, "spawn").mockImplementation(() => {
 		return new Promise((resolve) => {
@@ -63,12 +64,12 @@ describe("Project dir from remote", () => {
 
 	test("Valid ssh remote", () => {
 		const dir = getProjectDirFromRemote(cwd, "git@gitlab.com:firecow/example.git");
-		expect(dir).toEqual(`${cwd}/firecow/example`);
+		expect(dir).toEqual(`${cwd}/firecow-example`);
 	});
 
 	test("Valid ssh remote with cwd ending in slash", () => {
 		const dir = getProjectDirFromRemote(`${cwd}/`, "git@gitlab.com:firecow/example.git");
-		expect(dir).toEqual(`${cwd}/firecow/example`);
+		expect(dir).toEqual(`${cwd}/firecow-example`);
 	});
 
 	test("Invalid remote", () => {
@@ -84,7 +85,17 @@ describe("Run scripts", () => {
 	test("Start firecow.dk", async () => {
 		await runScripts(cwd, projectObj, "start", "firecow.dk");
 		expect(console.log).toHaveBeenCalledWith(
-			chalk`Executing {blue docker-compose up} in {cyan /home/user/git-local-devops/firecow/example}`,
+			chalk`Executing {blue docker-compose up} in {cyan /home/user/git-local-devops/firecow-example}`,
+		);
+	});
+
+	test("Start firecow.dk, failure in script", async () => {
+		when(spawnSpy).calledWith(
+			"docker-compose", ["up"], expect.objectContaining({}),
+		).mockRejectedValue({stderr: "ARRRG FAILURE"});
+		await runScripts(cwd, projectObj, "start", "firecow.dk");
+		expect(console.error).toHaveBeenCalledWith(
+			chalk`start for firecow.dk failed, goto {cyan /home/user/git-local-devops/firecow-example} and run {blue docker-compose up} manually`,
 		);
 	});
 
@@ -96,7 +107,7 @@ describe("Git Operations", () => {
 		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(true);
 		await gitOperations(cwd, projectObj);
 		expect(console.log).toHaveBeenCalledWith(
-			chalk`Local changes found, no git operations will be applied in {cyan ${cwd}/firecow/example}`,
+			chalk`Local changes found, no git operations will be applied in {cyan ${cwd}/firecow-example}`,
 		);
 	});
 
@@ -104,7 +115,7 @@ describe("Git Operations", () => {
 		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 		await gitOperations(cwd, projectObj);
 		expect(spawnSpy).toHaveBeenCalledWith(
-			"git", ["clone", "git@gitlab.com:firecow/example.git", "/home/user/git-local-devops/firecow/example"],
+			"git", ["clone", "git@gitlab.com:firecow/example.git", "/home/user/git-local-devops/firecow-example"],
 			expect.objectContaining({}),
 		);
 	});
@@ -116,7 +127,7 @@ describe("Git Operations", () => {
 				"git", ["pull"], expect.objectContaining({}),
 			).mockResolvedValue({stdout: "Already up to date."});
 			await gitOperations(cwd, projectObj);
-			expect(console.log).toHaveBeenCalledWith(chalk`Already up to date {cyan ${cwd}/firecow/example}`);
+			expect(console.log).toHaveBeenCalledWith(chalk`Already up to date {cyan ${cwd}/firecow-example}`);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["pull"],
 				expect.objectContaining({}),
@@ -126,7 +137,7 @@ describe("Git Operations", () => {
 		test("Pulling latest changes", async () => {
 			mockHasNoChanges();
 			await gitOperations(cwd, projectObj);
-			expect(console.log).toHaveBeenCalledWith(chalk`Pulled {magenta origin/main} in {cyan ${cwd}/firecow/example}`);
+			expect(console.log).toHaveBeenCalledWith(chalk`Pulled {magenta origin/main} in {cyan ${cwd}/firecow-example}`);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["pull"],
 				expect.objectContaining({}),
@@ -141,7 +152,7 @@ describe("Git Operations", () => {
 			mockCustomBranch();
 			await gitOperations(cwd, projectObj);
 			expect(console.log).toHaveBeenCalledWith(
-				chalk`Rebased {yellow custom} on top of {magenta origin/main} in {cyan ${cwd}/firecow/example}`,
+				chalk`Rebased {yellow custom} on top of {magenta origin/main} in {cyan ${cwd}/firecow-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["rebase", `origin/main`],
@@ -155,7 +166,7 @@ describe("Git Operations", () => {
 			mockRebaseFailed();
 			await gitOperations(cwd, projectObj);
 			expect(console.log).toHaveBeenCalledWith(
-				chalk`Merged {magenta origin/main} with {yellow custom} in {cyan ${cwd}/firecow/example}`,
+				chalk`Merged {magenta origin/main} with {yellow custom} in {cyan ${cwd}/firecow-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["rebase", `--abort`],
@@ -174,7 +185,7 @@ describe("Git Operations", () => {
 			mockMergeFailed();
 			await gitOperations(cwd, projectObj);
 			expect(console.log).toHaveBeenCalledWith(
-				chalk`Merged failed in {cyan ${cwd}/firecow/example}`,
+				chalk`Merged failed in {cyan ${cwd}/firecow-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["merge", `--abort`],

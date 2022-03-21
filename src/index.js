@@ -4,30 +4,28 @@ const {runScripts} = require("./run_scripts");
 const {gitOperations} = require("./git_operations");
 const assert = require("assert");
 const {startup} = require("./startup");
+const chalk = require("chalk");
 
-async function start(scriptToRun, domainToRun) {
+async function start(cwd, scriptToRun, domainToRun) {
 	process.on("uncaughtException", (e) => {
 		if (e instanceof assert.AssertionError) {
-			console.log(`AssertionError: ${e.message}`);
+			console.error(chalk`{red ${e.message}}`);
 		} else if (e.message.startsWith("Process exited")) {
-			process.stderr.write(`${e["stderr"]}`);
+			console.error(chalk`{red ${`${e["stderr"]}`.trim()}}`);
 		} else {
 			throw e;
 		}
 	});
 
-	assert(scriptToRun != null, "1st argument must be specified (script to run)");
-	assert(domainToRun != null, "2nd argument must be specified (domain to run)");
-	const home = process.env.HOME;
-	assert(home != null, "Could not find home directory");
-	const cwd = `${process.env.HOME}/git-local-devops`;
+	const cnfPath = `${cwd}/git-local-devops.yml`;
+	assert(await fs.pathExists(cnfPath), `${cwd} doesn't contain an git-local-devops.yml file`);
 
-	const fileContent = await fs.readFile("example.yml", "utf8");
+	const fileContent = await fs.readFile(`${cwd}/git-local-devops.yml`, "utf8");
 	const cnf = yaml.load(fileContent);
 
 	await startup(cnf["startup"] ?? []);
 
-	// General fail-early assertions
+	// General fail-early assertions on projects objects
 	for (const projectObj of cnf["projects"]) {
 		const remote = projectObj["remote"];
 		const defaultBranch = projectObj["default_branch"];
