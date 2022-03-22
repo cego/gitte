@@ -35,7 +35,7 @@ All projects specified will pull the latest changes if on default branch
 
 All projects on custom branch, will attempt to rebase `origin/<default_branch>` first, if that fails a merge with `origin/<default_branch>` will be attempted.
 
-After git operations are done, scripts matching this program inputs will be executed.
+After git operations are done, scripts matching cli inputs will be executed.
 
 In this example only `start-docker-stack.sh` will be executed in `~/git-local-devops/firecow/example` checkout
 
