@@ -2,6 +2,8 @@
 const yargs = require("yargs/yargs");
 const {hideBin} = require("yargs/helpers");
 const {start} = require("../src");
+const chalk = require("chalk");
+const assert = require("assert");
 
 const terminalWidth = yargs().terminalWidth();
 yargs(hideBin(process.argv))
@@ -12,7 +14,22 @@ yargs(hideBin(process.argv))
 			}).positional("domain", {
 				describe: "domain for which the script is executed",
 			});
-	}, async (argv) => await start(argv["cwd"], argv["script"], argv["domain"]))
+	}, async (argv) => {
+		try {
+			await start(argv["cwd"], argv["script"], argv["domain"]);
+		} catch (e) {
+			if (e instanceof assert.AssertionError) {
+				console.error(chalk`{red ${e.message}}`);
+			} else if (e.message.startsWith("Process exited")) {
+				const stderr = `${e["stderr"]}`.trim();
+				console.error(chalk`{red ${stderr}}`);
+			} else {
+				console.error(chalk`{red ${e.stack}}`);
+			}
+			if (e.hint) console.info(e.hint);
+			process.exit(1);
+		}
+	})
 	.wrap(terminalWidth)
 	.showHelpOnFail(false)
 	.strict(true)

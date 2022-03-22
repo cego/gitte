@@ -8,11 +8,15 @@ async function startup(startupList) {
 		if (argv) {
 			[err] = await to(cp.spawn(argv[0], argv.slice(1), {env: process.env, encoding: "utf8"}));
 			if (err) {
-				console.error(entry["failMessage"]);
-				process.exit(err.code);
+				err.hint = entry["hint"];
+				throw err;
 			}
 		} else {
-			await cp.spawn(entry["script"], {shell: entry["shell"], env: process.env, encoding: "utf8"});
+			[err] = await to(cp.spawn(entry["script"], {shell: entry["shell"], env: process.env, encoding: "utf8"}));
+			if (err) {
+				err.hint = entry["hint"];
+				throw err;
+			}
 		}
 	}
 }

@@ -4,20 +4,8 @@ const {runScripts} = require("./run_scripts");
 const {gitOperations} = require("./git_operations");
 const assert = require("assert");
 const {startup} = require("./startup");
-const chalk = require("chalk");
 
 async function start(cwd, scriptToRun, domainToRun) {
-	process.on("uncaughtException", (e) => {
-		if (e instanceof assert.AssertionError) {
-			console.error(chalk`{red ${e.message}}`);
-		} else if (e.message.startsWith("Process exited")) {
-			const stderr = `${e["stderr"]}`.trim();
-			console.error(chalk`{red ${stderr}}`);
-		} else {
-			throw e;
-		}
-	});
-
 	const cnfPath = `${cwd}/git-local-devops.yml`;
 	assert(await fs.pathExists(cnfPath), `${cwd} doesn't contain an git-local-devops.yml file`);
 
