@@ -11,7 +11,8 @@ async function start(cwd, scriptToRun, domainToRun) {
 		if (e instanceof assert.AssertionError) {
 			console.error(chalk`{red ${e.message}}`);
 		} else if (e.message.startsWith("Process exited")) {
-			console.error(chalk`{red ${`${e["stderr"]}`.trim()}}`);
+			const stderr = `${e["stderr"]}`.trim();
+			console.error(chalk`{red ${stderr}}`);
 		} else {
 			throw e;
 		}
