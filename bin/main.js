@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 const yargs = require("yargs/yargs");
-const {hideBin} = require("yargs/helpers");
 const {start} = require("../src");
 const chalk = require("chalk");
 const assert = require("assert");
+const fs = require("fs-extra");
+const path = require("path");
 
 const terminalWidth = yargs().terminalWidth();
-yargs(hideBin(process.argv))
+const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
+yargs(process.argv.slice(2))
+	.version(packageJson["version"])
 	.command("$0 <script> <domain>", "", (yargs) => {
 		return yargs
 			.positional("script", {
