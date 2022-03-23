@@ -7,12 +7,12 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=firecow_git-local-devops&metric=coverage)](https://sonarcloud.io/dashboard?id=firecow_git-local-devops)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=firecow_git-local-devops&metric=code_smells)](https://sonarcloud.io/dashboard?id=firecow_git-local-devops)
 
-Put `git-local-devops.yml` in a folder `~/git-local-devops` for instace.
+Put `git-local-devops.yml` in `~/git-local-devops` or another user owned folder.
 
 ```
 ---
 startup:
-  # Used to check host machine for 
+  # Used to check host machine for various requirements. 
   - { argv: ["git", "--version"], failMessage: "Git isn't installed on the system" }
   - { argv: ["docker", "--version"], failMessage: "Docker isn't installed on the system" }
   - { argv: ["docker", "login", "registry.gitlab.com"], failMessage: "You must be logged in on registry.gitlab.com to fetch docker images" }
@@ -37,5 +37,5 @@ All projects on custom branch, will attempt to rebase `origin/<default_branch>` 
 
 After git operations are done, scripts matching cli inputs will be executed.
 
-In this example only `start-docker-stack.sh` will be executed in `~/git-local-devops/firecow/example` checkout
+In this example only `"bash", "-c", "start-docker-stack.sh"` will be executed in `~/git-local-devops/firecow/example` checkout
 
