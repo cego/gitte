@@ -31,7 +31,8 @@
   },
   "devDependencies": {
     "jest": "27.5.1",
-    "jest-when": "3.5.1"
+    "jest-when": "3.5.1",
+    "pkg": "^5.5.2"
   },
   "jest": {
     "collectCoverageFrom": [
