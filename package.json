@@ -23,6 +23,7 @@
   "dependencies": {
     "await-to-js": "^3.0.0",
     "chalk": "^4.1.2",
+    "dotenv": "^16.0.0",
     "fs-extra": "^10.0.1",
     "js-yaml": "^4.1.0",
     "promisify-child-process": "^4.1.1",

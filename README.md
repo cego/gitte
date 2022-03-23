@@ -18,8 +18,10 @@ startup:
   - { argv: ["docker", "login", "registry.gitlab.com"], failMessage: "You must be logged in on registry.gitlab.com to fetch docker images" }
 
 projects:
-  - remote: git@gitlab.com:firecow/example.git
+  example:
+    remote: git@gitlab.com:firecow/example.git
     default_branch: main
+    priority: 0
     scripts:
       up:
         firecow.dk: ["bash", "-c", "start-docker-stack.sh"]

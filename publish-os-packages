@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+npm install
+npx jest
+
+npx pkg bin/main.js --public -t node16-linux-x64 -o pkg/linux/git-local-devops && gzip -c pkg/linux/git-local-devops > pkg/linux.gz
+npx pkg bin/main.js --public -t node16-macos-x64 -o pkg/macos/git-local-devops && gzip -c pkg/macos/git-local-devops > pkg/macos.gz
+npx pkg bin/main.js --public -t node16-win-x64 -o pkg/win/git-local-devops && gzip -c pkg/win/git-local-devops.exe > pkg/win.gz
+
+VERSION=$(jq -r ".version" < package.json)
+DESCRIPTION=$(jq -r ".description" < package.json)
+
+rm -rf "pkg/git-local-devops_${VERSION}_amd64"
+mkdir -p ppa
+
+# Generate package info file
+mkdir -p "pkg/git-local-devops_${VERSION}_amd64/DEBIAN/"
+cat << EOF > "pkg/git-local-devops_${VERSION}_amd64/DEBIAN/control"
+Name: git-local-devops
+Package: com.github.firecow.git-local-devops
+Version: ${VERSION}
+Architecture: amd64
+Author: Mads Jon Nielsen <madsjon@gmail.com>
+Maintainer: Mads Jon Nielsen <madsjon@gmail.com>
+Description: ${DESCRIPTION}
+Homepage: https://github.com/firecow/git-local-devops
+Website: https://github.com/firecow/git-local-devops
+EOF
+
+mkdir -p "pkg/git-local-devops_${VERSION}_amd64/usr/local/bin/"
+cp pkg/linux/git-local-devops "pkg/git-local-devops_${VERSION}_amd64/usr/local/bin/"
+
+(cd pkg/ && (dpkg-deb --root-owner-group --build "git-local-devops_${VERSION}_amd64" || rm "pkg/git-local-devops_${VERSION}_amd64.deb"))
+mv "pkg/git-local-devops_${VERSION}_amd64.deb" "ppa/"
+
+# Packages & Packages.gz
+(cd ppa && dpkg-scanpackages --multiversion . > Packages)
+(cd ppa && gzip -k -f Packages)
+
+# Release, Release.gpg & InRelease
+(cd ppa && apt-ftparchive release . > Release)
+(cd ppa && gpg --default-key "madsjon@gmail.com" -abs -o - Release > Release.gpg)
+(cd ppa && gpg --default-key "madsjon@gmail.com" --clearsign -o - Release > InRelease)
+
+git add "ppa/git-local-devops_${VERSION}_amd64.deb"

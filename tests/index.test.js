@@ -31,6 +31,7 @@ beforeEach(() => {
 	projectStub = {
 		default_branch: "main",
 		remote: "git@gitlab.com:firecow/example.git",
+		priority: 0,
 		scripts: {
 			start: {
 				"firecow.dk": ["docker-compose", "up"],
@@ -47,11 +48,12 @@ beforeEach(() => {
 		{shell: "bash", script: "echo world"},
 	];
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => {
-		return `---\n${yaml.dump({projects: [projectStub], startup: startupStub})}`;
+		return `---\n${yaml.dump({projects: {example: projectStub}, startup: startupStub})}`;
 	});
 	cp.spawn = jest.fn();
 	console.log = jest.fn();
 	console.error = jest.fn();
+	fs.pathExists = jest.fn();
 
 	spawnSpy = jest.spyOn(cp, "spawn").mockImplementation(() => {
 		return new Promise((resolve) => {
@@ -62,18 +64,18 @@ beforeEach(() => {
 	when(spawnSpy).calledWith(
 		"git", ["rev-parse", "--abbrev-ref", "HEAD"], expect.objectContaining({}),
 	).mockResolvedValue({stdout: "main"});
-
-	pathExistsSpy = jest.spyOn(fs, "pathExists").mockImplementation(() => true);
 });
 
 describe("Index (start)", () => {
 
 	test("with default stubs", async () => {
+		when(fs.pathExists).calledWith(`${cwdStub}/.env`).mockResolvedValue(false);
+		when(fs.pathExists).calledWith(`${cwdStub}/git-local-devops.yml`).mockResolvedValue(true);
 		await expect(start(cwdStub)).resolves.toBe();
 	});
 
 	test("config file not found", async () => {
-		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(false);
+		when(fs.pathExists).calledWith(`${cwdStub}/git-local-devops.yml`).mockResolvedValue(false);
 		await expect(start("/home/user/completelyinvalidpath"))
 			.rejects
 			.toThrow("/home/user/completelyinvalidpath doesn't contain an git-local-devops.yml file");
@@ -137,6 +139,10 @@ describe("Run scripts", () => {
 });
 
 describe("Git Operations", () => {
+
+	beforeEach(() => {
+		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(true);
+	});
 
 	test("Changes found", async () => {
 		await gitOperations(cwdStub, projectStub);
