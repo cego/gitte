@@ -9,6 +9,10 @@ async function hasLocalChanges(dir) {
 	return `${res.stdout}`.trim().length !== 0;
 }
 
+async function fetch(dir) {
+	await cp.spawn("git", ["fetch"], {cwd: dir, encoding: "utf8"});
+}
+
 async function pull(dir, currentBranch) {
 	let err, res;
 	[err, res] = await to(cp.spawn("git", ["pull"], {cwd: dir, encoding: "utf8"}));
@@ -58,8 +62,10 @@ async function gitOperations(cwd, projectObj) {
 	} else if (await hasLocalChanges(dir)) {
 		console.log(chalk`Local changes found, no git operations will be applied in {cyan ${dir}}`);
 	} else if (currentBranch === defaultBranch) {
+		await fetch(dir);
 		await pull(dir, currentBranch);
 	} else {
+		await fetch(dir);
 		if (!await rebase(dir, currentBranch, defaultBranch)) {
 			await merge(dir, currentBranch, defaultBranch);
 		}
