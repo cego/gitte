@@ -130,7 +130,7 @@ describe("Run scripts", () => {
 		).mockRejectedValue({stderr: "ARRRG FAILURE"});
 		await runScripts(cwdStub, projectStub, "start", "firecow.dk");
 		expect(console.error).toHaveBeenCalledWith(
-			chalk`start for firecow.dk failed, goto {cyan /home/user/git-local-devops/firecow-example} and run {blue docker-compose up} manually`,
+			chalk`"start" "firecow.dk" failed, goto {cyan /home/user/git-local-devops/firecow-example} and run {blue docker-compose up} manually`,
 		);
 	});
 

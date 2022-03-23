@@ -15,7 +15,7 @@ async function runScripts(cwd, projectObj, scriptToRun, domainToRun) {
 			console.log(chalk`Executing {blue ${argv.join(" ")}} in {cyan ${dir}}`);
 			[err] = await to(cp.spawn(argv[0], argv.slice(1), {cwd: dir, env: process.env, encoding: "utf8"}));
 			if (err) {
-				console.error(chalk`${scriptToRun} for ${domainToRun} failed, goto {cyan ${dir}} and run {blue ${argv.join(" ")}} manually`);
+				console.error(chalk`"${scriptToRun}" "${domainToRun}" failed, goto {cyan ${dir}} and run {blue ${argv.join(" ")}} manually`);
 			}
 		}
 	}

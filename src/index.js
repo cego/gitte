@@ -27,9 +27,11 @@ async function start(cwd, scriptToRun, domainToRun) {
 	}
 	await Promise.all(gitOperationsPromises);
 
+	const runScriptsPromises = [];
 	for (const projectObj of cnf["projects"]) {
-		await runScripts(cwd, projectObj, scriptToRun, domainToRun);
+		runScriptsPromises.push(runScripts(cwd, projectObj, scriptToRun, domainToRun));
 	}
+	await Promise.all(runScriptsPromises);
 }
 
 module.exports = {start};
