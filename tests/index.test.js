@@ -70,15 +70,27 @@ describe("Index (start)", () => {
 
 	test("with default stubs", async () => {
 		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(false);
-		when(fs.pathExists).calledWith(`${cwdStub}/git-local-devops.yml`).mockResolvedValue(true);
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(true);
+		await expect(start(cwdStub)).resolves.toBe();
+	});
+
+	test(".git-local-devops-env present", async () => {
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(true);
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(true);
+		when(readFileSpy).calledWith(`${cwdStub}/.git-local-devops-env`).mockImplementation(() => {
+			return `REMOTE_GIT_PROJECT_FILE=".git-local-devops.yml"\nREMOTE_GIT_PROJECT="git@gitlab.com:firecow/example.git"\n`;
+		});
+		when(spawnSpy)
+			.calledWith("git archive --remote=git@gitlab.com:firecow/example.git master .git-local-devops.yml | tar -xC /tmp/git-local-devops/")
+			.mockResolvedValue(true);
 		await expect(start(cwdStub)).resolves.toBe();
 	});
 
 	test("config file not found", async () => {
-		when(fs.pathExists).calledWith(`${cwdStub}/git-local-devops.yml`).mockResolvedValue(false);
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(false);
 		await expect(start("/home/user/completelyinvalidpath"))
 			.rejects
-			.toThrow("/home/user/completelyinvalidpath doesn't contain an git-local-devops.yml file");
+			.toThrow("/home/user/completelyinvalidpath doesn't contain an .git-local-devops.yml file");
 	});
 
 });

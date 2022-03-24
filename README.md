@@ -7,7 +7,9 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=firecow_git-local-devops&metric=coverage)](https://sonarcloud.io/dashboard?id=firecow_git-local-devops)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=firecow_git-local-devops&metric=code_smells)](https://sonarcloud.io/dashboard?id=firecow_git-local-devops)
 
-Put `git-local-devops.yml` in `~/git-local-devops` or another user owned folder.
+## Config setup
+
+Put `.git-local-devops.yml` in `~/git-local-devops` or another user owned folder.
 
 ```
 ---
@@ -30,6 +32,15 @@ projects:
         firecow.dk: ["docker", "stack", "rm", "firecow.dk"]
         firecow.net: ["docker-compose", "down"]
 ```
+
+You can also use remote config files if you put `.git-local-devops-env` in `~/git-local-devops`
+
+```
+REMOTE_GIT_PROJECT_FILE=".git-local-devops.yml"
+REMOTE_GIT_PROJECT="git@gitlab.com:firecow/example.git"
+```
+
+## Running scripts
 
 Run `git-local-devops up firecow.dk` inside `~/git-local-devops` folder
 

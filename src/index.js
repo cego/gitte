@@ -8,7 +8,7 @@ const cp = require("promisify-child-process");
 const dotenv = require("dotenv");
 
 async function start(cwd, scriptToRun, domainToRun) {
-	const cnfPath = `${cwd}/git-local-devops.yml`;
+	const cnfPath = `${cwd}/.git-local-devops.yml`;
 	const dotenvPath = `${cwd}/.git-local-devops-env`;
 	const prioRange = [0, 1000];
 
@@ -20,13 +20,13 @@ async function start(cwd, scriptToRun, domainToRun) {
 		assert(envCnf.REMOTE_GIT_PROJECT_FILE, `REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`);
 		await fs.ensureDir("/tmp/git-local-devops");
 		await cp.spawn(
-			`git archive --remote=${envCnf.REMOTE_GIT_PROJECT} master ${envCnf.REMOTE_GIT_PROJECT_FILE} | tar -xC /tmp/git-local-devops/`, {
-				shell: "bash", cwd, env: process.env, encoding: "utf8",
-			});
+			`git archive --remote=${envCnf.REMOTE_GIT_PROJECT} master ${envCnf.REMOTE_GIT_PROJECT_FILE} | tar -xC /tmp/git-local-devops/`,
+			{shell: "bash", cwd, env: process.env, encoding: "utf8"},
+		);
 		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf.REMOTE_GIT_PROJECT_FILE}`, "utf8");
 	} else {
-		assert(await fs.pathExists(cnfPath), `${cwd} doesn't contain an git-local-devops.yml file`);
-		fileContent = await fs.readFile(`${cwd}/git-local-devops.yml`, "utf8");
+		assert(await fs.pathExists(cnfPath), `${cwd} doesn't contain an .git-local-devops.yml file`);
+		fileContent = await fs.readFile(`${cwd}/.git-local-devops.yml`, "utf8");
 	}
 
 	const cnf = yaml.load(fileContent);
