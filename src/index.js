@@ -9,7 +9,7 @@ const dotenv = require("dotenv");
 
 async function start(cwd, scriptToRun, domainToRun) {
 	const cnfPath = `${cwd}/git-local-devops.yml`;
-	const dotenvPath = `${cwd}/.env`;
+	const dotenvPath = `${cwd}/.git-local-devops-env`;
 	const prioRange = [0, 1000];
 
 	let fileContent;

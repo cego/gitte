@@ -69,7 +69,7 @@ beforeEach(() => {
 describe("Index (start)", () => {
 
 	test("with default stubs", async () => {
-		when(fs.pathExists).calledWith(`${cwdStub}/.env`).mockResolvedValue(false);
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(false);
 		when(fs.pathExists).calledWith(`${cwdStub}/git-local-devops.yml`).mockResolvedValue(true);
 		await expect(start(cwdStub)).resolves.toBe();
 	});
