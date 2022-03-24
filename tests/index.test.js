@@ -44,7 +44,7 @@ beforeEach(() => {
 		},
 	};
 	startupStub = {
-		world: {argv: ["echo", "world"]},
+		world: {cmd: ["echo", "world"]},
 		bashWorld: {shell: "bash", script: "echo world"},
 	};
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => {
@@ -99,7 +99,7 @@ describe("Startup checks", () => {
 
 	test("failing argv", async () => {
 		when(spawnSpy).calledWith("echo", ["hello"], expect.objectContaining({})).mockRejectedValue(new Error("WHAT"));
-		await expect(startup([{argv: ["echo", "hello"]}])).rejects.toThrow("WHAT");
+		await expect(startup([{cmd: ["echo", "hello"]}])).rejects.toThrow("WHAT");
 	});
 
 	test("failing shell", async () => {
