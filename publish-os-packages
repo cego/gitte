@@ -42,5 +42,3 @@ mv "pkg/git-local-devops_${VERSION}_amd64.deb" "ppa/"
 (cd ppa && apt-ftparchive release . > Release)
 (cd ppa && gpg --default-key "madsjon@gmail.com" -abs -o - Release > Release.gpg)
 (cd ppa && gpg --default-key "madsjon@gmail.com" --clearsign -o - Release > InRelease)
-
-git add "ppa/git-local-devops_${VERSION}_amd64.deb"
