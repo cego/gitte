@@ -31,7 +31,8 @@ async function start(cwd, scriptToRun, domainToRun) {
 
 	const cnf = yaml.load(fileContent);
 
-	await startup(cnf["startup"] ?? []);
+	assert(cnf["startup"], `config must contain startup map`);
+	await startup(cnf["startup"]);
 
 	// General fail-early assertions on projects objects
 	for (const projectObj of Object.values(cnf["projects"])) {

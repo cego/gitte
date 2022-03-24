@@ -3,7 +3,7 @@ const {default: to} = require("await-to-js");
 
 async function startup(startupList) {
 	let err;
-	for (const entry of startupList) {
+	for (const entry of Object.values(startupList)) {
 		const argv = entry["argv"];
 		if (argv) {
 			[err] = await to(cp.spawn(argv[0], argv.slice(1), {env: process.env, encoding: "utf8"}));
