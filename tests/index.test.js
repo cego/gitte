@@ -43,10 +43,10 @@ beforeEach(() => {
 			},
 		},
 	};
-	startupStub = [
-		{argv: ["echo", "world"]},
-		{shell: "bash", script: "echo world"},
-	];
+	startupStub = {
+		world: {argv: ["echo", "world"]},
+		bashWorld: {shell: "bash", script: "echo world"},
+	};
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => {
 		return `---\n${yaml.dump({projects: {example: projectStub}, startup: startupStub})}`;
 	});
