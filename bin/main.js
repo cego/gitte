@@ -43,6 +43,5 @@ yargs(process.argv.slice(2))
 		default: process.cwd(),
 	})
 	.alias("h", "help")
-	.alias("v", "version")
 	.argv;
 
