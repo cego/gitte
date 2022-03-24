@@ -27,13 +27,20 @@ async function pull(dir, currentBranch) {
 
 async function rebase(dir, currentBranch, defaultBranch) {
 	let err;
-	[err] = await to(cp.spawn("git", ["rebase", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
-	if (!err) {
-		console.log(chalk`Rebased {yellow ${currentBranch}} on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
-		return true;
+	[err, res] = await to(cp.spawn("git", ["rebase", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
+	if (err) {
+		await cp.spawn("git", ["rebase", `--abort`], {cwd: dir, encoding: "utf8"});
+		return false;
 	}
-	await cp.spawn("git", ["rebase", `--abort`], {cwd: dir, encoding: "utf8"});
-	return false;
+
+	if (`${res.stdout}`.trim() === "Current branch test is up to date.") {
+		console.log(chalk`Current branch {yellow ${currentBranch}} is already on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
+	} else {
+		console.log(chalk`Rebased {yellow ${currentBranch}} on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
+	}
+
+
+	return true;
 }
 
 async function merge(dir, currentBranch, defaultBranch) {
