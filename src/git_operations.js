@@ -26,7 +26,7 @@ async function pull(dir, currentBranch) {
 }
 
 async function rebase(dir, currentBranch, defaultBranch) {
-	let err;
+	let err, res;
 	[err, res] = await to(cp.spawn("git", ["rebase", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
 	if (err) {
 		await cp.spawn("git", ["rebase", `--abort`], {cwd: dir, encoding: "utf8"});
