@@ -66,6 +66,7 @@ async function gitOperations(cwd, projectObj) {
 		await pull(dir, currentBranch);
 	} else {
 		await fetch(dir);
+		await pull(dir, currentBranch);
 		if (!await rebase(dir, currentBranch, defaultBranch)) {
 			await merge(dir, currentBranch, defaultBranch);
 		}
