@@ -1,5 +1,5 @@
 const {getProjectDirFromRemote} = require("../src/project");
-const {runScripts} = require("../src/run_scripts");
+const {runActions} = require("../src/actions");
 const {gitOperations} = require("../src/git_operations");
 const cp = require("promisify-child-process");
 const fs = require("fs-extra");
@@ -32,14 +32,18 @@ beforeEach(() => {
 		default_branch: "main",
 		remote: "git@gitlab.com:firecow/example.git",
 		priority: 0,
-		scripts: {
+		actions: {
 			start: {
-				"firecow.dk": ["docker-compose", "up"],
-				"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "start"],
+				groups: {
+					"firecow.dk": ["docker-compose", "up"],
+					"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "start"],
+				},
 			},
 			down: {
-				"firecow.dk": ["docker-compose", "down"],
-				"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "stop"],
+				groups: {
+					"firecow.dk": ["docker-compose", "down"],
+					"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "stop"],
+				},
 			},
 		},
 	};
@@ -132,9 +136,9 @@ describe("Project dir from remote", () => {
 describe("Run scripts", () => {
 
 	test("Start firecow.dk", async () => {
-		await runScripts(cwdStub, projectStub, "start", "firecow.dk");
+		await runActions(cwdStub, projectStub, 0, "start", "firecow.dk");
 		expect(console.log).toHaveBeenCalledWith(
-			chalk`Executing {blue docker-compose up} in {cyan /home/user/git-local-devops/firecow-example}`,
+			chalk`{blue docker-compose up} is running in {cyan /home/user/git-local-devops/firecow-example}`,
 		);
 	});
 
@@ -142,9 +146,9 @@ describe("Run scripts", () => {
 		when(spawnSpy).calledWith(
 			"docker-compose", ["up"], expect.objectContaining({}),
 		).mockRejectedValue({stderr: "ARRRG FAILURE"});
-		await runScripts(cwdStub, projectStub, "start", "firecow.dk");
+		await runActions(cwdStub, projectStub, 0, "start", "firecow.dk");
 		expect(console.error).toHaveBeenCalledWith(
-			chalk`"start" "firecow.dk" failed, goto {cyan /home/user/git-local-devops/firecow-example} and run {blue docker-compose up} manually`,
+			chalk`"start" "firecow.dk" {red failed}, goto {cyan /home/user/git-local-devops/firecow-example} and run {blue docker-compose up} manually`,
 		);
 	});
 
@@ -179,7 +183,7 @@ describe("Git Operations", () => {
 				"git", ["pull"], expect.objectContaining({}),
 			).mockResolvedValue({stdout: "Already up to date."});
 			await gitOperations(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(chalk`Already up to date {cyan ${cwdStub}/firecow-example}`);
+			expect(console.log).toHaveBeenCalledWith(chalk`{yellow main} is up to date in {cyan ${cwdStub}/firecow-example}`);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["pull"],
 				expect.objectContaining({}),
@@ -189,7 +193,7 @@ describe("Git Operations", () => {
 		test("Pulling latest changes", async () => {
 			mockHasNoChanges();
 			await gitOperations(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(chalk`Pulled {magenta origin/main} in {cyan ${cwdStub}/firecow-example}`);
+			expect(console.log).toHaveBeenCalledWith(chalk`{yellow main} pulled changes from {magenta origin/main} in {cyan ${cwdStub}/firecow-example}`);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["pull"],
 				expect.objectContaining({}),

@@ -1,13 +1,13 @@
 const fs = require("fs-extra");
 const yaml = require("js-yaml");
-const {runScripts} = require("./run_scripts");
+const {runActions} = require("./actions");
 const {gitOperations} = require("./git_operations");
 const assert = require("assert");
 const {startup} = require("./startup");
 const cp = require("promisify-child-process");
 const dotenv = require("dotenv");
 
-async function start(cwd, scriptToRun, domainToRun) {
+async function start(cwd, actionToRun, groupToRun) {
 	const cnfPath = `${cwd}/.git-local-devops.yml`;
 	const dotenvPath = `${cwd}/.git-local-devops-env`;
 	const prioRange = [0, 1000];
@@ -52,11 +52,11 @@ async function start(cwd, scriptToRun, domainToRun) {
 	await Promise.all(gitOperationsPromises);
 
 	for (let i = prioRange[0]; i < prioRange[1]; i++) {
-		const runScriptsPromises = [];
-		for (const projectObj of Object.values(cnf["projects"]).filter((p) => p.priority === i)) {
-			runScriptsPromises.push(runScripts(cwd, projectObj, scriptToRun, domainToRun));
+		const runActionPromises = [];
+		for (const projectObj of Object.values(cnf["projects"])) {
+			runActionPromises.push(runActions(cwd, projectObj, i, actionToRun, groupToRun));
 		}
-		await Promise.all(runScriptsPromises);
+		await Promise.all(runActionPromises);
 	}
 }
 

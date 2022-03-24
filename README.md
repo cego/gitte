@@ -40,14 +40,16 @@ projects:
   example:
     remote: git@gitlab.com:firecow/example.git
     default_branch: main
-    priority: 0
-    scripts:
+    actions:
       up:
-        firecow.dk: ["bash", "-c", "start-docker-stack.sh"]
-        firecow.net: ["docker-compose", "up"]
+        groups:
+            firecow.dk: ["bash", "-c", "start-docker-stack.sh"]
+            firecow.net: ["docker-compose", "up"]
       down:
-        firecow.dk: ["docker", "stack", "rm", "firecow.dk"]
-        firecow.net: ["docker-compose", "down"]
+        priority: 1
+        groups:
+            firecow.dk: ["docker", "stack", "rm", "firecow.dk"]
+            firecow.net: ["docker-compose", "down"]
 ```
 
 You can also use a remote config file if you put `.git-local-devops-env` in `~/git-local-devops`

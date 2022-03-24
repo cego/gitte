@@ -19,9 +19,9 @@ async function pull(dir, currentBranch) {
 	if (err) throw err;
 	const msg = `${res.stdout}`.trim();
 	if (msg === "Already up to date.") {
-		console.log(chalk`Already up to date {cyan ${dir}}`);
+		console.log(chalk`{yellow ${currentBranch}} is up to date in {cyan ${dir}}`);
 	} else {
-		console.log(chalk`Pulled {magenta origin/${currentBranch}} in {cyan ${dir}}`);
+		console.log(chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 	}
 }
 

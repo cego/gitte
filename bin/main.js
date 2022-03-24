@@ -10,16 +10,16 @@ const terminalWidth = yargs().terminalWidth();
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 yargs(process.argv.slice(2))
 	.version(packageJson["version"])
-	.command("$0 <script> <domain>", "", (yargs) => {
+	.command("$0 <action> <group>", "", (yargs) => {
 		return yargs
-			.positional("script", {
-				describe: "script to run for each project in config",
-			}).positional("domain", {
-				describe: "domain for which the script is executed",
+			.positional("action", {
+				describe: "action to run for each project in config",
+			}).positional("group", {
+				describe: "group entry to run for specified action",
 			});
 	}, async (argv) => {
 		try {
-			await start(argv["cwd"], argv["script"], argv["domain"]);
+			await start(argv["cwd"], argv["action"], argv["group"]);
 		} catch (e) {
 			if (e instanceof assert.AssertionError) {
 				console.error(chalk`{red ${e.message}}`);
