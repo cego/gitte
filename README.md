@@ -10,14 +10,31 @@
 ## Config setup
 
 Put `.git-local-devops.yml` in `~/git-local-devops` or another user owned folder.
-
 ```
 ---
 startup:
-  # Used to check host machine for various requirements. 
-  - { argv: ["git", "--version"], failMessage: "Git isn't installed on the system" }
-  - { argv: ["docker", "--version"], failMessage: "Docker isn't installed on the system" }
-  - { argv: ["docker", "login", "registry.gitlab.com"], failMessage: "You must be logged in on registry.gitlab.com to fetch docker images" }
+  # Used to check host machine for various requirements.
+  git-present: 
+    { cmd: ["git", "--version"], hint: "Git isn't installed on the system" }
+  docker-present:
+    { cmd: ["docker", "--version"], hint: "Docker isn't installed on the system" }
+  docker-login:
+    { cmd: ["docker", "login", "registry.gitlab.com"], hint: "You must be logged in on registry.gitlab.com to fetch docker images" }
+  ensure-docker-swarm-networks:
+    shell: "bash"
+    script: |
+      docker_overlay_networks="swarm-network"
+      for docker_overlay_network in ${docker_overlay_networks}
+      do
+        if (docker network ls | grep -w " ${docker_overlay_network} " 1> /dev/null)
+        then
+          echo "${docker_overlay_network} network exists, doing nothing"
+        else
+          echo "Creating ${docker_overlay_network} network"
+          docker network create "${docker_overlay_network}" --driver overlay --opt encrypted --attachable 1> /dev/null
+        fi
+      done
+
 
 projects:
   example:
@@ -33,7 +50,7 @@ projects:
         firecow.net: ["docker-compose", "down"]
 ```
 
-You can also use remote config files if you put `.git-local-devops-env` in `~/git-local-devops`
+You can also use a remote config file if you put `.git-local-devops-env` in `~/git-local-devops`
 
 ```
 REMOTE_GIT_PROJECT_FILE=".git-local-devops.yml"
