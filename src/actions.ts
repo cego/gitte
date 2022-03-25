@@ -1,7 +1,7 @@
 import {getProjectDirFromRemote} from "./project";
 import chalk from "chalk";
 import {default as to} from "await-to-js";
-import { Project } from "./validate_yaml";
+import { Project } from "./types/config";
 import execa from 'execa';
 
 export async function runActions(cwd: string, project: Project, currentPrio: number, actionToRun: string, groupToRun: string) {

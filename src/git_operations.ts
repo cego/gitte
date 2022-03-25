@@ -2,9 +2,9 @@ import { getProjectDirFromRemote } from "./project";
 import to from "await-to-js";
 import fs from "fs-extra";
 import chalk from "chalk";
-import { Project } from "./validate_yaml";
-import { ChildProcessError, ChildProcessResult, Utils } from "./utils";
-
+import { Project } from "./types/config";
+import { Utils } from "./utils";
+import { ChildProcessError, ChildProcessResult } from "./types/utils";
 
 async function hasLocalChanges(dir: string) {
 	const res = await Utils.spawn("git", ["status", "--porcelain"], { cwd: dir });

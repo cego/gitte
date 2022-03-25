@@ -1,4 +1,4 @@
-import { Project } from "./validate_yaml";
+import { Project } from "./types/config";
 
 export function getPriorityRange(projects: Project[]): { min: number, max: number } {
 

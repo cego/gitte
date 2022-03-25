@@ -1,13 +1,5 @@
 import * as childProcess from "child_process";
 
-export class ChildProcessError extends Error {
-    stderr: string = "";
-}
-
-export type ChildProcessResult = {
-    stdout: string;
-}
-
 export class Utils {
     static spawn(cmd: string, cmdArgs: string[], options: childProcess.SpawnOptions): Promise<{ stdout: string; stderr: string; output: string; status: number }> {
         return new Promise((resolve, reject) => {

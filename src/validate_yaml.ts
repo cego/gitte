@@ -1,5 +1,6 @@
-import Ajv from 'ajv';
-const ajv = new Ajv();
+import Ajv2019 from "ajv/dist/2019"
+const ajv = new Ajv2019()
+import { Config } from './types/config';
 
 const schema = {
     type: 'object',
@@ -18,7 +19,7 @@ const schema = {
                             cmd: {
                                 type: "array",
                                 contains: { type: "string" },
-                                // minContains: 1 todo
+                                minContains: 1
                             },
                             hint: {
                                 type: "string"
@@ -81,7 +82,7 @@ const schema = {
                                     additionalProperties: {
                                         type: "array",
                                         contains: { type: "string" },
-                                        // minContains: 1 todo
+                                        minContains: 1
                                     }
                                 }
                             }
@@ -91,29 +92,6 @@ const schema = {
             }
         }
     }
-}
-
-export type Action = {
-    hint?: string | undefined;
-}
-export type CmdAction = Action & { cmd: [string, ...string[]] }
-export type ShellAction = Action & { shell: string, script: string }
-
-export type ProjectAction = {
-    priority: number | undefined;
-    groups: { [key: string]: [string, ...string[]] };
-}
-
-export type Project = {
-    remote: string;
-    default_branch: string;
-    priority: number | undefined;
-    actions: { [key: string]: ProjectAction };
-}
-
-export type Config = {
-    startup: {[key:string]: (CmdAction | ShellAction)};
-    projects:{[key:string]: Project}
 }
 
 const validate = ajv.compile<Config>(schema);

@@ -5,9 +5,10 @@ import { gitOperations } from "./git_operations";
 import assert from "assert";
 import { startup } from "./startup";
 import dotenv from "dotenv";
-import { Config, validateYaml } from "./validate_yaml";
+import { validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
 import { Utils } from "./utils";
+import { Config } from "./types/config";
 
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string) {

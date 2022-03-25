@@ -1,6 +1,6 @@
 import {default as to} from "await-to-js";
 import { Utils } from "./utils";
-import { CmdAction, ShellAction } from "./validate_yaml";
+import { CmdAction, ShellAction } from "./types/config";
 
 export async function startup(startupList: (CmdAction | ShellAction)[]) {
 	let err;
