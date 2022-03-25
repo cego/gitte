@@ -1,4 +1,4 @@
-const Ajv = require('ajv');
+import Ajv from 'ajv';
 const ajv = new Ajv();
 
 const schema = {
@@ -17,9 +17,8 @@ const schema = {
                         properties: {
                             cmd: {
                                 type: "array",
-                                items: {
-                                    type: "string"
-                                }
+                                contains: { type: "string" },
+                                // minContains: 1 todo
                             },
                             hint: {
                                 type: "string"
@@ -81,9 +80,8 @@ const schema = {
                                     type: "object",
                                     additionalProperties: {
                                         type: "array",
-                                        items: {
-                                            type: "string"
-                                        }
+                                        contains: { type: "string" },
+                                        // minContains: 1 todo
                                     }
                                 }
                             }
@@ -95,14 +93,35 @@ const schema = {
     }
 }
 
-const validate = ajv.compile(schema);
+export type Action = {
+    hint: string | undefined;
+}
+export type CmdAction = Action & { cmd: [string, ...string[]] }
+export type ShellAction = Action & { shell: string, script: string }
 
-function validateYaml(obj) {
+export type ProjectAction = {
+    priority: number | undefined;
+    groups: { [key: string]: [string, ...string[]] };
+}
+
+export type Project = {
+    remote: string;
+    default_branch: string;
+    priority: number | undefined;
+    actions: { [key: string]: ProjectAction };
+}
+
+export type Config = {
+    startup: {[key:string]: (CmdAction | ShellAction)};
+    projects:{[key:string]: Project}
+}
+
+const validate = ajv.compile<Config>(schema);
+
+export function validateYaml(obj: any) {
     const valid = validate(obj);
     if (!valid) {
         console.error(validate.errors);
     }
     return valid;
-}
-
-module.exports = { validateYaml }
+} 
