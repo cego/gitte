@@ -20,7 +20,7 @@ async function pull(dir, currentBranch) {
 		if (`${err.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
 			console.log(chalk`{yellow ${currentBranch}} doesn't have a remote origin {cyan ${dir}}`);
 		} else {
-			console.log(chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch} {cyan ${dir}}`);
+			console.log(chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} {cyan ${dir}}`);
 		}
 		return false;
 	}

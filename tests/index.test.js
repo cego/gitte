@@ -176,7 +176,33 @@ describe("Git Operations", () => {
 		);
 	});
 
+	test("No remote", async () => {
+		mockHasNoChanges();
+		when(spawnSpy)
+			.calledWith("git", ["pull"], expect.objectContaining({}))
+			.mockRejectedValue({stderr: "There is no tracking information for the current branch"});
+
+		await gitOperations(cwdStub, projectStub);
+
+		expect(console.log).toHaveBeenCalledWith(
+			chalk`{yellow main} doesn't have a remote origin {cyan ${cwdStub}/firecow-example}`,
+		);
+	});
+
 	describe("Default branch", () => {
+		test("No remote", async () => {
+			mockHasNoChanges();
+			when(spawnSpy)
+				.calledWith("git", ["pull"], expect.objectContaining({}))
+				.mockRejectedValue({stderr: "There is no tracking information for the current branch"});
+
+			await gitOperations(cwdStub, projectStub);
+
+			expect(console.log).toHaveBeenCalledWith(
+				chalk`{yellow main} doesn't have a remote origin {cyan ${cwdStub}/firecow-example}`,
+			);
+		});
+
 		test("Already up to date", async () => {
 			mockHasNoChanges();
 			when(spawnSpy).calledWith(
@@ -199,6 +225,19 @@ describe("Git Operations", () => {
 				expect.objectContaining({}),
 			);
 		});
+
+		test("Conflicts with origin", async () => {
+			mockHasNoChanges();
+			when(spawnSpy)
+				.calledWith("git", ["pull"], expect.objectContaining({}))
+				.mockRejectedValue({stderr: "I'M IN CONFLICT"});
+
+			await gitOperations(cwdStub, projectStub);
+			expect(console.log).toHaveBeenCalledWith(
+				chalk`{yellow main} {red conflicts} with {magenta origin/main} {cyan ${cwdStub}/firecow-example}`,
+			);
+		});
+
 	});
 
 	describe("Custom branch", () => {
@@ -209,6 +248,24 @@ describe("Git Operations", () => {
 			await gitOperations(cwdStub, projectStub);
 			expect(console.log).toHaveBeenCalledWith(
 				chalk`{yellow custom} was rebased on {magenta origin/main} in {cyan ${cwdStub}/firecow-example}`,
+			);
+			expect(spawnSpy).toHaveBeenCalledWith(
+				"git", ["rebase", `origin/main`],
+				expect.objectContaining({}),
+			);
+		});
+
+		test("Rebasing, already up to date", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+
+			when(spawnSpy)
+				.calledWith("git", ["rebase", "origin/main"], expect.objectContaining({}))
+				.mockResolvedValue({stdout: "Current branch test is up to date."});
+
+			await gitOperations(cwdStub, projectStub);
+			expect(console.log).toHaveBeenCalledWith(
+				chalk`{yellow custom} is already on {magenta origin/main} in {cyan ${cwdStub}/firecow-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["rebase", `origin/main`],
