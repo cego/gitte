@@ -1,5 +1,5 @@
 import {default as to} from "await-to-js";
-import {execa} from 'execa';
+import execa from 'execa';
 import { CmdAction, ShellAction } from "./validate_yaml";
 
 export async function startup(startupList: {[key:string]: (CmdAction | ShellAction)}) {

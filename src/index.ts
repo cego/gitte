@@ -7,7 +7,7 @@ import { startup } from "./startup";
 import dotenv from "dotenv";
 import { Config, validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
-import {execa} from 'execa';
+import execa from 'execa';
 
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string) {
