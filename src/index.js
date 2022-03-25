@@ -1,0 +1,55 @@
+const fs = require("fs-extra");
+const yaml = require("js-yaml");
+const {runActions} = require("./actions");
+const {gitOperations} = require("./git_operations");
+const assert = require("assert");
+const {startup} = require("./startup");
+const cp = require("promisify-child-process");
+const dotenv = require("dotenv");
+const { validateYaml } = require('./validate_yaml')
+const { getPriorityRange } = require("./priority");
+
+async function start(cwd, actionToRun, groupToRun) {
+	const cnfPath = `${cwd}/.git-local-devops.yml`;
+	const dotenvPath = `${cwd}/.git-local-devops-env`;
+
+	let fileContent;
+
+	if (await fs.pathExists(dotenvPath)) {
+		const envCnf = dotenv.parse(await fs.readFile(dotenvPath)); // will return an object
+		assert(envCnf.REMOTE_GIT_PROJECT, `REMOTE_GIT_PROJECT isn't defined in ${dotenvPath}`);
+		assert(envCnf.REMOTE_GIT_PROJECT_FILE, `REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`);
+		await fs.ensureDir("/tmp/git-local-devops");
+		await cp.spawn(
+			`git archive --remote=${envCnf.REMOTE_GIT_PROJECT} master ${envCnf.REMOTE_GIT_PROJECT_FILE} | tar -xC /tmp/git-local-devops/`,
+			{shell: "bash", cwd, env: process.env, encoding: "utf8"},
+		);
+		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf.REMOTE_GIT_PROJECT_FILE}`, "utf8");
+	} else {
+		assert(await fs.pathExists(cnfPath), `${cwd} doesn't contain an .git-local-devops.yml file`);
+		fileContent = await fs.readFile(`${cwd}/.git-local-devops.yml`, "utf8");
+	}
+
+	const cnf = yaml.load(fileContent);
+	assert(validateYaml(cnf), "Invalid .git-local-devops.yml file");
+
+	await startup(cnf["startup"]);
+
+	const gitOperationsPromises = [];
+	for (const projectObj of Object.values(cnf["projects"])) {
+		gitOperationsPromises.push(gitOperations(cwd, projectObj));
+	}
+	await Promise.all(gitOperationsPromises);
+
+	const prioRange = getPriorityRange(Object.values(cnf['projects']));
+
+	for (let i = prioRange.min; i < prioRange.max; i++) {
+		const runActionPromises = [];
+		for (const projectObj of Object.values(cnf["projects"])) {
+			runActionPromises.push(runActions(cwd, projectObj, i, actionToRun, groupToRun));
+		}
+		await Promise.all(runActionPromises);
+	}
+}
+
+module.exports = {start};

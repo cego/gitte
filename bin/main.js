@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import yargs from 'yargs/yargs';
-import { start } from "../src";
-import chalk from "chalk";
-import assert from "assert";
-import fs from "fs-extra";
-import path from "path";
+const yargs = require("yargs/yargs");
+const {start} = require("../src");
+const chalk = require("chalk");
+const assert = require("assert");
+const fs = require("fs-extra");
+const path = require("path");
 
 const terminalWidth = yargs().terminalWidth();
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
@@ -19,8 +19,8 @@ yargs(process.argv.slice(2))
 			});
 	}, async (argv) => {
 		try {
-			await start(argv["cwd"] as string, argv["action"] as string, argv["group"] as string);
-		} catch (e: any) {
+			await start(argv["cwd"], argv["action"], argv["group"]);
+		} catch (e) {
 			if (e instanceof assert.AssertionError) {
 				console.error(chalk`{red ${e.message}}`);
 			} else if (e.message.startsWith("Process exited")) {
