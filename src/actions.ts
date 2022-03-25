@@ -2,7 +2,7 @@ import {getProjectDirFromRemote} from "./project";
 import chalk from "chalk";
 import {default as to} from "await-to-js";
 import { Project } from "./validate_yaml";
-import { asyncExec } from "./async_exec";
+import { asyncSpawn } from "./utils";
 
 export async function runActions(cwd: string, project: Project, currentPrio: number, actionToRun: string, groupToRun: string) {
 	const remote = project.remote;
@@ -17,7 +17,7 @@ export async function runActions(cwd: string, project: Project, currentPrio: num
 			if (currentPrio !== priority) continue;
 			if (groupName !== groupToRun) continue;
 			console.log(chalk`{blue ${cmd.join(" ")}} is running in {cyan ${dir}}`);
-			[err] = await to(asyncExec(cmd.join(" "), {cwd: dir, env: process.env, encoding: "utf8"}));
+			[err] = await to(asyncSpawn(cmd[0], cmd.splice(1), {cwd: dir, env: process.env}));
 			if (err) {
 				console.error(chalk`"${actionToRun}" "${groupToRun}" {red failed}, goto {cyan ${dir}} and run {blue ${cmd.join(" ")}} manually`);
 			}

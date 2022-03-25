@@ -7,7 +7,7 @@ import { startup } from "./startup";
 import dotenv from "dotenv";
 import { Config, validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
-import { asyncExec } from "./async_exec";
+import { asyncSpawn } from "./utils";
 
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string) {
@@ -21,9 +21,9 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		assert(envCnf['REMOTE_GIT_PROJECT'], `REMOTE_GIT_PROJECT isn't defined in ${dotenvPath}`);
 		assert(envCnf['REMOTE_GIT_PROJECT_FILE'], `REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`);
 		await fs.ensureDir("/tmp/git-local-devops");
-		await asyncExec(
-			`git archive --remote=${envCnf['REMOTE_GIT_PROJECT']} master ${envCnf['REMOTE_GIT_PROJECT_FILE']} | tar -xC /tmp/git-local-devops/`,
-			{shell: "bash", cwd, env: process.env, encoding: "utf8"},
+		await asyncSpawn(
+			"git", ["archive", `--remote=${envCnf['REMOTE_GIT_PROJECT']}`, "master", envCnf['REMOTE_GIT_PROJECT_FILE'], "|", "tar", "-xC", "/tmp/git-local-devops/"],
+			{shell: "bash", cwd, env: process.env},
 		);
 		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf['REMOTE_GIT_PROJECT_FILE']}`, "utf8");
 	} else {
