@@ -7,7 +7,7 @@ import { startup } from "./startup";
 import dotenv from "dotenv";
 import { Config, validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
-import execa from 'execa';
+import { Utils } from "./utils";
 
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string) {
@@ -21,7 +21,7 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		assert(envCnf['REMOTE_GIT_PROJECT'], `REMOTE_GIT_PROJECT isn't defined in ${dotenvPath}`);
 		assert(envCnf['REMOTE_GIT_PROJECT_FILE'], `REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`);
 		await fs.ensureDir("/tmp/git-local-devops");
-		await execa(
+		await Utils.spawn(
 			"git", ["archive", `--remote=${envCnf['REMOTE_GIT_PROJECT']}`, "master", envCnf['REMOTE_GIT_PROJECT_FILE'], "|", "tar", "-xC", "/tmp/git-local-devops/"],
 			{shell: "bash", cwd, env: process.env},
 		);
@@ -35,7 +35,7 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 	assert(validateYaml(yml), "Invalid .git-local-devops.yml file");
 	const cnf: Config = yml;
 
-	await startup(cnf.startup);
+	await startup(Object.values(cnf.startup));
 
 	const gitOperationsPromises = [];
 	for (const projectObj of Object.values(cnf.projects)) {

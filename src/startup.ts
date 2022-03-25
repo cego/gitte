@@ -1,13 +1,13 @@
 import {default as to} from "await-to-js";
-import execa from 'execa';
+import { Utils } from "./utils";
 import { CmdAction, ShellAction } from "./validate_yaml";
 
-export async function startup(startupList: {[key:string]: (CmdAction | ShellAction)}) {
+export async function startup(startupList: (CmdAction | ShellAction)[]) {
 	let err;
-	for (let [_name, action] of Object.entries(startupList)) {
+	for (let action of startupList) {
 		if ('cmd' in action) {
 			action = action as CmdAction;
-			[err] = await to(execa(action.cmd[0], action.cmd.splice(1), {env: process.env, encoding: "utf8"}));
+			[err] = await to(Utils.spawn(action.cmd[0], action.cmd.slice(1), {env: process.env}));
 			if (err) {
 				err = err as any;
 				err.hint = action.hint;
@@ -15,7 +15,7 @@ export async function startup(startupList: {[key:string]: (CmdAction | ShellActi
 			}
 		} else {
 			action = action as ShellAction;
-			[err] = await to(execa(action.script, [], {shell: action.shell, env: process.env, encoding: "utf8"}));
+			[err] = await to(Utils.spawn(action.script, [], {shell: action.shell, env: process.env}));
 			if (err) {
 				err = err as any;
 				err.hint = action.hint;
