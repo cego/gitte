@@ -3,21 +3,21 @@ import to from "await-to-js";
 import fs from "fs-extra";
 import chalk from "chalk";
 import { Project } from "./validate_yaml";
-import { asyncSpawn } from "./utils";
+import {execa} from 'execa';
 
 
 async function hasLocalChanges(dir: string) {
-	const res = await asyncSpawn("git", ["status", "--porcelain"], {cwd: dir});
+	const res = await execa("git", ["status", "--porcelain"], {cwd: dir});
 	return `${res.stdout}`.trim().length !== 0;
 }
 
 async function fetch(dir: string) {
-	await asyncSpawn("git", ["fetch"], {cwd: dir});
+	await execa("git", ["fetch"], {cwd: dir});
 }
 
 async function pull(dir: string, currentBranch: string) {
 	let stderr, stdout;
-	[stderr, stdout] = await to(asyncSpawn("git", ["pull"], {cwd: dir}));
+	[stderr, stdout] = await to(execa("git", ["pull"], {cwd: dir}));
 
 	if (stderr) {
 		if (`${stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
@@ -40,10 +40,10 @@ async function pull(dir: string, currentBranch: string) {
 
 async function rebase(dir: string, currentBranch: string, defaultBranch: string) {
 	let stderr, stdout;
-	[stderr, stdout] = await to(asyncSpawn(`git rebase origin/${defaultBranch}`, {cwd: dir, encoding: "utf8"}));
+	[stderr, stdout] = await to(execa(`git rebase origin/${defaultBranch}`, {cwd: dir, encoding: "utf8"}));
 
 	if (stderr) {
-		await asyncSpawn("git rebase --abort", {cwd: dir, encoding: "utf8"});
+		await execa("git rebase --abort", {cwd: dir, encoding: "utf8"});
 		return false;
 	}
 
@@ -57,12 +57,12 @@ async function rebase(dir: string, currentBranch: string, defaultBranch: string)
 
 async function merge(dir: string, currentBranch: string, defaultBranch: string) {
 	let err;
-	[err] = await to(asyncSpawn(`git merge origin/${defaultBranch}`, {cwd: dir, encoding: "utf8"}));
+	[err] = await to(execa(`git merge origin/${defaultBranch}`, {cwd: dir, encoding: "utf8"}));
 	if (!err) {
 		console.log(chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 		return;
 	}
-	await asyncSpawn("git merge --abort", {cwd: dir, encoding: "utf8"});
+	await execa("git merge --abort", {cwd: dir, encoding: "utf8"});
 	console.log(chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`);
 }
 
@@ -73,7 +73,7 @@ export async function gitOperations(cwd: string, projectObj: Project) {
 
 	let stderr, stdout, currentBranch = null;
 
-	[stderr, stdout] = await to(asyncSpawn("git rev-parse --agrev-ref HEAD", {cwd: dir, encoding: "utf8"}));
+	[stderr, stdout] = await to(execa("git rev-parse --agrev-ref HEAD", {cwd: dir, encoding: "utf8"}));
 
 	if(stderr){
 		console.log(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} ${stderr}`);
@@ -83,7 +83,7 @@ export async function gitOperations(cwd: string, projectObj: Project) {
 	currentBranch = `${stdout}`.trim();
 
 	if (!await fs.pathExists(`${dir}`)) {
-		await asyncSpawn(`git clone ${remote} ${dir}`, {encoding: "utf8"});
+		await execa(`git clone ${remote} ${dir}`, {encoding: "utf8"});
 		console.log(chalk`{gray ${remote}} was cloned to {cyan ${dir}}`);
 	} else if (await hasLocalChanges(dir)) {
 		console.log(chalk`{yellow ${currentBranch}} has local changes in {cyan ${dir}}`);

@@ -7,7 +7,7 @@ import { startup } from "./startup";
 import dotenv from "dotenv";
 import { Config, validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
-import { asyncSpawn } from "./utils";
+import {execa} from 'execa';
 
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string) {
@@ -21,7 +21,7 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		assert(envCnf['REMOTE_GIT_PROJECT'], `REMOTE_GIT_PROJECT isn't defined in ${dotenvPath}`);
 		assert(envCnf['REMOTE_GIT_PROJECT_FILE'], `REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`);
 		await fs.ensureDir("/tmp/git-local-devops");
-		await asyncSpawn(
+		await execa(
 			"git", ["archive", `--remote=${envCnf['REMOTE_GIT_PROJECT']}`, "master", envCnf['REMOTE_GIT_PROJECT_FILE'], "|", "tar", "-xC", "/tmp/git-local-devops/"],
 			{shell: "bash", cwd, env: process.env},
 		);
