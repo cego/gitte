@@ -20,7 +20,7 @@ async function pull(dir, currentBranch) {
 		if (`${err.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
 			console.log(chalk`{yellow ${currentBranch}} doesn't have a remote origin {cyan ${dir}}`);
 		} else {
-			console.log(chalk`{yellow ${currentBranch}} contains {red conflicts} {cyan ${dir}}`);
+			console.log(chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch} {cyan ${dir}}`);
 		}
 		return false;
 	}
@@ -42,12 +42,10 @@ async function rebase(dir, currentBranch, defaultBranch) {
 	}
 
 	if (`${res.stdout}`.trim() === "Current branch test is up to date.") {
-		console.log(chalk`Current branch {yellow ${currentBranch}} is already on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
+		console.log(chalk`{yellow ${currentBranch}} is already on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 	} else {
-		console.log(chalk`Rebased {yellow ${currentBranch}} on top of {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
+		console.log(chalk`{yellow ${currentBranch}} was rebased on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 	}
-
-
 	return true;
 }
 
@@ -55,11 +53,11 @@ async function merge(dir, currentBranch, defaultBranch) {
 	let err;
 	[err] = await to(cp.spawn("git", ["merge", `origin/${defaultBranch}`], {cwd: dir, encoding: "utf8"}));
 	if (!err) {
-		console.log(chalk`Merged {magenta origin/${defaultBranch}} with {yellow ${currentBranch}} in {cyan ${dir}}`);
+		console.log(chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 		return;
 	}
 	await cp.spawn("git", ["merge", `--abort`], {cwd: dir, encoding: "utf8"});
-	console.log(chalk`Merged failed in {cyan ${dir}}`);
+	console.log(chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`);
 }
 
 async function gitOperations(cwd, projectObj) {
@@ -73,9 +71,9 @@ async function gitOperations(cwd, projectObj) {
 
 	if (!await fs.pathExists(`${dir}`)) {
 		await cp.spawn("git", ["clone", remote, `${dir}`], {encoding: "utf8"});
-		console.log(chalk`Cloned {gray ${remote}} to {cyan ${dir}}`);
+		console.log(chalk`{gray ${remote}} was cloned to {cyan ${dir}}`);
 	} else if (await hasLocalChanges(dir)) {
-		console.log(chalk`Local changes found, no git operations will be applied in {cyan ${dir}}`);
+		console.log(chalk`{yellow ${currentBranch}} has local changes in {cyan ${dir}}`);
 	} else if (currentBranch === defaultBranch) {
 		await fetch(dir);
 		await pull(dir, currentBranch);

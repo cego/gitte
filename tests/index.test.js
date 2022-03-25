@@ -163,7 +163,7 @@ describe("Git Operations", () => {
 	test("Changes found", async () => {
 		await gitOperations(cwdStub, projectStub);
 		expect(console.log).toHaveBeenCalledWith(
-			chalk`Local changes found, no git operations will be applied in {cyan ${cwdStub}/firecow-example}`,
+			chalk`{yellow main} has local changes in {cyan ${cwdStub}/firecow-example}`,
 		);
 	});
 
@@ -208,7 +208,7 @@ describe("Git Operations", () => {
 			mockCustomBranch();
 			await gitOperations(cwdStub, projectStub);
 			expect(console.log).toHaveBeenCalledWith(
-				chalk`Rebased {yellow custom} on top of {magenta origin/main} in {cyan ${cwdStub}/firecow-example}`,
+				chalk`{yellow custom} was rebased on {magenta origin/main} in {cyan ${cwdStub}/firecow-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["rebase", `origin/main`],
@@ -222,7 +222,7 @@ describe("Git Operations", () => {
 			mockRebaseFailed();
 			await gitOperations(cwdStub, projectStub);
 			expect(console.log).toHaveBeenCalledWith(
-				chalk`Merged {magenta origin/main} with {yellow custom} in {cyan ${cwdStub}/firecow-example}`,
+				chalk`{yellow custom} was merged with {magenta origin/main} in {cyan ${cwdStub}/firecow-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["rebase", `--abort`],
@@ -241,7 +241,7 @@ describe("Git Operations", () => {
 			mockMergeFailed();
 			await gitOperations(cwdStub, projectStub);
 			expect(console.log).toHaveBeenCalledWith(
-				chalk`Merged failed in {cyan ${cwdStub}/firecow-example}`,
+				chalk`{yellow custom} merge with {magenta origin/main} {red failed} in {cyan ${cwdStub}/firecow-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
 				"git", ["merge", `--abort`],
