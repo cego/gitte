@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/firecow/git-local-devops#readme",
   "dependencies": {
+    "ajv": "^8.11.0",
     "await-to-js": "^3.0.0",
     "chalk": "^4.1.2",
     "dotenv": "^16.0.0",

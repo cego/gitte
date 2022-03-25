@@ -6,11 +6,12 @@ const assert = require("assert");
 const {startup} = require("./startup");
 const cp = require("promisify-child-process");
 const dotenv = require("dotenv");
+const { validateYaml } = require('./validate_yaml')
+const { getPriorityRange } = require("./priority");
 
 async function start(cwd, actionToRun, groupToRun) {
 	const cnfPath = `${cwd}/.git-local-devops.yml`;
 	const dotenvPath = `${cwd}/.git-local-devops-env`;
-	const prioRange = [0, 1000];
 
 	let fileContent;
 
@@ -30,20 +31,9 @@ async function start(cwd, actionToRun, groupToRun) {
 	}
 
 	const cnf = yaml.load(fileContent);
+	assert(validateYaml(cnf), "Invalid .git-local-devops.yml file");
 
-	assert(cnf["startup"], `config must contain startup map`);
 	await startup(cnf["startup"]);
-
-	// General fail-early assertions on projects objects
-	for (const projectObj of Object.values(cnf["projects"])) {
-		const remote = projectObj["remote"];
-		const defaultBranch = projectObj["default_branch"];
-		assert(defaultBranch != null, `default_branch not set for ${remote}`);
-		const priority = projectObj["priority"];
-		assert(priority != null, `priority not set for ${remote}`);
-		assert(priority < prioRange[1], `priority must be below ${prioRange[1]}`);
-		assert(priority >= prioRange[0], `priority must be above or equal ${prioRange[0]}`);
-	}
 
 	const gitOperationsPromises = [];
 	for (const projectObj of Object.values(cnf["projects"])) {
@@ -51,7 +41,9 @@ async function start(cwd, actionToRun, groupToRun) {
 	}
 	await Promise.all(gitOperationsPromises);
 
-	for (let i = prioRange[0]; i < prioRange[1]; i++) {
+	const prioRange = getPriorityRange(Object.values(cnf['projects']));
+
+	for (let i = prioRange.min; i < prioRange.max; i++) {
 		const runActionPromises = [];
 		for (const projectObj of Object.values(cnf["projects"])) {
 			runActionPromises.push(runActions(cwd, projectObj, i, actionToRun, groupToRun));
