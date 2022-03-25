@@ -16,13 +16,21 @@ async function fetch(dir) {
 async function pull(dir, currentBranch) {
 	let err, res;
 	[err, res] = await to(cp.spawn("git", ["pull"], {cwd: dir, encoding: "utf8"}));
-	if (err) throw err;
+	if (err) {
+		if (`${err.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
+			console.log(chalk`{yellow ${currentBranch}} doesn't have a remote origin {cyan ${dir}}`);
+		} else {
+			console.log(chalk`{yellow ${currentBranch}} contains {red conflicts} {cyan ${dir}}`);
+		}
+		return false;
+	}
 	const msg = `${res.stdout}`.trim();
 	if (msg === "Already up to date.") {
 		console.log(chalk`{yellow ${currentBranch}} is up to date in {cyan ${dir}}`);
 	} else {
 		console.log(chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 	}
+	return true;
 }
 
 async function rebase(dir, currentBranch, defaultBranch) {
@@ -73,7 +81,7 @@ async function gitOperations(cwd, projectObj) {
 		await pull(dir, currentBranch);
 	} else {
 		await fetch(dir);
-		await pull(dir, currentBranch);
+		if (!await pull(dir, currentBranch)) return;
 		if (!await rebase(dir, currentBranch, defaultBranch)) {
 			await merge(dir, currentBranch, defaultBranch);
 		}
