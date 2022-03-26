@@ -3,21 +3,20 @@ import to from "await-to-js";
 import fs from "fs-extra";
 import chalk from "chalk";
 import { Project } from "./types/config";
-import { Utils } from "./utils";
-import { ChildProcessError, ChildProcessResult } from "./types/utils";
+import * as pcp from "promisify-child-process";
 
 async function hasLocalChanges(dir: string) {
-	const res = await Utils.spawn("git", ["status", "--porcelain"], { cwd: dir });
+	const res = await pcp.spawn("git", ["status", "--porcelain"], { cwd: dir, encoding: "utf8" });
 	return `${res.stdout}`.trim().length !== 0;
 }
 
 async function fetch(dir: string) {
-	await Utils.spawn("git", ["fetch"], { cwd: dir });
+	await pcp.spawn("git", ["fetch"], { cwd: dir, encoding: "utf8" });
 }
 
 async function pull(dir: string, currentBranch: string) {
-	let err: ChildProcessError | null, res: ChildProcessResult | undefined;
-	[err, res] = await to(Utils.spawn("git", ["pull"], { cwd: dir }));
+	let err: Error & pcp.Output | null, res: pcp.Output | undefined;
+	[err, res] = await to(pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }));
 
 	if (err || !res) {
 		if (`${err?.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
@@ -39,11 +38,11 @@ async function pull(dir: string, currentBranch: string) {
 }
 
 async function rebase(dir: string, currentBranch: string, defaultBranch: string) {
-	let err: ChildProcessError | null, res: ChildProcessResult | undefined;
-	[err, res] = await to(Utils.spawn("git", ["rebase", `origin/${defaultBranch}`], { cwd: dir }));
+	let err: Error & pcp.Output | null, res: pcp.Output | undefined;
+	[err, res] = await to(pcp.spawn("git", ["rebase", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" }));
 
 	if (err || !res) {
-		await Utils.spawn("git", ["rebase", "--abort"], { cwd: dir });
+		await pcp.spawn("git", ["rebase", "--abort"], { cwd: dir, encoding: "utf8" });
 		return false;
 	}
 
@@ -56,13 +55,13 @@ async function rebase(dir: string, currentBranch: string, defaultBranch: string)
 }
 
 async function merge(dir: string, currentBranch: string, defaultBranch: string) {
-	let err: ChildProcessError | null, res: ChildProcessResult | undefined;
-	[err, res] = await to(Utils.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir }));
+	let err: Error & pcp.Output | null, res: pcp.Output | undefined;
+	[err, res] = await to(pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" }));
 	if (!err && res) {
 		console.log(chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 		return;
 	}
-	await Utils.spawn("git", ["merge", "--abort"], { cwd: dir });
+	await pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
 	console.log(chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`);
 }
 
@@ -72,13 +71,13 @@ export async function gitOperations(cwd: string, projectObj: Project) {
 	const dir = getProjectDirFromRemote(cwd, remote);
 
 	if (!await fs.pathExists(`${dir}`)) {
-		await Utils.spawn("git", ["clone", remote, dir], { cwd });
+		await pcp.spawn("git", ["clone", remote, dir], { cwd, encoding: "utf8" });
 		console.log(chalk`{gray ${remote}} was cloned to {cyan ${dir}}`);
 		return;
 	}
 
-	let err: ChildProcessError | null, res: ChildProcessResult | undefined;
-	[err, res] = await to(Utils.spawn("git", ["branch", "--show-current"], { cwd: dir }));
+	let err: Error & pcp.Output | null, res: pcp.Output | undefined;
+	[err, res] = await to(pcp.spawn("git", ["branch", "--show-current"], { cwd: dir, encoding: "utf8" }));
 
 	if (err || !res) {
 		console.log(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} ${err}`);

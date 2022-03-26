@@ -7,8 +7,8 @@ import { startup } from "./startup";
 import dotenv from "dotenv";
 import { validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
-import { Utils } from "./utils";
 import { Config } from "./types/config";
+import * as pcp from "promisify-child-process";
 
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string) {
@@ -22,9 +22,9 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		assert(envCnf['REMOTE_GIT_PROJECT'], `REMOTE_GIT_PROJECT isn't defined in ${dotenvPath}`);
 		assert(envCnf['REMOTE_GIT_PROJECT_FILE'], `REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`);
 		await fs.ensureDir("/tmp/git-local-devops");
-		await Utils.spawn(
+		await pcp.spawn(
 			"git", ["archive", `--remote=${envCnf['REMOTE_GIT_PROJECT']}`, "master", envCnf['REMOTE_GIT_PROJECT_FILE'], "|", "tar", "-xC", "/tmp/git-local-devops/"],
-			{shell: "bash", cwd, env: process.env},
+			{shell: "bash", cwd, env: process.env, encoding: "utf8"},
 		);
 		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf['REMOTE_GIT_PROJECT_FILE']}`, "utf8");
 	} else {

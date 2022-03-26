@@ -8,7 +8,7 @@ import {when} from "jest-when";
 import {start} from "../src";
 import yaml from "js-yaml";
 import {startup} from "../src/startup";
-import  { Utils } from "../src/utils";
+import * as pcp from "promisify-child-process";
 
 function mockHasNoChanges() {
 	when(spawnSpy).calledWith("git", ["status", "--porcelain"], expect.objectContaining({})).mockResolvedValue({stdout: ""});
@@ -55,12 +55,12 @@ beforeEach(() => {
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => {
 		return `---\n${yaml.dump({projects: {example: projectStub}, startup: startupStub})}`;
 	});
-	Utils.spawn = jest.fn();
+	pcp.spawn = jest.fn();
 	console.log = jest.fn();
 	console.error = jest.fn();
 	fs.pathExists = jest.fn();
 
-	spawnSpy = jest.spyOn(Utils, "spawn").mockImplementation(() => {
+	spawnSpy = jest.spyOn(pcp, "spawn").mockImplementation(() => {
 		return new Promise((resolve) => {
 			resolve({stdout: "Mocked Stdout"});
 		});
