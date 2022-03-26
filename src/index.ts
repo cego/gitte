@@ -31,9 +31,9 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 	} else if (await fs.pathExists(cnfPath)) {
 			fileContent = await fs.readFile(cnfPath, "utf8");
 	} else {
-			assert(process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD'], `No config was found in the current location and GIT_LOCAL_DEVOPS_DEFAULT_CWD isn't defined`);
-			console.log(chalk`{yellow No config was found in the current location, using GIT_LOCAL_DEVOPS_DEFAULT_CWD:} {cyan ${process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD']}}`);
-			return start(process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD'], actionToRun, groupToRun);
+		assert(process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD'], `No config was found in the current location and GIT_LOCAL_DEVOPS_DEFAULT_CWD isn't defined`);
+		console.log(chalk`{yellow No config was found in the current location, using GIT_LOCAL_DEVOPS_DEFAULT_CWD:} {cyan ${process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD']}}`);
+		return start(process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD'], actionToRun, groupToRun);
 	}
 
 	const yml: any = yaml.load(fileContent);
