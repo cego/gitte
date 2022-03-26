@@ -29,7 +29,7 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		);
 		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf['REMOTE_GIT_PROJECT_FILE']}`, "utf8");
 	} else if (await fs.pathExists(cnfPath)) {
-			fileContent = await fs.readFile(cnfPath, "utf8");
+		fileContent = await fs.readFile(cnfPath, "utf8");
 	} else {
 		assert(process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD'], `No config was found in the current location and GIT_LOCAL_DEVOPS_DEFAULT_CWD isn't defined`);
 		console.log(chalk`{yellow No config was found in the current location, using GIT_LOCAL_DEVOPS_DEFAULT_CWD:} {cyan ${process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD']}}`);
