@@ -1,11 +1,11 @@
 # git-local-devops
 
-[![quality](https://img.shields.io/github/workflow/status/firecow/git-local-devops/Quality)](https://github.com/firecow/git-local-devops/actions)
-[![license](https://img.shields.io/github/license/firecow/git-local-devops)](https://npmjs.org/package/git-local-devops)
+[![quality](https://img.shields.io/github/workflow/status/cego/git-local-devops/Quality)](https://github.com/cego/git-local-devops/actions)
+[![license](https://img.shields.io/github/license/cego/git-local-devops)](https://npmjs.org/package/git-local-devops)
 [![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=firecow_git-local-devops&metric=alert_status)](https://sonarcloud.io/dashboard?id=firecow_git-local-devops)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=firecow_git-local-devops&metric=coverage)](https://sonarcloud.io/dashboard?id=firecow_git-local-devops)
-[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=firecow_git-local-devops&metric=code_smells)](https://sonarcloud.io/dashboard?id=firecow_git-local-devops)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=cego_git-local-devops&metric=alert_status)](https://sonarcloud.io/dashboard?id=cego_git-local-devops)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cego_git-local-devops&metric=coverage)](https://sonarcloud.io/dashboard?id=cego_git-local-devops)
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=cego_git-local-devops&metric=code_smells)](https://sonarcloud.io/dashboard?id=cego_git-local-devops)
 
 ## Config setup
 
@@ -38,18 +38,18 @@ startup:
 
 projects:
   example:
-    remote: git@gitlab.com:firecow/example.git
+    remote: git@gitlab.com:cego/example.git
     default_branch: main
     actions:
       up:
         groups:
-            firecow.dk: ["bash", "-c", "start-docker-stack.sh"]
-            firecow.net: ["docker-compose", "up"]
+            cego.dk: ["bash", "-c", "start-docker-stack.sh"]
+            cego.net: ["docker-compose", "up"]
       down:
         priority: 1
         groups:
-            firecow.dk: ["docker", "stack", "rm", "firecow.dk"]
-            firecow.net: ["docker-compose", "down"]
+            cego.dk: ["docker", "stack", "rm", "cego.dk"]
+            cego.net: ["docker-compose", "down"]
 ```
 You can specify a default directory to look for a valid config, if no config is found locally. To do this, set the environment variable `GIT_LOCAL_DEVOPS_DEFAULT_CWD` to your desired default folder.
 
@@ -57,12 +57,12 @@ You can also use a remote config file if you put `.git-local-devops-env` in `~/g
 
 ```
 REMOTE_GIT_PROJECT_FILE=".git-local-devops.yml"
-REMOTE_GIT_PROJECT="git@gitlab.com:firecow/example.git"
+REMOTE_GIT_PROJECT="git@gitlab.com:cego/example.git"
 ```
 
 ## Running scripts
 
-Run `git-local-devops up firecow.dk` inside `~/git-local-devops` folder
+Run `git-local-devops up cego.dk` inside `~/git-local-devops` folder
 
 All projects specified will pull the latest changes if on default branch
 
@@ -70,5 +70,5 @@ All projects on custom branch, will attempt to rebase `origin/<default_branch>` 
 
 After git operations are done, scripts matching cli inputs will be executed.
 
-In this example only `"bash", "-c", "start-docker-stack.sh"` will be executed in `~/git-local-devops/firecow/example` checkout
+In this example only `"bash", "-c", "start-docker-stack.sh"` will be executed in `~/git-local-devops/cego/example` checkout
 

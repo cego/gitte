@@ -10,8 +10,8 @@ const terminalWidth = yargs().terminalWidth();
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 yargs(process.argv.slice(2))
 	.version(packageJson["version"])
-	.command("$0 <action> <group>", "", (yargs) => {
-		return yargs
+	.command("$0 <action> <group>", "", (y) => {
+		return y
 			.positional("action", {
 				describe: "action to run for each project in config",
 			}).positional("group", {
@@ -43,4 +43,4 @@ yargs(process.argv.slice(2))
 		default: process.cwd(),
 	})
 	.alias("h", "help")
-	.argv;
+	.parse();

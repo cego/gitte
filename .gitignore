@@ -4,3 +4,6 @@ pkg/
 ppa/
 example.yml
 .git-local-devops.yml
+src/**/*.js
+bin/**/*.js
+tests/**/*.js
