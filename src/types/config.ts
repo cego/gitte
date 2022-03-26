@@ -1,5 +1,5 @@
 export type Action = {
-    hint?: string | undefined;
+    hint: string | undefined;
 }
 export type CmdAction = Action & { cmd: [string, ...string[]] }
 export type ShellAction = Action & { shell: string, script: string }
