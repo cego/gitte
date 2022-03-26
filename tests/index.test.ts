@@ -61,9 +61,7 @@ beforeEach(() => {
 	fs.pathExists = jest.fn();
 
 	spawnSpy = jest.spyOn(pcp, "spawn").mockImplementation(() => {
-		return new Promise((resolve) => {
-			resolve({stdout: "Mocked Stdout"});
-		});
+		return Promise.resolve({stdout: "Mocked Stdout"});
 	});
 
 	when(spawnSpy).calledWith(
@@ -174,19 +172,6 @@ describe("Git Operations", () => {
 		expect(spawnSpy).toHaveBeenCalledWith(
 			"git", ["clone", "git@gitlab.com:cego/example.git", "/home/user/git-local-devops/cego-example"],
 			expect.objectContaining({}),
-		);
-	});
-
-	test("No remote", async () => {
-		mockHasNoChanges();
-		when(spawnSpy)
-			.calledWith("git", ["pull"], expect.objectContaining({}))
-			.mockRejectedValue({stderr: "There is no tracking information for the current branch"});
-
-		await gitOperations(cwdStub, projectStub);
-
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow main} doesn't have a remote origin {cyan ${cwdStub}/cego-example}`,
 		);
 	});
 

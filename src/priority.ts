@@ -3,9 +3,9 @@ import { Project } from "./types/config";
 export function getPriorityRange(projects: Project[]): { min: number, max: number } {
 
     const priorities = projects.reduce((carry, project) => {
-        priorities.push(project.priority ?? 0);
+        carry.push(project.priority ?? 0);
         Object.values(project.actions).forEach(action => {
-            priorities.push(action.priority ?? 0)
+            carry.push(action.priority ?? 0)
         });
         return carry;
     }, [] as number[]);
