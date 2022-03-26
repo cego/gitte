@@ -5,7 +5,7 @@
   "main": "bin/main.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/firecow/git-local-devops.git"
+    "url": "git+https://github.com/cego/git-local-devops.git"
   },
   "keywords": [
     "git",
@@ -17,9 +17,9 @@
   "author": "Mads Jon Nielsen <madsjon@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/firecow/git-local-devops/issues"
+    "url": "https://github.com/cego/git-local-devops/issues"
   },
-  "homepage": "https://github.com/firecow/git-local-devops#readme",
+  "homepage": "https://github.com/cego/git-local-devops#readme",
   "dependencies": {
     "await-to-js": "^3.0.0",
     "chalk": "^4.1.2",

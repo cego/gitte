@@ -18,14 +18,14 @@ mkdir -p ppa
 mkdir -p "pkg/git-local-devops_${VERSION}_amd64/DEBIAN/"
 cat << EOF > "pkg/git-local-devops_${VERSION}_amd64/DEBIAN/control"
 Name: git-local-devops
-Package: com.github.firecow.git-local-devops
+Package: com.github.cego.git-local-devops
 Version: ${VERSION}
 Architecture: amd64
 Author: Mads Jon Nielsen <madsjon@gmail.com>
 Maintainer: Mads Jon Nielsen <madsjon@gmail.com>
 Description: ${DESCRIPTION}
-Homepage: https://github.com/firecow/git-local-devops
-Website: https://github.com/firecow/git-local-devops
+Homepage: https://github.com/cego/git-local-devops
+Website: https://github.com/cego/git-local-devops
 EOF
 
 mkdir -p "pkg/git-local-devops_${VERSION}_amd64/usr/local/bin/"
