@@ -9,9 +9,10 @@ import { validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
 import { Utils } from "./utils";
 import { Config } from "./types/config";
+import chalk from "chalk";
 
 
-export async function start(cwd: string, actionToRun: string, groupToRun: string) {
+export async function start(cwd: string, actionToRun: string, groupToRun: string): Promise<void> {
 	const cnfPath = `${cwd}/.git-local-devops.yml`;
 	const dotenvPath = `${cwd}/.git-local-devops-env`;
 
@@ -27,9 +28,12 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 			{shell: "bash", cwd, env: process.env},
 		);
 		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf['REMOTE_GIT_PROJECT_FILE']}`, "utf8");
+	} else if (await fs.pathExists(cnfPath)) {
+			fileContent = await fs.readFile(cnfPath, "utf8");
 	} else {
-		assert(await fs.pathExists(cnfPath), `${cwd} doesn't contain an .git-local-devops.yml file`);
-		fileContent = await fs.readFile(`${cwd}/.git-local-devops.yml`, "utf8");
+			assert(process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD'], `No config was found in the current location and GIT_LOCAL_DEVOPS_DEFAULT_CWD isn't defined`);
+			console.log(chalk`{yellow No config was found in the current location, using GIT_LOCAL_DEVOPS_DEFAULT_CWD:} {cyan ${process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD']}}`);
+			return start(process.env['GIT_LOCAL_DEVOPS_DEFAULT_CWD'], actionToRun, groupToRun);
 	}
 
 	const yml: any = yaml.load(fileContent);

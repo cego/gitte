@@ -51,6 +51,7 @@ projects:
             firecow.dk: ["docker", "stack", "rm", "firecow.dk"]
             firecow.net: ["docker-compose", "down"]
 ```
+You can specify a default directory to look for a valid config, if no config is found locally. To do this, set the environment variable `GIT_LOCAL_DEVOPS_DEFAULT_CWD` to your desired default folder.
 
 You can also use a remote config file if you put `.git-local-devops-env` in `~/git-local-devops`
 
