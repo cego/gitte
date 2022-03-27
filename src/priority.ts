@@ -9,5 +9,5 @@ export function getPriorityRange(projects: Project[]): { min: number, max: numbe
         });
         return carry;
     }, [] as number[]);
-    return { min: Math.min(...priorities), max: Math.max(...priorities) };
-} 
+    return {min: Math.min(...priorities), max: Math.max(...priorities)};
+}

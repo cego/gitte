@@ -102,4 +102,4 @@ export function validateYaml(obj: any) {
         console.error(validate.errors);
     }
     return valid;
-} 
+}

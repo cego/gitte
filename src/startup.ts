@@ -10,14 +10,14 @@ export async function startup(startupList: (CmdAction | ShellAction)[]) {
 	let err;
 	for (let action of startupList) {
 		if (isCmdAction(action)) {
-			[err] = await to(pcp.spawn(action.cmd[0], action.cmd.slice(1), {env: process.env}));
+			[err] = await to(pcp.spawn(action.cmd[0], action.cmd.slice(1), {env: process.env, encoding: "utf8"}));
 			if (err) {
 				err = err as any;
 				err.hint = action.hint;
 				throw err;
 			}
 		} else {
-			[err] = await to(pcp.spawn(action.script, [], {shell: action.shell, env: process.env}));
+			[err] = await to(pcp.spawn(action.script, [], {shell: action.shell, env: process.env, encoding: "utf8"}));
 			if (err) {
 				err = err as any;
 				err.hint = action.hint;

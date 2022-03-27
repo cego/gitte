@@ -86,7 +86,7 @@ export async function gitOperations(cwd: string, projectObj: Project) {
 	}
 
 	const currentBranch = `${res.stdout}`.trim();
-	
+
 	if (await hasLocalChanges(dir)) {
 		console.log(chalk`{yellow ${currentBranch}} has local changes in {cyan ${dir}}`);
 	} else if (currentBranch === defaultBranch) {

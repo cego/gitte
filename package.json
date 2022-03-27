@@ -40,6 +40,18 @@
     "jest-when": "3.5.1",
     "pkg": "5.5.2",
     "ts-jest": "^27.1.4",
-    "ts-node": "^10.7.0"
+    "ts-node": "^10.7.0",
+    "typescript": "^4.6.3"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testMatch": [
+      "**/*.test.ts"
+    ],
+    "coverageReporters": [
+      "lcov",
+      "json-summary",
+      "text-summary"
+    ]
   }
 }
