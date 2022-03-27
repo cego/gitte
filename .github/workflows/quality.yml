@@ -25,6 +25,15 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         if: github.event_name == 'push'
 
+  eclint:
+    name: ECLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "zbeekman/EditorConfig-Action@v1.1.0"
+        env:
+          EC_FIX_ERROR: "false"
+          ALWAYS_LINT_ALL_FILES: "true"
+
   code-ql:
     name: CodeQL
     runs-on: ubuntu-latest
