@@ -24,7 +24,7 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		await fs.ensureDir("/tmp/git-local-devops");
 		await pcp.spawn(
 			"git", ["archive", `--remote=${envCnf['REMOTE_GIT_PROJECT']}`, "master", envCnf['REMOTE_GIT_PROJECT_FILE'], "|", "tar", "-xC", "/tmp/git-local-devops/"],
-			{shell: "bash", cwd, env: process.env, encoding: "utf8"},
+			{ shell: "bash", cwd, env: process.env, encoding: "utf8" },
 		);
 		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf['REMOTE_GIT_PROJECT_FILE']}`, "utf8");
 	} else {

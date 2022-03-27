@@ -10,11 +10,12 @@
 ## Config setup
 
 Put `.git-local-devops.yml` in `~/git-local-devops` or another user owned folder.
+
 ```
 ---
 startup:
   # Used to check host machine for various requirements.
-  git-present: 
+  git-present:
     { cmd: ["git", "--version"], hint: "Git isn't installed on the system" }
   docker-present:
     { cmd: ["docker", "--version"], hint: "Docker isn't installed on the system" }
