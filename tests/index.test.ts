@@ -244,7 +244,6 @@ describe("Git Operations", () => {
 		test("Rebasing, already up to date", async () => {
 			mockHasNoChanges();
 			mockCustomBranch();
-
 			when(spawnSpy)
 				.calledWith("git", ["rebase", "origin/main"], expect.objectContaining({}))
 				.mockResolvedValue({stdout: "Current branch test is up to date."});
