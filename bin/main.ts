@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-const yargs = require("yargs/yargs");
-const {start} = require("../src");
-const chalk = require("chalk");
-const assert = require("assert");
-const fs = require("fs-extra");
-const path = require("path");
+import yargs from 'yargs/yargs';
+import { start } from "../src";
+import chalk from "chalk";
+import assert from "assert";
+import fs from "fs-extra";
+import path from "path";
 
 const terminalWidth = yargs().terminalWidth();
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"));
 yargs(process.argv.slice(2))
 	.version(packageJson["version"])
-	.command("$0 <action> <group>", "", (yargs) => {
-		return yargs
+	.command("$0 <action> <group>", "", (y) => {
+		return y
 			.positional("action", {
 				describe: "action to run for each project in config",
 			}).positional("group", {
@@ -19,8 +19,8 @@ yargs(process.argv.slice(2))
 			});
 	}, async (argv) => {
 		try {
-			await start(argv["cwd"], argv["action"], argv["group"]);
-		} catch (e) {
+			await start(argv["cwd"] as string, argv["action"] as string, argv["group"] as string);
+		} catch (e: any) {
 			if (e instanceof assert.AssertionError) {
 				console.error(chalk`{red ${e.message}}`);
 			} else if (e.message.startsWith("Process exited")) {
@@ -44,4 +44,3 @@ yargs(process.argv.slice(2))
 	})
 	.alias("h", "help")
 	.parse();
-

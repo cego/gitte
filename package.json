@@ -2,7 +2,7 @@
   "name": "git-local-devops",
   "version": "0.0.1",
   "description": "Git automation and script execution across a list of projects",
-  "main": "bin/main.js",
+  "main": "bin/main.ts",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cego/git-local-devops.git"
@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/cego/git-local-devops#readme",
   "dependencies": {
+    "ajv": "^8.11.0",
     "await-to-js": "^3.0.0",
     "chalk": "^4.1.2",
     "dotenv": "^16.0.0",
@@ -30,13 +31,22 @@
     "yargs": "^17.4.0"
   },
   "devDependencies": {
+    "@types/fs-extra": "^9.0.13",
+    "@types/jest": "^27.4.1",
+    "@types/jest-when": "^3.5.0",
+    "@types/js-yaml": "^4.0.5",
+    "@types/node": "^16.11.26",
     "jest": "27.5.1",
     "jest-when": "3.5.1",
-    "pkg": "5.5.2"
+    "pkg": "5.5.2",
+    "ts-jest": "^27.1.4",
+    "ts-node": "^10.7.0",
+    "typescript": "^4.6.3"
   },
   "jest": {
-    "collectCoverageFrom": [
-      "src/**/*.js"
+    "preset": "ts-jest",
+    "testMatch": [
+      "**/*.test.ts"
     ],
     "coverageReporters": [
       "lcov",

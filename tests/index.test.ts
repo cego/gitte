@@ -1,20 +1,21 @@
-const {getProjectDirFromRemote} = require("../src/project");
-const {runActions} = require("../src/actions");
-const {gitOperations} = require("../src/git_operations");
-const cp = require("promisify-child-process");
-const fs = require("fs-extra");
-const chalk = require("chalk");
-const {when} = require("jest-when");
-const {start} = require("../src");
-const yaml = require("js-yaml");
-const {startup} = require("../src/startup");
+// @ts-nocheck
+import { getProjectDirFromRemote } from "../src/project";
+import { runActions } from "../src/actions";
+import { gitOperations } from "../src/git_operations";
+import fs from "fs-extra";
+import chalk from "chalk";
+import {when} from "jest-when";
+import {start} from "../src";
+import yaml from "js-yaml";
+import {startup} from "../src/startup";
+import * as pcp from "promisify-child-process";
 
 function mockHasNoChanges() {
 	when(spawnSpy).calledWith("git", ["status", "--porcelain"], expect.objectContaining({})).mockResolvedValue({stdout: ""});
 }
 
 function mockCustomBranch() {
-	when(spawnSpy).calledWith("git", ["rev-parse", "--abbrev-ref", "HEAD"], expect.objectContaining({})).mockResolvedValue({stdout: "custom"});
+	when(spawnSpy).calledWith("git", ["branch", "--show-current"], expect.objectContaining({cwd: expect.any(String)})).mockResolvedValue({stdout: "custom"});
 }
 
 function mockRebaseFailed() {
@@ -54,19 +55,17 @@ beforeEach(() => {
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => {
 		return `---\n${yaml.dump({projects: {example: projectStub}, startup: startupStub})}`;
 	});
-	cp.spawn = jest.fn();
+	pcp.spawn = jest.fn();
 	console.log = jest.fn();
 	console.error = jest.fn();
 	fs.pathExists = jest.fn();
 
-	spawnSpy = jest.spyOn(cp, "spawn").mockImplementation(() => {
-		return new Promise((resolve) => {
-			resolve({stdout: "Mocked Stdout"});
-		});
+	spawnSpy = jest.spyOn(pcp, "spawn").mockImplementation(() => {
+		return Promise.resolve({stdout: "Mocked Stdout"});
 	});
 
 	when(spawnSpy).calledWith(
-		"git", ["rev-parse", "--abbrev-ref", "HEAD"], expect.objectContaining({}),
+		"git", ["branch", "--show-current"], expect.objectContaining({cwd: expect.any(String)})
 	).mockResolvedValue({stdout: "main"});
 });
 
@@ -85,7 +84,7 @@ describe("Index (start)", () => {
 			return `REMOTE_GIT_PROJECT_FILE=".git-local-devops.yml"\nREMOTE_GIT_PROJECT="git@gitlab.com:cego/example.git"\n`;
 		});
 		when(spawnSpy)
-			.calledWith("git archive --remote=git@gitlab.com:cego/example.git master .git-local-devops.yml | tar -xC /tmp/git-local-devops/")
+			.calledWith("git", ["archive", `--remote=git@gitlab.com:cego/example.git`, "master", ".git-local-devops.yml", "|", "tar", "-xC", "/tmp/git-local-devops/"], )
 			.mockResolvedValue(true);
 		await expect(start(cwdStub)).resolves.toBe();
 	});
@@ -107,7 +106,7 @@ describe("Startup checks", () => {
 	});
 
 	test("failing shell", async () => {
-		when(spawnSpy).calledWith("echo hello", expect.objectContaining({shell: "bash"})).mockRejectedValue(new Error("WHAT"));
+		when(spawnSpy).calledWith("echo hello", [], expect.objectContaining({shell: "bash"})).mockRejectedValue(new Error("WHAT"));
 		await expect(startup([{shell: "bash", script: "echo hello"}])).rejects.toThrow("WHAT");
 	});
 
@@ -173,19 +172,6 @@ describe("Git Operations", () => {
 		expect(spawnSpy).toHaveBeenCalledWith(
 			"git", ["clone", "git@gitlab.com:cego/example.git", "/home/user/git-local-devops/cego-example"],
 			expect.objectContaining({}),
-		);
-	});
-
-	test("No remote", async () => {
-		mockHasNoChanges();
-		when(spawnSpy)
-			.calledWith("git", ["pull"], expect.objectContaining({}))
-			.mockRejectedValue({stderr: "There is no tracking information for the current branch"});
-
-		await gitOperations(cwdStub, projectStub);
-
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow main} doesn't have a remote origin {cyan ${cwdStub}/cego-example}`,
 		);
 	});
 
@@ -258,7 +244,6 @@ describe("Git Operations", () => {
 		test("Rebasing, already up to date", async () => {
 			mockHasNoChanges();
 			mockCustomBranch();
-
 			when(spawnSpy)
 				.calledWith("git", ["rebase", "origin/main"], expect.objectContaining({}))
 				.mockResolvedValue({stdout: "Current branch test is up to date."});
