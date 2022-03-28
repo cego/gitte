@@ -11,7 +11,11 @@ import { Config } from "./types/config";
 import * as pcp from "promisify-child-process";
 import path from "path";
 
-export async function start(cwd: string, actionToRun: string, groupToRun: string): Promise<void> {
+export async function start(
+	cwd: string,
+	actionToRun: string,
+	groupToRun: string,
+): Promise<void> {
 	const cnfPath = `${cwd}/.git-local-devops.yml`;
 	const dotenvPath = `${cwd}/.git-local-devops-env`;
 
@@ -19,22 +23,41 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 
 	if (await fs.pathExists(dotenvPath)) {
 		const envCnf = dotenv.parse(await fs.readFile(dotenvPath)); // will return an object
-		assert(envCnf['REMOTE_GIT_PROJECT'], `REMOTE_GIT_PROJECT isn't defined in ${dotenvPath}`);
-		assert(envCnf['REMOTE_GIT_PROJECT_FILE'], `REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`);
+		assert(
+			envCnf["REMOTE_GIT_PROJECT"],
+			`REMOTE_GIT_PROJECT isn't defined in ${dotenvPath}`,
+		);
+		assert(
+			envCnf["REMOTE_GIT_PROJECT_FILE"],
+			`REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`,
+		);
 		await fs.ensureDir("/tmp/git-local-devops");
 		await pcp.spawn(
-			"git", ["archive", `--remote=${envCnf['REMOTE_GIT_PROJECT']}`, "master", envCnf['REMOTE_GIT_PROJECT_FILE'], "|", "tar", "-xC", "/tmp/git-local-devops/"],
-			{shell: "bash", cwd, env: process.env, encoding: "utf8"},
+			"git",
+			[
+				"archive",
+				`--remote=${envCnf["REMOTE_GIT_PROJECT"]}`,
+				"master",
+				envCnf["REMOTE_GIT_PROJECT_FILE"],
+				"|",
+				"tar",
+				"-xC",
+				"/tmp/git-local-devops/",
+			],
+			{ shell: "bash", cwd, env: process.env, encoding: "utf8" },
 		);
-		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf['REMOTE_GIT_PROJECT_FILE']}`, "utf8");
+		fileContent = await fs.readFile(
+			`/tmp/git-local-devops/${envCnf["REMOTE_GIT_PROJECT_FILE"]}`,
+			"utf8",
+		);
 	} else if (await fs.pathExists(cnfPath)) {
 		fileContent = await fs.readFile(cnfPath, "utf8");
-	}
-	else if (cwd === "/") {
-		throw new Error(`No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.`);
-	}
-	else {
-		return start(path.resolve(cwd, '..'), actionToRun, groupToRun);
+	} else if (cwd === "/") {
+		throw new Error(
+			`No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.`,
+		);
+	} else {
+		return start(path.resolve(cwd, ".."), actionToRun, groupToRun);
 	}
 
 	const yml: any = yaml.load(fileContent);
@@ -54,7 +77,9 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 	for (let i = prioRange.min; i < prioRange.max; i++) {
 		const runActionPromises = [];
 		for (const projectObj of Object.values(cnf.projects)) {
-			runActionPromises.push(runActions(cwd, projectObj, i, actionToRun, groupToRun));
+			runActionPromises.push(
+				runActions(cwd, projectObj, i, actionToRun, groupToRun),
+			);
 		}
 		await Promise.all(runActionPromises);
 	}

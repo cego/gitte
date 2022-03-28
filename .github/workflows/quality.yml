@@ -2,7 +2,6 @@ name: Quality
 on: push
 
 jobs:
-
   jest:
     runs-on: ubuntu-latest
     steps:
@@ -11,10 +10,10 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: "16"
       - uses: actions/cache@v3
         with:
-          path: 'node_modules'
+          path: "node_modules"
           key: ${{ runner.os }}-modules-${{ hashFiles('**/package-lock.json') }}
       - run: npm install
       - name: Run Tests
@@ -31,24 +30,24 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: "16"
       - uses: actions/cache@v3
         with:
-          path: 'node_modules'
+          path: "node_modules"
           key: ${{ runner.os }}-modules-${{ hashFiles('**/package-lock.json') }}
       - run: npm install
       - run: npm run eslint
-  
+
   prettier:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: "16"
       - uses: actions/cache@v3
         with:
-          path: 'node_modules'
+          path: "node_modules"
           key: ${{ runner.os }}-modules-${{ hashFiles('**/package-lock.json') }}
       - run: npm install
       - run: npm run prettier
@@ -59,10 +58,10 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '16'
+          node-version: "16"
       - uses: actions/cache@v3
         with:
-          path: 'node_modules'
+          path: "node_modules"
           key: ${{ runner.os }}-modules-${{ hashFiles('**/package-lock.json') }}
       - run: npm install
       - run: npm run build
@@ -78,7 +77,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['typescript']
+        language: ["typescript"]
 
     steps:
       - name: Checkout repository
