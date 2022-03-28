@@ -32,8 +32,7 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		fileContent = await fs.readFile(cnfPath, "utf8");
 	}
 	else if (cwd === "/") {
-		console.error(chalk`{red No .git-local-devops.yml found in current or parent directories.}`);
-		return;
+		throw new Error(`No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.`);
 	}
 	else {
 		return start(path.resolve(cwd, '..'), actionToRun, groupToRun);
