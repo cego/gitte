@@ -5,6 +5,7 @@ import { startup } from "./startup";
 import { getPriorityRange } from "./priority";
 import { loadConfig } from "./config_loader";
 import { printLogs } from "./utils";
+import { searchStdoutAndPrintHints } from "./search_stdout";
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string): Promise<void> {
 	const cnf = await loadConfig(cwd);
@@ -20,12 +21,15 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 
 	const prioRange = getPriorityRange(Object.values(cnf.projects));
 
+	let stdoutBuffer: { [key: string]: string[] } = {};
 	for (let i = prioRange.min; i < prioRange.max; i++) {
 		const runActionPromises = [];
 		for (const projectObj of Object.values(cnf.projects)) {
 			runActionPromises.push(runActions(cwd, projectObj, i, actionToRun, groupToRun));
 		}
-		await Promise.all(runActionPromises);
+		stdoutBuffer = { ...stdoutBuffer, ...(await Promise.all(runActionPromises)).reduce((acc, cur) => ({ ...acc, ...cur }), {}) };
 	}
+
+	if(cnf.searchFor) searchStdoutAndPrintHints(cnf.searchFor,stdoutBuffer);
 }
 

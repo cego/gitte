@@ -6,6 +6,21 @@ const schema = {
     type: 'object',
     required: ['startup', 'projects'],
     properties: {
+        "searchFor": {
+            type: 'array',
+            items: {
+                type: 'object',
+                required: ['regex', 'hint'],
+                properties: {
+                    "regex": {
+                        type: 'string',
+                    },
+                    "hint": {
+                        type: 'string',
+                    }
+                }
+            }
+        },
         "startup": {
             type: "object",
             additionalProperties: {
