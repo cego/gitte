@@ -116,6 +116,10 @@ describe("Index (start)", () => {
 	});
 
 	test(".git-local-devops-env present", async () => {
+		const remoteGitFile = ".git-local-devops.yml";
+		const remoteGitRepo = "git@gitlab.com:cego/example.git";
+		const remoteGitRef = "main";
+
 		when(fs.pathExists)
 			.calledWith(`${cwdStub}/.git-local-devops-env`)
 			.mockResolvedValue(true);
@@ -125,20 +129,29 @@ describe("Index (start)", () => {
 		when(readFileSpy)
 			.calledWith(`${cwdStub}/.git-local-devops-env`)
 			.mockImplementation(() => {
-				return `REMOTE_GIT_PROJECT_FILE=".git-local-devops.yml"\nREMOTE_GIT_PROJECT="git@gitlab.com:cego/example.git"\n`;
+				return `REMOTE_GIT_FILE="${remoteGitFile}"\nREMOTE_GIT_REPO="${remoteGitRepo}"\nREMOTE_GIT_REF="${remoteGitRef}"`;
 			});
 		when(spawnSpy)
-			.calledWith("git", [
-				"archive",
-				`--remote=git@gitlab.com:cego/example.git`,
-				"master",
-				".git-local-devops.yml",
-				"|",
-				"tar",
-				"-xC",
-				"/tmp/git-local-devops/",
-			])
-			.mockResolvedValue(true);
+			.calledWith(
+				"git",
+				[
+					"archive",
+					`--remote=${remoteGitRepo}`,
+					remoteGitRef,
+					remoteGitFile,
+					"|",
+					"tar",
+					"-xO",
+					remoteGitFile,
+				],
+				expect.objectContaining({}),
+			)
+			.mockResolvedValue({
+				stdout: `---\n${yaml.dump({
+					projects: { example: projectStub },
+					startup: startupStub,
+				})}`,
+			});
 		await expect(start(cwdStub)).resolves.toBe();
 	});
 

@@ -14,34 +14,37 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	let fileContent;
 
 	if (await fs.pathExists(dotenvPath)) {
-		const envCnf = dotenv.parse(await fs.readFile(dotenvPath)); // will return an object
+		const envCnf = dotenv.parse(await fs.readFile(dotenvPath));
 		assert(
-			envCnf["REMOTE_GIT_PROJECT"],
-			`REMOTE_GIT_PROJECT isn't defined in ${dotenvPath}`,
+			envCnf["REMOTE_GIT_REPO"],
+			`REMOTE_GIT_REPO isn't defined in ${dotenvPath}`,
 		);
 		assert(
-			envCnf["REMOTE_GIT_PROJECT_FILE"],
-			`REMOTE_GIT_PROJECT_FILE isn't defined in ${dotenvPath}`,
+			envCnf["REMOTE_GIT_FILE"],
+			`REMOTE_GIT_FILE isn't defined in ${dotenvPath}`,
 		);
-		await fs.ensureDir("/tmp/git-local-devops");
-		await pcp.spawn(
+		assert(
+			envCnf["REMOTE_GIT_REF"],
+			`REMOTE_GIT_REF isn't defined in ${dotenvPath}`,
+		);
+		const remoteGitProjectUrl = envCnf["REMOTE_GIT_REPO"];
+		const remoteGitProjectFile = envCnf["REMOTE_GIT_FILE"];
+		const remoteGitProjectRef = envCnf["REMOTE_GIT_REF"];
+		const res = await pcp.spawn(
 			"git",
 			[
 				"archive",
-				`--remote=${envCnf["REMOTE_GIT_PROJECT"]}`,
-				"master",
-				envCnf["REMOTE_GIT_PROJECT_FILE"],
+				`--remote=${remoteGitProjectUrl}`,
+				remoteGitProjectRef,
+				remoteGitProjectFile,
 				"|",
 				"tar",
-				"-xC",
-				"/tmp/git-local-devops/",
+				"-xO",
+				remoteGitProjectFile,
 			],
 			{ shell: "bash", cwd, env: process.env, encoding: "utf8" },
 		);
-		fileContent = await fs.readFile(
-			`/tmp/git-local-devops/${envCnf["REMOTE_GIT_PROJECT_FILE"]}`,
-			"utf8",
-		);
+		fileContent = `${res.stdout}`;
 	} else if (await fs.pathExists(cnfPath)) {
 		fileContent = await fs.readFile(cnfPath, "utf8");
 	} else if (cwd === "/") {

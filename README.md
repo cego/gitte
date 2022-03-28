@@ -56,8 +56,9 @@ projects:
 You can also use a remote config file if you put `.git-local-devops-env` in `~/git-local-devops`
 
 ```
-REMOTE_GIT_PROJECT_FILE=".git-local-devops.yml"
-REMOTE_GIT_PROJECT="git@gitlab.com:cego/example.git"
+REMOTE_GIT_REPO="git@gitlab.com:cego/example.git"
+REMOTE_GIT_FILE=".git-local-devops.yml"
+REMOTE_GIT_REF="master"
 ```
 
 ## Running scripts
