@@ -326,7 +326,7 @@ describe("Git Operations", () => {
 					["rebase", "origin/main"],
 					expect.objectContaining({}),
 				)
-				.mockResolvedValue({ stdout: "Current branch test is up to date." });
+				.mockResolvedValue({ stdout: "Current branch custom is up to date." });
 
 			await gitOperations(cwdStub, projectStub);
 			expect(console.log).toHaveBeenCalledWith(
