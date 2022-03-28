@@ -167,6 +167,7 @@ describe("Git Operations", () => {
 	});
 
 	test("Cloning project", async () => {
+		/* eslint-disable @typescript-eslint/no-unused-vars */
 		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 		await gitOperations(cwdStub, projectStub);
 		expect(spawnSpy).toHaveBeenCalledWith(

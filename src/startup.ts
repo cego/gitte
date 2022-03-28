@@ -8,7 +8,7 @@ function isCmdAction(action: CmdAction | ShellAction): action is CmdAction {
 
 export async function startup(startupList: (CmdAction | ShellAction)[]) {
 	let err;
-	for (let action of startupList) {
+	for (const action of startupList) {
 		if (isCmdAction(action)) {
 			[err] = await to(pcp.spawn(action.cmd[0], action.cmd.slice(1), {env: process.env, encoding: "utf8"}));
 			if (err) {

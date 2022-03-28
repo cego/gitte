@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import chalk from "chalk";
 import { Project } from "./types/config";
 import * as pcp from "promisify-child-process";
+import { ToChildProcessOutput } from "./types/utils";
 
 async function hasLocalChanges(dir: string) {
 	const res = await pcp.spawn("git", ["status", "--porcelain"], { cwd: dir, encoding: "utf8" });
@@ -15,8 +16,7 @@ async function fetch(dir: string) {
 }
 
 async function pull(dir: string, currentBranch: string) {
-	let err: Error & pcp.Output | null, res: pcp.Output | undefined;
-	[err, res] = await to(pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }));
+	const [ err, res ]: ToChildProcessOutput = await to(pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }));
 
 	if (err || !res) {
 		if (`${err?.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
@@ -38,8 +38,7 @@ async function pull(dir: string, currentBranch: string) {
 }
 
 async function rebase(dir: string, currentBranch: string, defaultBranch: string) {
-	let err: Error & pcp.Output | null, res: pcp.Output | undefined;
-	[err, res] = await to(pcp.spawn("git", ["rebase", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" }));
+	const [err, res]: ToChildProcessOutput = await to(pcp.spawn("git", ["rebase", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" }));
 
 	if (err || !res) {
 		await pcp.spawn("git", ["rebase", "--abort"], { cwd: dir, encoding: "utf8" });
@@ -55,8 +54,7 @@ async function rebase(dir: string, currentBranch: string, defaultBranch: string)
 }
 
 async function merge(dir: string, currentBranch: string, defaultBranch: string) {
-	let err: Error & pcp.Output | null, res: pcp.Output | undefined;
-	[err, res] = await to(pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" }));
+	const [err, res]: ToChildProcessOutput = await to(pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" }));
 	if (!err && res) {
 		console.log(chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 		return;
@@ -76,8 +74,7 @@ export async function gitOperations(cwd: string, projectObj: Project) {
 		return;
 	}
 
-	let err: Error & pcp.Output | null, res: pcp.Output | undefined;
-	[err, res] = await to(pcp.spawn("git", ["branch", "--show-current"], { cwd: dir, encoding: "utf8" }));
+	const [err, res]: ToChildProcessOutput = await to(pcp.spawn("git", ["branch", "--show-current"], { cwd: dir, encoding: "utf8" }));
 
 	if (err || !res) {
 		console.log(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} ${err}`);
