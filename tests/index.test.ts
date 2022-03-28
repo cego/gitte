@@ -4,26 +4,38 @@ import { runActions } from "../src/actions";
 import { gitOperations } from "../src/git_operations";
 import fs from "fs-extra";
 import chalk from "chalk";
-import {when} from "jest-when";
-import {start} from "../src";
+import { when } from "jest-when";
+import { start } from "../src";
 import yaml from "js-yaml";
-import {startup} from "../src/startup";
+import { startup } from "../src/startup";
 import * as pcp from "promisify-child-process";
 
 function mockHasNoChanges() {
-	when(spawnSpy).calledWith("git", ["status", "--porcelain"], expect.objectContaining({})).mockResolvedValue({stdout: ""});
+	when(spawnSpy)
+		.calledWith("git", ["status", "--porcelain"], expect.objectContaining({}))
+		.mockResolvedValue({ stdout: "" });
 }
 
 function mockCustomBranch() {
-	when(spawnSpy).calledWith("git", ["branch", "--show-current"], expect.objectContaining({cwd: expect.any(String)})).mockResolvedValue({stdout: "custom"});
+	when(spawnSpy)
+		.calledWith(
+			"git",
+			["branch", "--show-current"],
+			expect.objectContaining({ cwd: expect.any(String) }),
+		)
+		.mockResolvedValue({ stdout: "custom" });
 }
 
 function mockRebaseFailed() {
-	when(spawnSpy).calledWith("git", ["rebase", `origin/main`], expect.objectContaining({})).mockRejectedValue("Rebase wasn't possible");
+	when(spawnSpy)
+		.calledWith("git", ["rebase", `origin/main`], expect.objectContaining({}))
+		.mockRejectedValue("Rebase wasn't possible");
 }
 
 function mockMergeFailed() {
-	when(spawnSpy).calledWith("git", ["merge", `origin/main`], expect.objectContaining({})).mockRejectedValue("Merge wasn't possible");
+	when(spawnSpy)
+		.calledWith("git", ["merge", `origin/main`], expect.objectContaining({}))
+		.mockRejectedValue("Merge wasn't possible");
 }
 
 let cwdStub, projectStub, startupStub, readFileSpy, pathExistsSpy, spawnSpy;
@@ -37,23 +49,42 @@ beforeEach(() => {
 			start: {
 				groups: {
 					"cego.dk": ["docker-compose", "up"],
-					"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "start"],
+					"example.com": [
+						"scp",
+						"user@example.com",
+						"sh",
+						"-c",
+						"service",
+						"webserver",
+						"start",
+					],
 				},
 			},
 			down: {
 				groups: {
 					"cego.dk": ["docker-compose", "down"],
-					"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "stop"],
+					"example.com": [
+						"scp",
+						"user@example.com",
+						"sh",
+						"-c",
+						"service",
+						"webserver",
+						"stop",
+					],
 				},
 			},
 		},
 	};
 	startupStub = {
-		world: {cmd: ["echo", "world"]},
-		bashWorld: {shell: "bash", script: "echo world"},
+		world: { cmd: ["echo", "world"] },
+		bashWorld: { shell: "bash", script: "echo world" },
 	};
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => {
-		return `---\n${yaml.dump({projects: {example: projectStub}, startup: startupStub})}`;
+		return `---\n${yaml.dump({
+			projects: { example: projectStub },
+			startup: startupStub,
+		})}`;
 	});
 	pcp.spawn = jest.fn();
 	console.log = jest.fn();
@@ -61,87 +92,127 @@ beforeEach(() => {
 	fs.pathExists = jest.fn();
 
 	spawnSpy = jest.spyOn(pcp, "spawn").mockImplementation(() => {
-		return Promise.resolve({stdout: "Mocked Stdout"});
+		return Promise.resolve({ stdout: "Mocked Stdout" });
 	});
 
-	when(spawnSpy).calledWith(
-		"git", ["branch", "--show-current"], expect.objectContaining({cwd: expect.any(String)})
-	).mockResolvedValue({stdout: "main"});
+	when(spawnSpy)
+		.calledWith(
+			"git",
+			["branch", "--show-current"],
+			expect.objectContaining({ cwd: expect.any(String) }),
+		)
+		.mockResolvedValue({ stdout: "main" });
 });
 
 describe("Index (start)", () => {
-
 	test("with default stubs", async () => {
-		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(false);
-		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(true);
+		when(fs.pathExists)
+			.calledWith(`${cwdStub}/.git-local-devops-env`)
+			.mockResolvedValue(false);
+		when(fs.pathExists)
+			.calledWith(`${cwdStub}/.git-local-devops.yml`)
+			.mockResolvedValue(true);
 		await expect(start(cwdStub)).resolves.toBe();
 	});
 
 	test(".git-local-devops-env present", async () => {
-		const remoteGitFile=".git-local-devops.yml";
-		const remoteGitRepo="git@gitlab.com:cego/example.git";
-		const remoteGitRef="main";
+		const remoteGitFile = ".git-local-devops.yml";
+		const remoteGitRepo = "git@gitlab.com:cego/example.git";
+		const remoteGitRef = "main";
 
-		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(true);
-		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(true);
-		when(readFileSpy).calledWith(`${cwdStub}/.git-local-devops-env`).mockImplementation(() => {
-			return `REMOTE_GIT_FILE="${remoteGitFile}"\nREMOTE_GIT_REPO="${remoteGitRepo}"\nREMOTE_GIT_REF="${remoteGitRef}"`;
-		});
+		when(fs.pathExists)
+			.calledWith(`${cwdStub}/.git-local-devops-env`)
+			.mockResolvedValue(true);
+		when(fs.pathExists)
+			.calledWith(`${cwdStub}/.git-local-devops.yml`)
+			.mockResolvedValue(true);
+		when(readFileSpy)
+			.calledWith(`${cwdStub}/.git-local-devops-env`)
+			.mockImplementation(() => {
+				return `REMOTE_GIT_FILE="${remoteGitFile}"\nREMOTE_GIT_REPO="${remoteGitRepo}"\nREMOTE_GIT_REF="${remoteGitRef}"`;
+			});
 		when(spawnSpy)
 			.calledWith(
 				"git",
-				["archive", `--remote=${remoteGitRepo}`, remoteGitRef, remoteGitFile, "|", "tar", "-xO", remoteGitFile],
-				expect.objectContaining({})
+				[
+					"archive",
+					`--remote=${remoteGitRepo}`,
+					remoteGitRef,
+					remoteGitFile,
+					"|",
+					"tar",
+					"-xO",
+					remoteGitFile,
+				],
+				expect.objectContaining({}),
 			)
-			.mockResolvedValue({stdout: `---\n${yaml.dump({projects: {example: projectStub}, startup: startupStub})}`});
+			.mockResolvedValue({
+				stdout: `---\n${yaml.dump({
+					projects: { example: projectStub },
+					startup: startupStub,
+				})}`,
+			});
 		await expect(start(cwdStub)).resolves.toBe();
 	});
 
 	test("config file not found", async () => {
-		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(false);
-		await expect(start("/home/user/completelyinvalidpath"))
-			.rejects
-			.toThrow("No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.");
+		when(fs.pathExists)
+			.calledWith(`${cwdStub}/.git-local-devops.yml`)
+			.mockResolvedValue(false);
+		await expect(start("/home/user/completelyinvalidpath")).rejects.toThrow(
+			"No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.",
+		);
 	});
-
 });
 
 describe("Startup checks", () => {
-
 	test("failing argv", async () => {
-		when(spawnSpy).calledWith("echo", ["hello"], expect.objectContaining({})).mockRejectedValue(new Error("WHAT"));
-		await expect(startup([{cmd: ["echo", "hello"]}])).rejects.toThrow("WHAT");
+		when(spawnSpy)
+			.calledWith("echo", ["hello"], expect.objectContaining({}))
+			.mockRejectedValue(new Error("WHAT"));
+		await expect(startup([{ cmd: ["echo", "hello"] }])).rejects.toThrow("WHAT");
 	});
 
 	test("failing shell", async () => {
-		when(spawnSpy).calledWith("echo hello", [], expect.objectContaining({shell: "bash"})).mockRejectedValue(new Error("WHAT"));
-		await expect(startup([{shell: "bash", script: "echo hello"}])).rejects.toThrow("WHAT");
+		when(spawnSpy)
+			.calledWith("echo hello", [], expect.objectContaining({ shell: "bash" }))
+			.mockRejectedValue(new Error("WHAT"));
+		await expect(
+			startup([{ shell: "bash", script: "echo hello" }]),
+		).rejects.toThrow("WHAT");
 	});
-
 });
 
 describe("Project dir from remote", () => {
-
 	test("Valid ssh remote", () => {
-		const dir = getProjectDirFromRemote(cwdStub, "git@gitlab.com:cego/example.git");
+		const dir = getProjectDirFromRemote(
+			cwdStub,
+			"git@gitlab.com:cego/example.git",
+		);
 		expect(dir).toEqual(`${cwdStub}/cego-example`);
 	});
 
 	test("Valid ssh remote with cwd ending in slash", () => {
-		const dir = getProjectDirFromRemote(`${cwdStub}/`, "git@gitlab.com:cego/example.git");
+		const dir = getProjectDirFromRemote(
+			`${cwdStub}/`,
+			"git@gitlab.com:cego/example.git",
+		);
 		expect(dir).toEqual(`${cwdStub}/cego-example`);
 	});
 
 	test("Invalid remote", () => {
 		expect(() => {
-			getProjectDirFromRemote(cwdStub, "git@gitlab.coinvalidirecow/example.git");
-		}).toThrowError("git@gitlab.coinvalidirecow/example.git is not a valid project remote. Use git@gitlab.com:example/cego.git syntax");
+			getProjectDirFromRemote(
+				cwdStub,
+				"git@gitlab.coinvalidirecow/example.git",
+			);
+		}).toThrowError(
+			"git@gitlab.coinvalidirecow/example.git is not a valid project remote. Use git@gitlab.com:example/cego.git syntax",
+		);
 	});
-
 });
 
 describe("Run scripts", () => {
-
 	test("Start cego.dk", async () => {
 		await runActions(cwdStub, projectStub, 0, "start", "cego.dk");
 		expect(console.log).toHaveBeenCalledWith(
@@ -150,19 +221,17 @@ describe("Run scripts", () => {
 	});
 
 	test("Start cego.dk, failure in script", async () => {
-		when(spawnSpy).calledWith(
-			"docker-compose", ["up"], expect.objectContaining({}),
-		).mockRejectedValue({stderr: "ARRRG FAILURE"});
+		when(spawnSpy)
+			.calledWith("docker-compose", ["up"], expect.objectContaining({}))
+			.mockRejectedValue({ stderr: "ARRRG FAILURE" });
 		await runActions(cwdStub, projectStub, 0, "start", "cego.dk");
 		expect(console.error).toHaveBeenCalledWith(
 			chalk`"start" "cego.dk" {red failed}, goto {cyan /home/user/git-local-devops/cego-example} and run {blue docker-compose up} manually`,
 		);
 	});
-
 });
 
 describe("Git Operations", () => {
-
 	beforeEach(() => {
 		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(true);
 	});
@@ -178,7 +247,12 @@ describe("Git Operations", () => {
 		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 		await gitOperations(cwdStub, projectStub);
 		expect(spawnSpy).toHaveBeenCalledWith(
-			"git", ["clone", "git@gitlab.com:cego/example.git", "/home/user/git-local-devops/cego-example"],
+			"git",
+			[
+				"clone",
+				"git@gitlab.com:cego/example.git",
+				"/home/user/git-local-devops/cego-example",
+			],
 			expect.objectContaining({}),
 		);
 	});
@@ -188,7 +262,9 @@ describe("Git Operations", () => {
 			mockHasNoChanges();
 			when(spawnSpy)
 				.calledWith("git", ["pull"], expect.objectContaining({}))
-				.mockRejectedValue({stderr: "There is no tracking information for the current branch"});
+				.mockRejectedValue({
+					stderr: "There is no tracking information for the current branch",
+				});
 
 			await gitOperations(cwdStub, projectStub);
 
@@ -199,13 +275,16 @@ describe("Git Operations", () => {
 
 		test("Already up to date", async () => {
 			mockHasNoChanges();
-			when(spawnSpy).calledWith(
-				"git", ["pull"], expect.objectContaining({}),
-			).mockResolvedValue({stdout: "Already up to date."});
+			when(spawnSpy)
+				.calledWith("git", ["pull"], expect.objectContaining({}))
+				.mockResolvedValue({ stdout: "Already up to date." });
 			await gitOperations(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(chalk`{yellow main} is up to date in {cyan ${cwdStub}/cego-example}`);
+			expect(console.log).toHaveBeenCalledWith(
+				chalk`{yellow main} is up to date in {cyan ${cwdStub}/cego-example}`,
+			);
 			expect(spawnSpy).toHaveBeenCalledWith(
-				"git", ["pull"],
+				"git",
+				["pull"],
 				expect.objectContaining({}),
 			);
 		});
@@ -213,9 +292,12 @@ describe("Git Operations", () => {
 		test("Pulling latest changes", async () => {
 			mockHasNoChanges();
 			await gitOperations(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(chalk`{yellow main} pulled changes from {magenta origin/main} in {cyan ${cwdStub}/cego-example}`);
+			expect(console.log).toHaveBeenCalledWith(
+				chalk`{yellow main} pulled changes from {magenta origin/main} in {cyan ${cwdStub}/cego-example}`,
+			);
 			expect(spawnSpy).toHaveBeenCalledWith(
-				"git", ["pull"],
+				"git",
+				["pull"],
 				expect.objectContaining({}),
 			);
 		});
@@ -224,18 +306,16 @@ describe("Git Operations", () => {
 			mockHasNoChanges();
 			when(spawnSpy)
 				.calledWith("git", ["pull"], expect.objectContaining({}))
-				.mockRejectedValue({stderr: "I'M IN CONFLICT"});
+				.mockRejectedValue({ stderr: "I'M IN CONFLICT" });
 
 			await gitOperations(cwdStub, projectStub);
 			expect(console.log).toHaveBeenCalledWith(
 				chalk`{yellow main} {red conflicts} with {magenta origin/main} {cyan ${cwdStub}/cego-example}`,
 			);
 		});
-
 	});
 
 	describe("Custom branch", () => {
-
 		test("Rebasing", async () => {
 			mockHasNoChanges();
 			mockCustomBranch();
@@ -244,7 +324,8 @@ describe("Git Operations", () => {
 				chalk`{yellow custom} was rebased on {magenta origin/main} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
-				"git", ["rebase", `origin/main`],
+				"git",
+				["rebase", `origin/main`],
 				expect.objectContaining({}),
 			);
 		});
@@ -253,15 +334,20 @@ describe("Git Operations", () => {
 			mockHasNoChanges();
 			mockCustomBranch();
 			when(spawnSpy)
-				.calledWith("git", ["rebase", "origin/main"], expect.objectContaining({}))
-				.mockResolvedValue({stdout: "Current branch custom is up to date."});
+				.calledWith(
+					"git",
+					["rebase", "origin/main"],
+					expect.objectContaining({}),
+				)
+				.mockResolvedValue({ stdout: "Current branch custom is up to date." });
 
 			await gitOperations(cwdStub, projectStub);
 			expect(console.log).toHaveBeenCalledWith(
 				chalk`{yellow custom} is already on {magenta origin/main} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
-				"git", ["rebase", `origin/main`],
+				"git",
+				["rebase", `origin/main`],
 				expect.objectContaining({}),
 			);
 		});
@@ -275,11 +361,13 @@ describe("Git Operations", () => {
 				chalk`{yellow custom} was merged with {magenta origin/main} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
-				"git", ["rebase", `--abort`],
+				"git",
+				["rebase", `--abort`],
 				expect.objectContaining({}),
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
-				"git", ["merge", `origin/main`],
+				"git",
+				["merge", `origin/main`],
 				expect.objectContaining({}),
 			);
 		});
@@ -294,7 +382,8 @@ describe("Git Operations", () => {
 				chalk`{yellow custom} merge with {magenta origin/main} {red failed} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith(
-				"git", ["merge", `--abort`],
+				"git",
+				["merge", `--abort`],
 				expect.objectContaining({}),
 			);
 		});
