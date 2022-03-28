@@ -96,7 +96,7 @@ export async function gitOperations(cwd: string, projectObj: Project): Promise<a
 		await pull(dir, currentBranch, log);
 	} else {
 		await fetch(dir);
-		if (!await pull(dir, currentBranch, log)) return logs;;
+		if (!await pull(dir, currentBranch, log)) return logs;
 		if (!await rebase(dir, currentBranch, defaultBranch, log)) {
 			await merge(dir, currentBranch, defaultBranch, log);
 		}
