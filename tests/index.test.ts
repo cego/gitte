@@ -38,7 +38,7 @@ function mockMergeFailed() {
 		.mockRejectedValue("Merge wasn't possible");
 }
 
-let cwdStub, projectStub, startupStub, readFileSpy, pathExistsSpy, spawnSpy;
+let cwdStub, projectStub, startupStub, readFileSpy, spawnSpy;
 beforeEach(() => {
 	cwdStub = "/home/user/git-local-devops";
 	projectStub = {
@@ -233,7 +233,7 @@ describe("Run scripts", () => {
 
 describe("Git Operations", () => {
 	beforeEach(() => {
-		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(true);
+		jest.spyOn(fs, "pathExists").mockResolvedValue(true);
 	});
 
 	test("Changes found", async () => {
@@ -244,7 +244,7 @@ describe("Git Operations", () => {
 	});
 
 	test("Cloning project", async () => {
-		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(false);
+		jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 		await gitOperations(cwdStub, projectStub);
 		expect(spawnSpy).toHaveBeenCalledWith(
 			"git",
