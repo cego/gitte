@@ -9,9 +9,10 @@ import { validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
 import { Config } from "./types/config";
 import * as pcp from "promisify-child-process";
+import chalk from "chalk";
+import path from "path";
 
-
-export async function start(cwd: string, actionToRun: string, groupToRun: string) {
+export async function start(cwd: string, actionToRun: string, groupToRun: string): Promise<void> {
 	const cnfPath = `${cwd}/.git-local-devops.yml`;
 	const dotenvPath = `${cwd}/.git-local-devops-env`;
 
@@ -27,9 +28,15 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 			{shell: "bash", cwd, env: process.env, encoding: "utf8"},
 		);
 		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf['REMOTE_GIT_PROJECT_FILE']}`, "utf8");
-	} else {
-		assert(await fs.pathExists(cnfPath), `${cwd} doesn't contain an .git-local-devops.yml file`);
-		fileContent = await fs.readFile(`${cwd}/.git-local-devops.yml`, "utf8");
+	} else if (await fs.pathExists(cnfPath)) {
+		fileContent = await fs.readFile(cnfPath, "utf8");
+	}
+	else if (cwd === "/") {
+		console.error(chalk`{red No .git-local-devops.yml found in current or parent directories.}`);
+		return;
+	}
+	else {
+		return start(path.resolve(cwd, '..'), actionToRun, groupToRun);
 	}
 
 	const yml: any = yaml.load(fileContent);
