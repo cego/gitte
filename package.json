@@ -48,23 +48,14 @@
 		"ts-node": "^10.7.0",
 		"typescript": "^4.6.3"
 	},
-	"jest": {
-		"preset": "ts-jest",
-		"testMatch": [
-			"**/*.test.ts"
-		],
-		"coverageReporters": [
-			"lcov",
-			"json-summary",
-			"text-summary"
-		]
-	},
 	"scripts": {
-		"eslint": "eslint . --ext .ts",
+		"eslint": "eslint .",
 		"prettier": "prettier -c .",
 		"prettier:fix": "prettier -c --write .",
 		"lint": "npm run eslint && npm run prettier",
 		"lint:fix": "npm run eslint && npm run prettier:fix",
-		"build": "rm -f src/*.js src/*.d.ts && tsc"
+		"build": "rm -f src/*.js src/*.d.ts && tsc",
+		"test": "jest",
+		"test:coverage": "jest --coverage"
 	}
 }
