@@ -14,22 +14,22 @@ yargs(process.argv.slice(2))
 	.command({
 		handler: async (argv) => {
 			try {
-				if(argv.list){
+				if (argv.list) {
 					const config = await loadConfig(argv.cwd as string);
-					for(const [name, project] of Object.entries(config.projects)){
+					for (const [name, project] of Object.entries(config.projects)) {
 						console.log(chalk`{bold ${name}:} {cyan [${Object.keys(project.actions).join(", ")}]}`)
 					}
 					return
 				}
-				if(argv.validate){
+				if (argv.validate) {
 					await loadConfig(argv.cwd as string);
 					console.log(chalk`{green .git-local-devops.yml is valid}`)
 					return;
 				}
 
 				assert(argv.action && argv.group, "Missing required positional parameters: action and group are required, see --help for more info.");
-				
-	
+
+
 				await start(argv.cwd as string, argv.action as string, argv.group as string);
 			} catch (e: any) {
 				if (e instanceof assert.AssertionError) {
@@ -53,7 +53,7 @@ yargs(process.argv.slice(2))
 					required: false,
 					describe: "group entry to run for specified action",
 				});
-			},
+		},
 		describe: "run action for a project in config",
 		command: "$0 [action] [group]",
 	})
@@ -71,7 +71,7 @@ yargs(process.argv.slice(2))
 		describe: "List all projects and their actions",
 		type: "boolean",
 		default: false
-		
+
 	})
 	.option("validate", {
 		describe: "Validate the configuration",
