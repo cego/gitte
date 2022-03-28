@@ -5,7 +5,7 @@ export function searchStdoutAndPrintHints(
     searchFor: SearchFor[],
     stdoutHistory: {[key: string]: string[]}
 ){
-    searchFor.forEach(searchFor => searchForRegex(searchFor, stdoutHistory));
+    searchFor.forEach(search => searchForRegex(search, stdoutHistory));
 }
 
 function searchForRegex(searchFor: SearchFor, stdoutHistory: { [key: string]: string[]; }): void {
