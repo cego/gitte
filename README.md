@@ -12,10 +12,6 @@
 Put `.git-local-devops.yml` in `~/git-local-devops` or another user owned folder.
 ```
 ---
-searchFor:
-  - { regex: /depracated/, hint: "Deprecations found"}
-  - { regex: /abandonned/, hint: "Abandonend composer packages used"}
-
 startup:
   # Used to check host machine for various requirements.
   git-present: 
