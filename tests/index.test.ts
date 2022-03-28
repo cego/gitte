@@ -101,7 +101,7 @@ describe("Index (start)", () => {
 		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(false);
 		await expect(start("/home/user/completelyinvalidpath"))
 			.rejects
-			.toThrow("/home/user/completelyinvalidpath doesn't contain an .git-local-devops.yml file");
+			.toThrow("No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.");
 	});
 
 });
@@ -254,7 +254,7 @@ describe("Git Operations", () => {
 			mockCustomBranch();
 			when(spawnSpy)
 				.calledWith("git", ["rebase", "origin/main"], expect.objectContaining({}))
-				.mockResolvedValue({stdout: "Current branch test is up to date."});
+				.mockResolvedValue({stdout: "Current branch custom is up to date."});
 
 			await gitOperations(cwdStub, projectStub);
 			expect(console.log).toHaveBeenCalledWith(
