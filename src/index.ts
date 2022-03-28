@@ -3,6 +3,7 @@ import { gitOperations } from "./git_operations";
 import { startup } from "./startup";
 import { getPriorityRange } from "./priority";
 import { loadConfig } from "./config_loader";
+import { printLogs } from "./utils";
 
 export async function start(
 	cwd: string,
@@ -17,7 +18,10 @@ export async function start(
 	for (const projectObj of Object.values(cnf.projects)) {
 		gitOperationsPromises.push(gitOperations(cwd, projectObj));
 	}
-	await Promise.all(gitOperationsPromises);
+	const logs = await Promise.all(
+		gitOperationsPromises.map((p) => p.catch((e) => e)),
+	);
+	printLogs(Object.keys(cnf.projects), logs);
 
 	const prioRange = getPriorityRange(Object.values(cnf.projects));
 

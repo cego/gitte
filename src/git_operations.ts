@@ -18,7 +18,11 @@ async function fetch(dir: string) {
 	await pcp.spawn("git", ["fetch"], { cwd: dir, encoding: "utf8" });
 }
 
-async function pull(dir: string, currentBranch: string) {
+async function pull(
+	dir: string,
+	currentBranch: string,
+	log: (arg: any) => void = console.log,
+) {
 	const [err, res]: ToChildProcessOutput = await to(
 		pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }),
 	);
@@ -29,11 +33,11 @@ async function pull(dir: string, currentBranch: string) {
 				.trim()
 				.startsWith("There is no tracking information for the current branch")
 		) {
-			console.log(
+			log(
 				chalk`{yellow ${currentBranch}} doesn't have a remote origin {cyan ${dir}}`,
 			);
 		} else {
-			console.log(
+			log(
 				chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} {cyan ${dir}}`,
 			);
 		}
@@ -42,11 +46,9 @@ async function pull(dir: string, currentBranch: string) {
 
 	const msg = `${res.stdout}`.trim();
 	if (msg === "Already up to date.") {
-		console.log(
-			chalk`{yellow ${currentBranch}} is up to date in {cyan ${dir}}`,
-		);
+		log(chalk`{yellow ${currentBranch}} is up to date in {cyan ${dir}}`);
 	} else {
-		console.log(
+		log(
 			chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`,
 		);
 	}
@@ -57,6 +59,7 @@ async function rebase(
 	dir: string,
 	currentBranch: string,
 	defaultBranch: string,
+	log: (arg: any) => void = console.log,
 ) {
 	const [err, res]: ToChildProcessOutput = await to(
 		pcp.spawn("git", ["rebase", `origin/${defaultBranch}`], {
@@ -76,11 +79,11 @@ async function rebase(
 	if (
 		`${res.stdout}`.trim() === `Current branch ${currentBranch} is up to date.`
 	) {
-		console.log(
+		log(
 			chalk`{yellow ${currentBranch}} is already on {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
 		);
 	} else {
-		console.log(
+		log(
 			chalk`{yellow ${currentBranch}} was rebased on {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
 		);
 	}
@@ -91,6 +94,7 @@ async function merge(
 	dir: string,
 	currentBranch: string,
 	defaultBranch: string,
+	log: (arg: any) => void = console.log,
 ) {
 	const [err, res]: ToChildProcessOutput = await to(
 		pcp.spawn("git", ["merge", `origin/${defaultBranch}`], {
@@ -99,26 +103,33 @@ async function merge(
 		}),
 	);
 	if (!err && res) {
-		console.log(
+		log(
 			chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
 		);
 		return;
 	}
 	await pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
-	console.log(
+	log(
 		chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`,
 	);
 }
 
-export async function gitOperations(cwd: string, projectObj: Project) {
+export async function gitOperations(
+	cwd: string,
+	projectObj: Project,
+): Promise<any[]> {
+	const logs: any[] = [];
+	const log = (arg: any) => {
+		logs.push(arg);
+	};
 	const remote = projectObj["remote"];
 	const defaultBranch = projectObj["default_branch"];
 	const dir = getProjectDirFromRemote(cwd, remote);
 
 	if (!(await fs.pathExists(`${dir}`))) {
 		await pcp.spawn("git", ["clone", remote, dir], { cwd, encoding: "utf8" });
-		console.log(chalk`{gray ${remote}} was cloned to {cyan ${dir}}`);
-		return;
+		log(chalk`{gray ${remote}} was cloned to {cyan ${dir}}`);
+		return logs;
 	}
 
 	const [err, res]: ToChildProcessOutput = await to(
@@ -129,25 +140,24 @@ export async function gitOperations(cwd: string, projectObj: Project) {
 	);
 
 	if (err || !res) {
-		console.log(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} ${err}`);
-		console.log(res);
-		return;
+		log(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} ${err}`);
+		log(res);
+		return logs;
 	}
 
 	const currentBranch = `${res.stdout}`.trim();
 
 	if (await hasLocalChanges(dir)) {
-		console.log(
-			chalk`{yellow ${currentBranch}} has local changes in {cyan ${dir}}`,
-		);
+		log(chalk`{yellow ${currentBranch}} has local changes in {cyan ${dir}}`);
 	} else if (currentBranch === defaultBranch) {
 		await fetch(dir);
-		await pull(dir, currentBranch);
+		await pull(dir, currentBranch, log);
 	} else {
 		await fetch(dir);
-		if (!(await pull(dir, currentBranch))) return;
-		if (!(await rebase(dir, currentBranch, defaultBranch))) {
-			await merge(dir, currentBranch, defaultBranch);
+		if (!(await pull(dir, currentBranch, log))) return logs;
+		if (!(await rebase(dir, currentBranch, defaultBranch, log))) {
+			await merge(dir, currentBranch, defaultBranch, log);
 		}
 	}
+	return logs;
 }
