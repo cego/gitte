@@ -46,7 +46,7 @@ async function rebase(dir: string, currentBranch: string, defaultBranch: string)
 		return false;
 	}
 
-	if (`${res.stdout}`.trim() === "Current branch test is up to date.") {
+	if (`${res.stdout}`.trim() === `Current branch ${currentBranch} is up to date.`) {
 		console.log(chalk`{yellow ${currentBranch}} is already on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 	} else {
 		console.log(chalk`{yellow ${currentBranch}} was rebased on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
