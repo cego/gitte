@@ -167,8 +167,7 @@ describe("Git Operations", () => {
 	});
 
 	test("Cloning project", async () => {
-		/* eslint-disable @typescript-eslint/no-unused-vars */
-		pathExistsSpy = jest.spyOn(fs, "pathExists").mockResolvedValue(false);
+		jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 		await gitOperations(cwdStub, projectStub);
 		expect(spawnSpy).toHaveBeenCalledWith(
 			"git", ["clone", "git@gitlab.com:cego/example.git", "/home/user/git-local-devops/cego-example"],
