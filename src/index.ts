@@ -10,6 +10,7 @@ import { getPriorityRange } from "./priority";
 import { Config } from "./types/config";
 import * as pcp from "promisify-child-process";
 import path from "path";
+import chalk from "chalk";
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string): Promise<void> {
 	const cnfPath = `${cwd}/.git-local-devops.yml`;
@@ -24,7 +25,7 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		await fs.ensureDir("/tmp/git-local-devops");
 		await pcp.spawn(
 			"git", ["archive", `--remote=${envCnf['REMOTE_GIT_PROJECT']}`, "master", envCnf['REMOTE_GIT_PROJECT_FILE'], "|", "tar", "-xC", "/tmp/git-local-devops/"],
-			{shell: "bash", cwd, env: process.env, encoding: "utf8"},
+			{ shell: "bash", cwd, env: process.env, encoding: "utf8" },
 		);
 		fileContent = await fs.readFile(`/tmp/git-local-devops/${envCnf['REMOTE_GIT_PROJECT_FILE']}`, "utf8");
 	} else if (await fs.pathExists(cnfPath)) {
@@ -47,7 +48,8 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 	for (const projectObj of Object.values(cnf.projects)) {
 		gitOperationsPromises.push(gitOperations(cwd, projectObj));
 	}
-	await Promise.all(gitOperationsPromises);
+	const logs = await Promise.all(gitOperationsPromises.map(p => p.catch(e => e)));
+	printLogs(Object.keys(cnf.projects), logs);
 
 	const prioRange = getPriorityRange(Object.values(cnf.projects));
 
@@ -59,3 +61,23 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 		await Promise.all(runActionPromises);
 	}
 }
+function printLogs(projectNames: string[], logs: any[]) {
+	// print the succesful logs
+	for (const [i, projectName] of projectNames.entries()) {
+		if (logs[i] instanceof Error) continue;
+		console.log(chalk`┌─ {green {bold ${projectName}}}`);
+		for (const [j, log] of logs[i].entries()) {
+			console.log(`${j === logs[i].length - 1 ? '└' : '├'}─── ${log}`);
+		}
+	}
+	// print the failed logs
+	for (const [i, projectName] of projectNames.entries()) {
+		if (!(logs[i] instanceof Error)) continue;
+		console.log(chalk`┌─ {red {bold ${projectName}}}`);
+		console.log(chalk`└─ {red ${logs[i].stack}}`);
+	}
+	if (logs.filter(l => l instanceof Error).length > 0) {
+		throw new Error("At least one git operation failed");
+	}
+}
+
