@@ -10,7 +10,7 @@ import { getPriorityRange } from "./priority";
 import { Config } from "./types/config";
 import * as pcp from "promisify-child-process";
 import path from "path";
-import chalk from "chalk";
+import { printLogs } from "./utils";
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string): Promise<void> {
 	const cnfPath = `${cwd}/.git-local-devops.yml`;
@@ -59,25 +59,6 @@ export async function start(cwd: string, actionToRun: string, groupToRun: string
 			runActionPromises.push(runActions(cwd, projectObj, i, actionToRun, groupToRun));
 		}
 		await Promise.all(runActionPromises);
-	}
-}
-function printLogs(projectNames: string[], logs: any[]) {
-	// print the succesful logs
-	for (const [i, projectName] of projectNames.entries()) {
-		if (logs[i] instanceof Error) continue;
-		console.log(chalk`┌─ {green {bold ${projectName}}}`);
-		for (const [j, log] of logs[i].entries()) {
-			console.log(`${j === logs[i].length - 1 ? '└' : '├'}─── ${log}`);
-		}
-	}
-	// print the failed logs
-	for (const [i, projectName] of projectNames.entries()) {
-		if (!(logs[i] instanceof Error)) continue;
-		console.log(chalk`┌─ {red {bold ${projectName}}}`);
-		console.log(chalk`└─ {red ${logs[i].stack}}`);
-	}
-	if (logs.filter(l => l instanceof Error).length > 0) {
-		throw new Error("At least one git operation failed");
 	}
 }
 
