@@ -93,7 +93,7 @@ describe("Index (start)", () => {
 		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(false);
 		await expect(start("/home/user/completelyinvalidpath"))
 			.rejects
-			.toThrow("/home/user/completelyinvalidpath doesn't contain an .git-local-devops.yml file");
+			.toThrow("No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.");
 	});
 
 });
