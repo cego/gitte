@@ -9,7 +9,6 @@ import { validateYaml } from "./validate_yaml";
 import { getPriorityRange } from "./priority";
 import { Config } from "./types/config";
 import * as pcp from "promisify-child-process";
-import chalk from "chalk";
 import path from "path";
 
 export async function start(cwd: string, actionToRun: string, groupToRun: string): Promise<void> {
