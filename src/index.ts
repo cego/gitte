@@ -34,9 +34,14 @@ export async function start(
 				runActions(cwd, projectObj, i, actionToRun, groupToRun),
 			);
 		}
-		stdoutBuffer = { ...stdoutBuffer, ...(await Promise.all(runActionPromises)).reduce((acc, cur) => ({ ...acc, ...cur }), {}) };
+		stdoutBuffer = {
+			...stdoutBuffer,
+			...(await Promise.all(runActionPromises)).reduce(
+				(acc, cur) => ({ ...acc, ...cur }),
+				{},
+			),
+		};
 	}
 
-	if(cnf.searchFor) searchStdoutAndPrintHints(cnf.searchFor,stdoutBuffer);
+	if (cnf.searchFor) searchStdoutAndPrintHints(cnf.searchFor, stdoutBuffer);
 }
-

@@ -17,12 +17,12 @@ export type Project = {
 };
 
 export type Config = {
-    startup: { [key: string]: (CmdAction | ShellAction) };
-    projects: { [key: string]: Project };
-    searchFor: SearchFor[];
-}
+	startup: { [key: string]: CmdAction | ShellAction };
+	projects: { [key: string]: Project };
+	searchFor: SearchFor[];
+};
 
 export type SearchFor = {
-    regex: string;
-    hint: string;
-}
+	regex: string;
+	hint: string;
+};
