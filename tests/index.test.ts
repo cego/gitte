@@ -180,8 +180,8 @@ describe("Git Operations", () => {
 	});
 
 	test("Changes found", async () => {
-		await gitOps(cwdStub, projectStub);
-		expect(console.log).toHaveBeenCalledWith(chalk`{yellow main} has local changes in {cyan ${cwdStub}/cego-example}`);
+		const logs = await gitOps(cwdStub, projectStub);
+		expect(logs).toContain(chalk`{yellow main} has local changes in {cyan ${cwdStub}/cego-example}`);
 	});
 
 	test("Cloning project", async () => {
@@ -201,9 +201,9 @@ describe("Git Operations", () => {
 				stderr: "There is no tracking information for the current branch",
 			});
 
-			await gitOps(cwdStub, projectStub);
+			const logs = await gitOps(cwdStub, projectStub);
 
-			expect(console.log).toHaveBeenCalledWith(
+			expect(logs).toContain(
 				chalk`{yellow main} doesn't have a remote origin {cyan ${cwdStub}/cego-example}`,
 			);
 		});
@@ -213,15 +213,21 @@ describe("Git Operations", () => {
 			when(spawnSpy)
 				.calledWith("git", ["pull"], expect.objectContaining({}))
 				.mockResolvedValue({ stdout: "Already up to date." });
-			await gitOps(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(chalk`{yellow main} is up to date in {cyan ${cwdStub}/cego-example}`);
-			expect(spawnSpy).toHaveBeenCalledWith("git", ["pull"], expect.objectContaining({}));
+			const logs = await gitOps(cwdStub, projectStub);
+			expect(logs).toContain(
+				chalk`{yellow main} is up to date in {cyan ${cwdStub}/cego-example}`,
+			);
+			expect(spawnSpy).toHaveBeenCalledWith(
+				"git",
+				["pull"],
+				expect.objectContaining({}),
+			);
 		});
 
 		test("Pulling latest changes", async () => {
 			mockHasNoChanges();
-			await gitOps(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(
+			const logs = await gitOps(cwdStub, projectStub);
+			expect(logs).toContain(
 				chalk`{yellow main} pulled changes from {magenta origin/main} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["pull"], expect.objectContaining({}));
@@ -233,8 +239,8 @@ describe("Git Operations", () => {
 				.calledWith("git", ["pull"], expect.objectContaining({}))
 				.mockRejectedValue({ stderr: "I'M IN CONFLICT" });
 
-			await gitOps(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(
+			const logs = await gitOps(cwdStub, projectStub);
+			expect(logs).toContain(
 				chalk`{yellow main} {red conflicts} with {magenta origin/main} {cyan ${cwdStub}/cego-example}`,
 			);
 		});
@@ -244,8 +250,8 @@ describe("Git Operations", () => {
 		test("Rebasing", async () => {
 			mockHasNoChanges();
 			mockCustomBranch();
-			await gitOps(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(
+			const logs = await gitOps(cwdStub, projectStub);
+			expect(logs).toContain(
 				chalk`{yellow custom} was rebased on {magenta origin/main} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["rebase", `origin/main`], expect.objectContaining({}));
@@ -258,8 +264,8 @@ describe("Git Operations", () => {
 				.calledWith("git", ["rebase", "origin/main"], expect.objectContaining({}))
 				.mockResolvedValue({ stdout: "Current branch custom is up to date." });
 
-			await gitOps(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(
+			const logs = await gitOps(cwdStub, projectStub);
+			expect(logs).toContain(
 				chalk`{yellow custom} is already on {magenta origin/main} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["rebase", `origin/main`], expect.objectContaining({}));
@@ -269,8 +275,8 @@ describe("Git Operations", () => {
 			mockHasNoChanges();
 			mockCustomBranch();
 			mockRebaseFailed();
-			await gitOps(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(
+			const logs = await gitOps(cwdStub, projectStub);
+			expect(logs).toContain(
 				chalk`{yellow custom} was merged with {magenta origin/main} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["rebase", `--abort`], expect.objectContaining({}));
@@ -282,8 +288,8 @@ describe("Git Operations", () => {
 			mockCustomBranch();
 			mockRebaseFailed();
 			mockMergeFailed();
-			await gitOps(cwdStub, projectStub);
-			expect(console.log).toHaveBeenCalledWith(
+			const logs = await gitOps(cwdStub, projectStub);
+			expect(logs).toContain(
 				chalk`{yellow custom} merge with {magenta origin/main} {red failed} in {cyan ${cwdStub}/cego-example}`,
 			);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["merge", `--abort`], expect.objectContaining({}));
