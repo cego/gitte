@@ -83,9 +83,9 @@ beforeEach(() => {
 	cnfStub = {
 		startup: startupStub,
 		projects: {
-			"projecta": projectStub,
-		}
-	}
+			projecta: projectStub,
+		},
+	};
 	readFileSpy = jest.spyOn(fs, "readFile").mockImplementation(() => {
 		return `---\n${yaml.dump({
 			projects: { example: projectStub },
@@ -220,7 +220,12 @@ describe("Project dir from remote", () => {
 
 describe("Run scripts", () => {
 	test("Start cego.dk", async () => {
-		await runAction(cwdStub, cnfStub, {project: "projecta", action: "start", group: "cego.dk"}, 0);
+		await runAction(
+			cwdStub,
+			cnfStub,
+			{ project: "projecta", action: "start", group: "cego.dk" },
+			0,
+		);
 		expect(console.log).toHaveBeenCalledWith(
 			chalk`{blue docker-compose up} is running in {cyan /home/user/git-local-devops/cego-example}`,
 		);
@@ -230,7 +235,12 @@ describe("Run scripts", () => {
 		when(spawnSpy)
 			.calledWith("docker-compose", ["up"], expect.objectContaining({}))
 			.mockRejectedValue({ stderr: "ARRRG FAILURE" });
-		await runAction(cwdStub, cnfStub, {project: "projecta", action: "start", group: "cego.dk"}, 0);
+		await runAction(
+			cwdStub,
+			cnfStub,
+			{ project: "projecta", action: "start", group: "cego.dk" },
+			0,
+		);
 		expect(console.error).toHaveBeenCalledWith(
 			chalk`"start" "cego.dk" {red failed}, goto {cyan /home/user/git-local-devops/cego-example} and run {blue docker-compose up} manually`,
 		);
