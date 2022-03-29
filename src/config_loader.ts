@@ -15,18 +15,9 @@ export async function loadConfig(cwd: string): Promise<Config> {
 
 	if (await fs.pathExists(dotenvPath)) {
 		const envCnf = dotenv.parse(await fs.readFile(dotenvPath));
-		assert(
-			envCnf["REMOTE_GIT_REPO"],
-			`REMOTE_GIT_REPO isn't defined in ${dotenvPath}`,
-		);
-		assert(
-			envCnf["REMOTE_GIT_FILE"],
-			`REMOTE_GIT_FILE isn't defined in ${dotenvPath}`,
-		);
-		assert(
-			envCnf["REMOTE_GIT_REF"],
-			`REMOTE_GIT_REF isn't defined in ${dotenvPath}`,
-		);
+		assert(envCnf["REMOTE_GIT_REPO"], `REMOTE_GIT_REPO isn't defined in ${dotenvPath}`);
+		assert(envCnf["REMOTE_GIT_FILE"], `REMOTE_GIT_FILE isn't defined in ${dotenvPath}`);
+		assert(envCnf["REMOTE_GIT_REF"], `REMOTE_GIT_REF isn't defined in ${dotenvPath}`);
 		const remoteGitProjectUrl = envCnf["REMOTE_GIT_REPO"];
 		const remoteGitProjectFile = envCnf["REMOTE_GIT_FILE"];
 		const remoteGitProjectRef = envCnf["REMOTE_GIT_REF"];
@@ -48,9 +39,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	} else if (await fs.pathExists(cnfPath)) {
 		fileContent = await fs.readFile(cnfPath, "utf8");
 	} else if (cwd === "/") {
-		throw new Error(
-			`No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.`,
-		);
+		throw new Error(`No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.`);
 	} else {
 		return loadConfig(path.resolve(cwd, ".."));
 	}

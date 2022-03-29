@@ -2,7 +2,7 @@ import { getProjectDirFromRemote } from "./project";
 import to from "await-to-js";
 import fs from "fs-extra";
 import chalk from "chalk";
-import { Project } from "./types/config";
+import { Config, Project } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { ToChildProcessOutput } from "./types/utils";
 
@@ -19,19 +19,11 @@ async function fetch(dir: string) {
 }
 
 async function pull(dir: string, currentBranch: string) {
-	const [err, res]: ToChildProcessOutput = await to(
-		pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }),
-	);
+	const [err, res]: ToChildProcessOutput = await to(pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }));
 
 	if (err || !res) {
-		if (
-			`${err?.stderr}`
-				.trim()
-				.startsWith("There is no tracking information for the current branch")
-		) {
-			console.log(
-				chalk`{yellow ${currentBranch}} doesn't have a remote origin {cyan ${dir}}`,
-			);
+		if (`${err?.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
+			console.log(chalk`{yellow ${currentBranch}} doesn't have a remote origin {cyan ${dir}}`);
 		} else {
 			console.log(
 				chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} {cyan ${dir}}`,
@@ -42,9 +34,7 @@ async function pull(dir: string, currentBranch: string) {
 
 	const msg = `${res.stdout}`.trim();
 	if (msg === "Already up to date.") {
-		console.log(
-			chalk`{yellow ${currentBranch}} is up to date in {cyan ${dir}}`,
-		);
+		console.log(chalk`{yellow ${currentBranch}} is up to date in {cyan ${dir}}`);
 	} else {
 		console.log(
 			chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`,
@@ -53,11 +43,7 @@ async function pull(dir: string, currentBranch: string) {
 	return true;
 }
 
-async function rebase(
-	dir: string,
-	currentBranch: string,
-	defaultBranch: string,
-) {
+async function rebase(dir: string, currentBranch: string, defaultBranch: string) {
 	const [err, res]: ToChildProcessOutput = await to(
 		pcp.spawn("git", ["rebase", `origin/${defaultBranch}`], {
 			cwd: dir,
@@ -73,25 +59,15 @@ async function rebase(
 		return false;
 	}
 
-	if (
-		`${res.stdout}`.trim() === `Current branch ${currentBranch} is up to date.`
-	) {
-		console.log(
-			chalk`{yellow ${currentBranch}} is already on {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
-		);
+	if (`${res.stdout}`.trim() === `Current branch ${currentBranch} is up to date.`) {
+		console.log(chalk`{yellow ${currentBranch}} is already on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 	} else {
-		console.log(
-			chalk`{yellow ${currentBranch}} was rebased on {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
-		);
+		console.log(chalk`{yellow ${currentBranch}} was rebased on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 	}
 	return true;
 }
 
-async function merge(
-	dir: string,
-	currentBranch: string,
-	defaultBranch: string,
-) {
+async function merge(dir: string, currentBranch: string, defaultBranch: string) {
 	const [err, res]: ToChildProcessOutput = await to(
 		pcp.spawn("git", ["merge", `origin/${defaultBranch}`], {
 			cwd: dir,
@@ -99,9 +75,7 @@ async function merge(
 		}),
 	);
 	if (!err && res) {
-		console.log(
-			chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
-		);
+		console.log(chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 		return;
 	}
 	await pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
@@ -110,7 +84,7 @@ async function merge(
 	);
 }
 
-export async function gitOperations(cwd: string, projectObj: Project) {
+export async function gitOps(cwd: string, projectObj: Project) {
 	const remote = projectObj["remote"];
 	const defaultBranch = projectObj["default_branch"];
 	const dir = getProjectDirFromRemote(cwd, remote);
@@ -137,9 +111,7 @@ export async function gitOperations(cwd: string, projectObj: Project) {
 	const currentBranch = `${res.stdout}`.trim();
 
 	if (await hasLocalChanges(dir)) {
-		console.log(
-			chalk`{yellow ${currentBranch}} has local changes in {cyan ${dir}}`,
-		);
+		console.log(chalk`{yellow ${currentBranch}} has local changes in {cyan ${dir}}`);
 	} else if (currentBranch === defaultBranch) {
 		await fetch(dir);
 		await pull(dir, currentBranch);
@@ -150,4 +122,12 @@ export async function gitOperations(cwd: string, projectObj: Project) {
 			await merge(dir, currentBranch, defaultBranch);
 		}
 	}
+}
+
+export async function fromConfig(cwd: string, cnf: Config) {
+	const gitOperationsPromises = [];
+	for (const projectObj of Object.values(cnf.projects)) {
+		gitOperationsPromises.push(gitOps(cwd, projectObj));
+	}
+	await Promise.all(gitOperationsPromises);
 }
