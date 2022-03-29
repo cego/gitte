@@ -1,10 +1,12 @@
-import { runActions } from "./actions";
+import { runAction } from "./actions";
 import { gitOperations } from "./git_operations";
 import { startup } from "./startup";
 import { getPriorityRange } from "./priority";
 import { loadConfig } from "./config_loader";
 import { printLogs } from "./utils";
 import { searchStdoutAndPrintHints } from "./search_stdout";
+import { GroupKey } from "./types/utils";
+import { Output } from "promisify-child-process";
 
 export async function start(
 	cwd: string,
@@ -26,21 +28,23 @@ export async function start(
 
 	const prioRange = getPriorityRange(Object.values(cnf.projects));
 
-	let stdoutBuffer: { [key: string]: string[] } = {};
+	const stdoutBuffer: (GroupKey & Output)[] = [];
 	for (let i = prioRange.min; i < prioRange.max; i++) {
 		const runActionPromises = [];
-		for (const projectObj of Object.values(cnf.projects)) {
+		for (const projectKey of Object.keys(cnf.projects)) {
 			runActionPromises.push(
-				runActions(cwd, projectObj, i, actionToRun, groupToRun),
+				runAction(
+					cwd,
+					cnf,
+					{ project: projectKey, action: actionToRun, group: groupToRun },
+					i,
+				),
 			);
 		}
-		stdoutBuffer = {
-			...stdoutBuffer,
-			...(await Promise.all(runActionPromises)).reduce(
-				(acc, cur) => ({ ...acc, ...cur }),
-				{},
-			),
-		};
+		const stdoutBufferPromises = await Promise.all(runActionPromises);
+		stdoutBufferPromises
+			.filter((p) => p)
+			.forEach((p) => stdoutBuffer.push(p as GroupKey & { stdout: string }));
 	}
 
 	if (cnf.searchFor) searchStdoutAndPrintHints(cnf.searchFor, stdoutBuffer);

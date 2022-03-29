@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { getProjectDirFromRemote } from "../src/project";
-import { runActions } from "../src/actions";
+import { runAction } from "../src/actions";
 import { gitOperations } from "../src/git_operations";
 import fs from "fs-extra";
 import chalk from "chalk";
@@ -214,7 +214,7 @@ describe("Project dir from remote", () => {
 
 describe("Run scripts", () => {
 	test("Start cego.dk", async () => {
-		await runActions(cwdStub, projectStub, 0, "start", "cego.dk");
+		await runAction(cwdStub, projectStub, 0, "start", "cego.dk");
 		expect(console.log).toHaveBeenCalledWith(
 			chalk`{blue docker-compose up} is running in {cyan /home/user/git-local-devops/cego-example}`,
 		);
@@ -224,7 +224,7 @@ describe("Run scripts", () => {
 		when(spawnSpy)
 			.calledWith("docker-compose", ["up"], expect.objectContaining({}))
 			.mockRejectedValue({ stderr: "ARRRG FAILURE" });
-		await runActions(cwdStub, projectStub, 0, "start", "cego.dk");
+		await runAction(cwdStub, projectStub, 0, "start", "cego.dk");
 		expect(console.error).toHaveBeenCalledWith(
 			chalk`"start" "cego.dk" {red failed}, goto {cyan /home/user/git-local-devops/cego-example} and run {blue docker-compose up} manually`,
 		);

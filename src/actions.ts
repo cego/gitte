@@ -1,51 +1,53 @@
 import { getProjectDirFromRemote } from "./project";
 import chalk from "chalk";
 import { default as to } from "await-to-js";
-import { Project } from "./types/config";
+import { Config } from "./types/config";
 import * as pcp from "promisify-child-process";
-import { ToChildProcessOutput } from "./types/utils";
+import { GroupKey, ToChildProcessOutput } from "./types/utils";
 
-export async function runActions(
+export async function runAction(
 	cwd: string,
-	project: Project,
+	config: Config,
+	keys: GroupKey,
 	currentPrio: number,
-	actionToRun: string,
-	groupToRun: string,
-): Promise<{ [key: string]: string[] }> {
-	const remote = project.remote;
-	const dir = getProjectDirFromRemote(cwd, remote);
+): Promise<(GroupKey & pcp.Output) | undefined> {
+	if (!(keys.project in config.projects)) return;
+	const project = config.projects[keys.project];
 
-	const stdoutHistory: { [key: string]: string[] } = {};
+	const dir = getProjectDirFromRemote(cwd, project.remote);
 
-	for (const [actionName, actionObj] of Object.entries(project.actions)) {
-		if (actionName !== actionToRun) continue;
+	if (!(keys.action in project.actions)) return;
+	const action = project.actions[keys.action];
 
-		const stdoutBuffer: string[] = [];
-		for (const [groupName, cmd] of Object.entries(actionObj.groups)) {
-			const priority = actionObj["priority"] ?? project["priority"] ?? 0;
-			if (currentPrio !== priority) continue;
-			if (groupName !== groupToRun) continue;
-			console.log(chalk`{blue ${cmd.join(" ")}} is running in {cyan ${dir}}`);
-			const [err, res]: ToChildProcessOutput = await to(
-				pcp.spawn(cmd[0], cmd.slice(1), {
-					cwd: dir,
-					env: process.env,
-					encoding: "utf8",
-				}),
-			);
-			if (err) {
-				console.error(
-					chalk`"${actionToRun}" "${groupToRun}" {red failed}, goto {cyan ${dir}} and run {blue ${cmd.join(
-						" ",
-					)}} manually`,
-				);
-			}
-			if (res?.stdout) stdoutBuffer.push(res.stdout.toString());
-		}
+	if (!(keys.group in action.groups)) return;
+	const group = action.groups[keys.group];
 
-		if (stdoutBuffer.length > 0) {
-			stdoutHistory[actionObj.groups[groupToRun].join(" ")] = stdoutBuffer;
-		}
+	const priority = action.priority ?? project.priority ?? 0;
+
+	if (currentPrio !== priority) return;
+
+	console.log(chalk`{blue ${group.join(" ")}} is running in {cyan ${dir}}`);
+	const [err, res]: ToChildProcessOutput = await to(
+		pcp.spawn(group[0], group.slice(1), {
+			cwd: dir,
+			env: process.env,
+			encoding: "utf8",
+		}),
+	);
+
+	if (err) {
+		console.error(
+			chalk`"${keys.action}" "${
+				keys.group
+			}" {red failed}, goto {cyan ${dir}} and run {blue ${group.join(
+				" ",
+			)}} manually`,
+		);
 	}
-	return stdoutHistory;
+
+	return {
+		...keys,
+		stdout: res?.stdout?.toString() ?? "",
+		stderr: res?.stderr?.toString() ?? "",
+	};
 }
