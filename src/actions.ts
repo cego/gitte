@@ -22,7 +22,11 @@ export async function runActions(cwd: string, project: Project, currentPrio: num
 			console.log(chalk`{blue ${cmd.join(" ")}} is running in {cyan ${dir}}`);
 			const [err, res]: ToChildProcessOutput = await to(pcp.spawn(cmd[0], cmd.slice(1), { cwd: dir, env: process.env, encoding: "utf8" }));
 			if (err) {
-				console.error(chalk`"${actionToRun}" "${groupToRun}" {red failed}, goto {cyan ${dir}} and run {blue ${cmd.join(" ")}} manually`);
+				console.error(
+					chalk`"${actionToRun}" "${groupToRun}" {red failed}, goto {cyan ${dir}} and run {blue ${cmd.join(
+						" ",
+					)}} manually`,
+				);
 			}
 			if (res?.stdout) stdoutBuffer.push(res.stdout.toString());
 		}

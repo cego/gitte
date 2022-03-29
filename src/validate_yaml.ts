@@ -1,6 +1,6 @@
-import Ajv2019 from "ajv/dist/2019"
-const ajv = new Ajv2019()
-import { Config } from './types/config';
+import Ajv2019 from "ajv/dist/2019";
+const ajv = new Ajv2019();
+import { Config } from "./types/config";
 
 const schema = {
     type: 'object',
@@ -112,9 +112,9 @@ const schema = {
 const validate = ajv.compile<Config>(schema);
 
 export function validateYaml(obj: any) {
-    const valid = validate(obj);
-    if (!valid) {
-        console.error(validate.errors);
-    }
-    return valid;
+	const valid = validate(obj);
+	if (!valid) {
+		console.error(validate.errors);
+	}
+	return valid;
 }

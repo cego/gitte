@@ -10,11 +10,12 @@
 ## Config setup
 
 Put `.git-local-devops.yml` in `~/git-local-devops` or another user owned folder.
+
 ```
 ---
 startup:
   # Used to check host machine for various requirements.
-  git-present: 
+  git-present:
     { cmd: ["git", "--version"], hint: "Git isn't installed on the system" }
   docker-present:
     { cmd: ["docker", "--version"], hint: "Docker isn't installed on the system" }
@@ -55,8 +56,9 @@ projects:
 You can also use a remote config file if you put `.git-local-devops-env` in `~/git-local-devops`
 
 ```
-REMOTE_GIT_PROJECT_FILE=".git-local-devops.yml"
-REMOTE_GIT_PROJECT="git@gitlab.com:cego/example.git"
+REMOTE_GIT_REPO="git@gitlab.com:cego/example.git"
+REMOTE_GIT_FILE=".git-local-devops.yml"
+REMOTE_GIT_REF="master"
 ```
 
 ## Running scripts
@@ -70,4 +72,3 @@ All projects on custom branch, will attempt to rebase `origin/<default_branch>` 
 After git operations are done, scripts matching cli inputs will be executed.
 
 In this example only `"bash", "-c", "start-docker-stack.sh"` will be executed in `~/git-local-devops/cego/example` checkout
-
