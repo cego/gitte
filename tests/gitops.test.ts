@@ -7,8 +7,8 @@ import { projectStub, cwdStub } from "./utils/stubs";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
-    // @ts-ignore
-    pcp.spawn = jest.fn();
+	// @ts-ignore
+	pcp.spawn = jest.fn();
 	console.log = jest.fn();
 	console.error = jest.fn();
 	fs.pathExists = jest.fn();
@@ -46,21 +46,23 @@ function mockMergeFailed() {
 
 describe("Git Operations", () => {
 	beforeEach(() => {
-        // @ts-ignore
+		// @ts-ignore
 		jest.spyOn(fs, "pathExists").mockResolvedValue(true);
 	});
 
-    test("Current branch failed", async () => {
-        when(spawnSpy)
-            .calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
-            .mockRejectedValue(new Error("WHAT"));
-        
-        const res = await gitOperations(cwdStub, projectStub);
+	test("Current branch failed", async () => {
+		when(spawnSpy)
+			.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
+			.mockRejectedValue(new Error("WHAT"));
 
-        expect(res).toHaveLength(2);
-        expect(res[0]).toBe(chalk`{yellow git@gitlab.com:cego/example.git} {red failed} in {cyan /home/user/git-local-devops/cego-example} Error: WHAT`);
-        expect(res[1]).toBeUndefined();
-    });
+		const res = await gitOperations(cwdStub, projectStub);
+
+		expect(res).toHaveLength(2);
+		expect(res[0]).toBe(
+			chalk`{yellow git@gitlab.com:cego/example.git} {red failed} in {cyan /home/user/git-local-devops/cego-example} Error: WHAT`,
+		);
+		expect(res[1]).toBeUndefined();
+	});
 
 	test("Changes found", async () => {
 		const logs = await gitOperations(cwdStub, projectStub);
@@ -68,7 +70,7 @@ describe("Git Operations", () => {
 	});
 
 	test("Cloning project", async () => {
-        // @ts-ignore
+		// @ts-ignore
 		jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 		await gitOperations(cwdStub, projectStub);
 		expect(spawnSpy).toHaveBeenCalledWith(
