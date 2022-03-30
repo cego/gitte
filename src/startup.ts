@@ -38,5 +38,3 @@ export async function startup(startupList: (CmdAction | ShellAction)[]) {
 		}
 	}
 }
-
-fromConfig;
