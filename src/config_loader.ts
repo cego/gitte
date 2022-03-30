@@ -14,7 +14,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	let fileContent;
 
 	if (await fs.pathExists(dotenvPath)) {
-		const envCnf = dotenv.parse(await fs.readFile(dotenvPath));
+		const envCnf = dotenv.parse(await fs.readFile(dotenvPath, "utf8"));
 		assert(envCnf["REMOTE_GIT_REPO"], `REMOTE_GIT_REPO isn't defined in ${dotenvPath}`);
 		assert(envCnf["REMOTE_GIT_FILE"], `REMOTE_GIT_FILE isn't defined in ${dotenvPath}`);
 		assert(envCnf["REMOTE_GIT_REF"], `REMOTE_GIT_REF isn't defined in ${dotenvPath}`);

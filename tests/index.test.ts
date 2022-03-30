@@ -79,7 +79,7 @@ beforeEach(() => {
 		bashWorld: { shell: "bash", script: "echo world" },
 	};
 
-	fs.readFile = jest.fn().mockImplementation(() => Promise.resolve());
+	fs.readFile = jest.fn().mockImplementation(() => Promise.resolve(""));
 	pcp.spawn = jest.fn().mockImplementation(() => Promise.resolve({ stdout: "", stderr: "", exitCode: 0 }));
 	console.log = jest.fn();
 	console.error = jest.fn();
@@ -93,23 +93,25 @@ describe("Config loader", () => {
 			projects: { example: projectStub },
 		})}`;
 		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(false);
-		when(fs.readFile)
-			.calledWith(`${cwdStub}/.git-local-devops.yml`, expect.objectContaining({}))
-			.mockResolvedValue(fileCnt);
+		when(fs.readFile).calledWith(`${cwdStub}/.git-local-devops.yml`, "utf8").mockResolvedValue(fileCnt);
 		await expect(loadConfig(cwdStub));
 	});
 
-	// test(".git-local-devops-env exists", async () => {
-	// 	const fileCnt = `---\n${JSON.stringify({
-	// 		startup: startupStub,
-	// 		projects: { example: projectStub },
-	// 	})}`;
-	// 	when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(true);
-	// 	when(fs.readFile)
-	// 		.calledWith(`${cwdStub}/.git-local-devops-env`, expect.objectContaining({}))
-	// 		.mockResolvedValue(fileCnt);
-	// 	await expect(loadConfig(cwdStub));
-	// });
+	test(".git-local-devops-env exists", async () => {
+		const envFileCnt = `REMOTE_GIT_FILE="git-local-devops.yml"\nREMOTE_GIT_REPO="git@gitlab.cego.dk:cego/local-helper-configs.git"\nREMOTE_GIT_REF="master"\n`;
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(true);
+		when(fs.readFile).calledWith(`${cwdStub}/.git-local-devops-env`, "utf8").mockResolvedValue(envFileCnt);
+
+		const gitArchiveCnt = `---\n${JSON.stringify({
+			startup: startupStub,
+			projects: { example: projectStub },
+		})}`;
+		when(pcp.spawn)
+			.calledWith("git", expect.arrayContaining(["archive"]), expect.objectContaining({}))
+			.mockResolvedValue({ stdout: gitArchiveCnt });
+
+		await expect(loadConfig(cwdStub));
+	});
 });
 
 describe("Startup checks", () => {
