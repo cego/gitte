@@ -1,8 +1,8 @@
 import { loadConfig } from "../../src/config_loader";
-import { fromConfig } from "../../src/git-ops";
+import { fromConfig } from "../../src/gitops";
 
 // noinspection JSUnusedGlobalSymbols
-export const command = "git-ops";
+export const command = "gitops";
 // noinspection JSUnusedGlobalSymbols
 export const describe = "Run git operations on all projects";
 // noinspection JSUnusedGlobalSymbols

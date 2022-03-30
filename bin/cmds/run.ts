@@ -1,6 +1,6 @@
 import { loadConfig } from "../../src/config_loader";
 import { startup } from "../../src/startup";
-import { fromConfig as gitOpsFromConfig } from "../../src/git-ops";
+import { fromConfig as gitOpsFromConfig } from "../../src/gitops";
 import { fromConfig as actionsFromConfig } from "../../src/actions";
 
 // noinspection JSUnusedGlobalSymbols

@@ -28,10 +28,9 @@ export async function actions(opt: ActionsOpt) {
 			console.log(chalk`{blue ${cmd.join(" ")}} is running in {cyan ${dir}}`);
 			[err] = await to(pcp.spawn(cmd[0], cmd.slice(1), { cwd: dir, env: process.env }));
 			if (err) {
+				const cmdJoin = cmd.join(" ");
 				console.error(
-					chalk`"${opt.actionToRun}" "${opt.groupToRun}" {red failed}, goto {cyan ${dir}} and run {blue ${cmd.join(
-						" ",
-					)}} manually`,
+					chalk`"${opt.actionToRun}" "${opt.groupToRun}" {red failed}, goto {cyan ${dir}} and run {blue ${cmdJoin}} manually`,
 				);
 			}
 		}

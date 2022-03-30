@@ -5,6 +5,7 @@ import chalk from "chalk";
 import { Config, Project } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { ToChildProcessOutput } from "./types/utils";
+import { printLogs } from "./utils";
 
 async function hasLocalChanges(dir: string) {
 	const res = await pcp.spawn("git", ["status", "--porcelain"], {
@@ -18,28 +19,14 @@ async function fetch(dir: string) {
 	await pcp.spawn("git", ["fetch"], { cwd: dir, encoding: "utf8" });
 }
 
-async function pull(
-	dir: string,
-	currentBranch: string,
-	log: (arg: any) => void = console.log,
-) {
-	const [err, res]: ToChildProcessOutput = await to(
-		pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }),
-	);
+async function pull(dir: string, currentBranch: string, log: (arg: any) => void = console.log) {
+	const [err, res]: ToChildProcessOutput = await to(pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }));
 
 	if (err || !res) {
-		if (
-			`${err?.stderr}`
-				.trim()
-				.startsWith("There is no tracking information for the current branch")
-		) {
-			log(
-				chalk`{yellow ${currentBranch}} doesn't have a remote origin {cyan ${dir}}`,
-			);
+		if (`${err?.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
+			log(chalk`{yellow ${currentBranch}} doesn't have a remote origin {cyan ${dir}}`);
 		} else {
-			log(
-				chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} {cyan ${dir}}`,
-			);
+			log(chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} {cyan ${dir}}`);
 		}
 		return false;
 	}
@@ -48,9 +35,7 @@ async function pull(
 	if (msg === "Already up to date.") {
 		log(chalk`{yellow ${currentBranch}} is up to date in {cyan ${dir}}`);
 	} else {
-		log(
-			chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`,
-		);
+		log(chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 	}
 	return true;
 }
@@ -76,26 +61,15 @@ async function rebase(
 		return false;
 	}
 
-	if (
-		`${res.stdout}`.trim() === `Current branch ${currentBranch} is up to date.`
-	) {
-		log(
-			chalk`{yellow ${currentBranch}} is already on {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
-		);
+	if (`${res.stdout}`.trim() === `Current branch ${currentBranch} is up to date.`) {
+		log(chalk`{yellow ${currentBranch}} is already on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 	} else {
-		log(
-			chalk`{yellow ${currentBranch}} was rebased on {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
-		);
+		log(chalk`{yellow ${currentBranch}} was rebased on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 	}
 	return true;
 }
 
-async function merge(
-	dir: string,
-	currentBranch: string,
-	defaultBranch: string,
-	log: (arg: any) => void = console.log,
-) {
+async function merge(dir: string, currentBranch: string, defaultBranch: string, log: (arg: any) => void = console.log) {
 	const [err, res]: ToChildProcessOutput = await to(
 		pcp.spawn("git", ["merge", `origin/${defaultBranch}`], {
 			cwd: dir,
@@ -103,21 +77,14 @@ async function merge(
 		}),
 	);
 	if (!err && res) {
-		log(
-			chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`,
-		);
+		log(chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
 		return;
 	}
 	await pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
-	log(
-		chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`,
-	);
+	log(chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`);
 }
 
-export async function gitOperations(
-	cwd: string,
-	projectObj: Project,
-): Promise<any[]> {
+export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
 	const logs: any[] = [];
 	const log = (arg: any) => {
 		logs.push(arg);
@@ -165,7 +132,9 @@ export async function gitOperations(
 export async function fromConfig(cwd: string, cnf: Config) {
 	const gitOperationsPromises = [];
 	for (const projectObj of Object.values(cnf.projects)) {
-		gitOperationsPromises.push(gitOps(cwd, projectObj));
+		gitOperationsPromises.push(gitops(cwd, projectObj));
 	}
-	await Promise.all(gitOperationsPromises);
+
+	const logs = await Promise.all(gitOperationsPromises.map((p) => p.catch((e) => e)));
+	printLogs(Object.keys(cnf.projects), logs);
 }
