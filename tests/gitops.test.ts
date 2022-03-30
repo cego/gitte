@@ -5,56 +5,62 @@ import chalk from "chalk";
 import * as pcp from "promisify-child-process";
 import { projectStub, cwdStub } from "./utils/stubs";
 
-let spawnSpy: any; //todo
+let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
-	// @ts-ignore
-	pcp.spawn = jest.fn();
+    // @ts-ignore
+    pcp.spawn = jest.fn();
 	console.log = jest.fn();
 	console.error = jest.fn();
 	fs.pathExists = jest.fn();
 
-	// @ts-ignore
 	spawnSpy = jest.spyOn(pcp, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" });
 
 	when(spawnSpy)
 		.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
-		// @ts-ignore
 		.mockResolvedValue({ stdout: "main" });
 });
 
 function mockHasNoChanges() {
 	when(spawnSpy)
 		.calledWith("git", ["status", "--porcelain"], expect.objectContaining({}))
-		// @ts-ignore
 		.mockResolvedValue({ stdout: "" });
 }
 
 function mockCustomBranch() {
 	when(spawnSpy)
 		.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
-		// @ts-ignore
 		.mockResolvedValue({ stdout: "custom" });
 }
 
 function mockRebaseFailed() {
 	when(spawnSpy)
 		.calledWith("git", ["rebase", `origin/main`], expect.objectContaining({}))
-		// @ts-ignore
 		.mockRejectedValue("Rebase wasn't possible");
 }
 
 function mockMergeFailed() {
 	when(spawnSpy)
 		.calledWith("git", ["merge", `origin/main`], expect.objectContaining({}))
-		// @ts-ignore
 		.mockRejectedValue("Merge wasn't possible");
 }
 
 describe("Git Operations", () => {
 	beforeEach(() => {
-		// @ts-ignore
+        // @ts-ignore
 		jest.spyOn(fs, "pathExists").mockResolvedValue(true);
 	});
+
+    test("Current branch failed", async () => {
+        when(spawnSpy)
+            .calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
+            .mockRejectedValue(new Error("WHAT"));
+        
+        const res = await gitOperations(cwdStub, projectStub);
+
+        expect(res).toHaveLength(2);
+        expect(res[0]).toBe(chalk`{yellow git@gitlab.com:cego/example.git} {red failed} in {cyan /home/user/git-local-devops/cego-example} Error: WHAT`);
+        expect(res[1]).toBeUndefined();
+    });
 
 	test("Changes found", async () => {
 		const logs = await gitOperations(cwdStub, projectStub);
@@ -62,7 +68,7 @@ describe("Git Operations", () => {
 	});
 
 	test("Cloning project", async () => {
-		// @ts-ignore
+        // @ts-ignore
 		jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 		await gitOperations(cwdStub, projectStub);
 		expect(spawnSpy).toHaveBeenCalledWith(
@@ -76,7 +82,6 @@ describe("Git Operations", () => {
 		test("No remote", async () => {
 			mockHasNoChanges();
 			when(spawnSpy).calledWith("git", ["pull"], expect.objectContaining({})).mockRejectedValue({
-				// @ts-ignore
 				stderr: "There is no tracking information for the current branch",
 			});
 
@@ -89,7 +94,6 @@ describe("Git Operations", () => {
 			mockHasNoChanges();
 			when(spawnSpy)
 				.calledWith("git", ["pull"], expect.objectContaining({}))
-				// @ts-ignore
 				.mockResolvedValue({ stdout: "Already up to date." });
 			const logs = await gitOperations(cwdStub, projectStub);
 			expect(logs).toContain(chalk`{yellow main} is up to date in {cyan ${cwdStub}/cego-example}`);
@@ -109,7 +113,6 @@ describe("Git Operations", () => {
 			mockHasNoChanges();
 			when(spawnSpy)
 				.calledWith("git", ["pull"], expect.objectContaining({}))
-				// @ts-ignore
 				.mockRejectedValue({ stderr: "I'M IN CONFLICT" });
 
 			const logs = await gitOperations(cwdStub, projectStub);
@@ -135,7 +138,6 @@ describe("Git Operations", () => {
 			mockCustomBranch();
 			when(spawnSpy)
 				.calledWith("git", ["rebase", "origin/main"], expect.objectContaining({}))
-				// @ts-ignore
 				.mockResolvedValue({ stdout: "Current branch custom is up to date." });
 
 			const logs = await gitOperations(cwdStub, projectStub);
