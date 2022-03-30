@@ -3,7 +3,7 @@ import { SearchFor } from "./types/config";
 import { GroupKey } from "./types/utils";
 import { Output } from "promisify-child-process";
 
-export function searchStdoutAndPrintHints(
+export function searchOutputForHints(
 	searchFor: SearchFor[],
 	stdoutHistory: (GroupKey & Output)[],
 ) {

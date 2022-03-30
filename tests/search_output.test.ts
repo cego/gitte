@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { Output } from "promisify-child-process";
-import { searchStdoutAndPrintHints } from "../src/search_stdout";
+import { searchOutputForHints } from "../src/search_output";
 import { SearchFor } from "../src/types/config";
 import { GroupKey } from "../src/types/utils";
 
@@ -27,7 +27,7 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchStdoutAndPrintHints(searchFor, stdoutHistory);
+		searchOutputForHints(searchFor, stdoutHistory);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
 		expect(console.log).toHaveBeenCalledWith(
@@ -53,7 +53,7 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchStdoutAndPrintHints(searchFor, stdoutHistory);
+		searchOutputForHints(searchFor, stdoutHistory);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
 		expect(console.log).toHaveBeenCalledWith(
@@ -79,7 +79,7 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchStdoutAndPrintHints(searchFor, stdoutHistory);
+		searchOutputForHints(searchFor, stdoutHistory);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
 		expect(console.log).toHaveBeenCalledWith(
@@ -131,7 +131,7 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchStdoutAndPrintHints(searchFor, stdoutHistory);
+		searchOutputForHints(searchFor, stdoutHistory);
 
 		expect(console.log).toHaveBeenCalledTimes(4);
 		expect(console.log).toHaveBeenCalledWith(

@@ -4,7 +4,7 @@ import { startup } from "./startup";
 import { getPriorityRange } from "./priority";
 import { loadConfig } from "./config_loader";
 import { printLogs } from "./utils";
-import { searchStdoutAndPrintHints } from "./search_stdout";
+import { searchOutputForHints } from "./search_output";
 import { GroupKey } from "./types/utils";
 import { Output } from "promisify-child-process";
 
@@ -47,5 +47,5 @@ export async function start(
 			.forEach((p) => stdoutBuffer.push(p as GroupKey & { stdout: string }));
 	}
 
-	if (cnf.searchFor) searchStdoutAndPrintHints(cnf.searchFor, stdoutBuffer);
+	if (cnf.searchFor) searchOutputForHints(cnf.searchFor, stdoutBuffer);
 }
