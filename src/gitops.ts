@@ -130,11 +130,7 @@ export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
 }
 
 export async function fromConfig(cwd: string, cnf: Config) {
-	const gitOperationsPromises = [];
-	for (const projectObj of Object.values(cnf.projects)) {
-		gitOperationsPromises.push(gitops(cwd, projectObj));
-	}
-
+	const gitOperationsPromises = Object.values(cnf.projects).map((project) => gitops(cwd, project));
 	const logs = await Promise.all(gitOperationsPromises.map((p) => p.catch((e) => e)));
 	printLogs(Object.keys(cnf.projects), logs);
 }

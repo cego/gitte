@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { cnfStub, cwdStub } from "./utils/stubs";
 import * as pcp from "promisify-child-process";
 import { when } from "jest-when";
-import { runAction, runActions } from "../src/actions";
+import { runAction, actions } from "../src/actions";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
@@ -94,7 +94,7 @@ describe("Run actions", () => {
 			stderr: "Mocked Stderr",
 		});
 
-		const res = await runActions(cnfStub, cwdStub, "start", "cego.dk", runActionFn);
+		const res = await actions(cnfStub, cwdStub, "start", "cego.dk", runActionFn);
 		expect(runActionFn).toHaveBeenCalledTimes(1);
 		expect(runActionFn).toHaveBeenCalledWith({
 			cwd: cwdStub,
@@ -125,7 +125,7 @@ describe("Run actions", () => {
 		cnf.projects["projectc"] = { ...cnfStub.projects["projecta"] };
 		cnf.projects["projectc"].actions["start"].priority = 2;
 
-		const res = await runActions(cnfStub, cwdStub, "start", "cego.dk", runActionFn);
+		const res = await actions(cnfStub, cwdStub, "start", "cego.dk", runActionFn);
 		expect(runActionFn).toHaveBeenCalledTimes(9); // 3 for every action because of 3 different priorities
 		expect(runActionFn).toHaveBeenCalledWith({
 			cwd: cwdStub,
