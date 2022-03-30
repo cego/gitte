@@ -7,17 +7,13 @@ let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
 	// @ts-ignore
 	pcp.spawn = jest.fn();
-	spawnSpy = jest
-		.spyOn(pcp, "spawn")
-		.mockResolvedValue({ stdout: "Mocked Stdout" });
+	spawnSpy = jest.spyOn(pcp, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" });
 	fs.pathExists = jest.fn();
 });
 
 describe("Startup checks", () => {
 	test("failing argv", async () => {
-		when(spawnSpy)
-			.calledWith("echo", ["hello"], expect.objectContaining({}))
-			.mockRejectedValue(new Error("WHAT"));
+		when(spawnSpy).calledWith("echo", ["hello"], expect.objectContaining({})).mockRejectedValue(new Error("WHAT"));
 		await expect(startup([{ cmd: ["echo", "hello"] }])).rejects.toThrow("WHAT");
 	});
 
@@ -25,8 +21,6 @@ describe("Startup checks", () => {
 		when(spawnSpy)
 			.calledWith("echo hello", [], expect.objectContaining({ shell: "bash" }))
 			.mockRejectedValue(new Error("WHAT"));
-		await expect(
-			startup([{ shell: "bash", script: "echo hello" }]),
-		).rejects.toThrow("WHAT");
+		await expect(startup([{ shell: "bash", script: "echo hello" }])).rejects.toThrow("WHAT");
 	});
 });

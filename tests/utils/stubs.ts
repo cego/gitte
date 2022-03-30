@@ -1,41 +1,19 @@
-import {
-	CmdAction,
-	Config,
-	Project,
-	ShellAction,
-} from "../../src/types/config";
+import { CmdAction, Config, Project, ShellAction } from "../../src/types/config";
 
 export const projectStub: Project = {
 	default_branch: "main",
 	remote: "git@gitlab.com:cego/example.git",
-	priority: 0,
 	actions: {
 		start: {
 			groups: {
 				"cego.dk": ["docker-compose", "up"],
-				"example.com": [
-					"scp",
-					"user@example.com",
-					"sh",
-					"-c",
-					"service",
-					"webserver",
-					"start",
-				],
+				"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "start"],
 			},
 		},
 		down: {
 			groups: {
 				"cego.dk": ["docker-compose", "down"],
-				"example.com": [
-					"scp",
-					"user@example.com",
-					"sh",
-					"-c",
-					"service",
-					"webserver",
-					"stop",
-				],
+				"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "stop"],
 			},
 		},
 	},

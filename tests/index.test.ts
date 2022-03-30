@@ -22,29 +22,20 @@ beforeEach(() => {
 	fs.pathExists = jest.fn();
 	console.log = jest.fn();
 
-	spawnSpy = jest
-		.spyOn(pcp, "spawn")
-		.mockResolvedValue({ stdout: "Mocked Stdout" });
+	spawnSpy = jest.spyOn(pcp, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" });
 
 	when(spawnSpy)
-		.calledWith(
-			"git",
-			["branch", "--show-current"],
-			expect.objectContaining({ cwd: expect.any(String) }),
-		)
+		.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
 		.mockResolvedValue({ stdout: "main" });
 });
 
 describe("Index (start)", () => {
 	test("with default stubs", async () => {
 		// @ts-ignore
-		when(fs.pathExists)
-			.calledWith(`${cwdStub}/.git-local-devops-env`)
-			.mockResolvedValue(false);
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(false);
+
 		// @ts-ignore
-		when(fs.pathExists)
-			.calledWith(`${cwdStub}/.git-local-devops.yml`)
-			.mockResolvedValue(true);
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(true);
 		await expect(start(cwdStub, "", "")).resolves.toBe(undefined);
 	});
 
@@ -54,13 +45,9 @@ describe("Index (start)", () => {
 		const remoteGitRef = "main";
 
 		// @ts-ignore
-		when(fs.pathExists)
-			.calledWith(`${cwdStub}/.git-local-devops-env`)
-			.mockResolvedValue(true);
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(true);
 		// @ts-ignore
-		when(fs.pathExists)
-			.calledWith(`${cwdStub}/.git-local-devops.yml`)
-			.mockResolvedValue(true);
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(true);
 		when(readFileSpy)
 			.calledWith(`${cwdStub}/.git-local-devops-env`)
 			.mockImplementation(() => {
@@ -69,16 +56,7 @@ describe("Index (start)", () => {
 		when(spawnSpy)
 			.calledWith(
 				"git",
-				[
-					"archive",
-					`--remote=${remoteGitRepo}`,
-					remoteGitRef,
-					remoteGitFile,
-					"|",
-					"tar",
-					"-xO",
-					remoteGitFile,
-				],
+				["archive", `--remote=${remoteGitRepo}`, remoteGitRef, remoteGitFile, "|", "tar", "-xO", remoteGitFile],
 				expect.objectContaining({}),
 			)
 			.mockResolvedValue({
@@ -92,12 +70,8 @@ describe("Index (start)", () => {
 
 	test("config file not found", async () => {
 		// @ts-ignore
-		when(fs.pathExists)
-			.calledWith(`${cwdStub}/.git-local-devops.yml`)
-			.mockResolvedValue(false);
-		await expect(
-			start("/home/user/completelyinvalidpath", "", ""),
-		).rejects.toThrow(
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops.yml`).mockResolvedValue(false);
+		await expect(start("/home/user/completelyinvalidpath", "", "")).rejects.toThrow(
 			"No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.",
 		);
 	});
