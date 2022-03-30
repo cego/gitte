@@ -8,6 +8,7 @@ import { when } from "jest-when";
 import { startup } from "../src/startup";
 import * as pcp from "promisify-child-process";
 import { printLogs } from "../src/utils";
+import { loadConfig } from "../src/config_loader";
 
 function mockHasNoChanges() {
 	when(pcp.spawn)
@@ -85,6 +86,32 @@ beforeEach(() => {
 	fs.pathExists = jest.fn().mockImplementation(() => Promise.resolve(true));
 });
 
+describe("Config loader", () => {
+	test(".git-local-devops.yml exists", async () => {
+		const fileCnt = `---\n${JSON.stringify({
+			startup: startupStub,
+			projects: { example: projectStub },
+		})}`;
+		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(false);
+		when(fs.readFile)
+			.calledWith(`${cwdStub}/.git-local-devops.yml`, expect.objectContaining({}))
+			.mockResolvedValue(fileCnt);
+		await expect(loadConfig(cwdStub));
+	});
+
+	// test(".git-local-devops-env exists", async () => {
+	// 	const fileCnt = `---\n${JSON.stringify({
+	// 		startup: startupStub,
+	// 		projects: { example: projectStub },
+	// 	})}`;
+	// 	when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(true);
+	// 	when(fs.readFile)
+	// 		.calledWith(`${cwdStub}/.git-local-devops-env`, expect.objectContaining({}))
+	// 		.mockResolvedValue(fileCnt);
+	// 	await expect(loadConfig(cwdStub));
+	// });
+});
+
 describe("Startup checks", () => {
 	test("failing argv", async () => {
 		when(pcp.spawn).calledWith("echo", ["hello"], expect.objectContaining({})).mockRejectedValue(new Error("WHAT"));
@@ -99,7 +126,7 @@ describe("Startup checks", () => {
 	});
 });
 
-describe("Project dir from remote", () => {
+describe("Project", () => {
 	test("Valid ssh remote", () => {
 		const dir = getProjectDirFromRemote(cwdStub, "git@gitlab.com:cego/example.git");
 		expect(dir).toEqual(`${cwdStub}/cego-example`);
@@ -119,7 +146,7 @@ describe("Project dir from remote", () => {
 	});
 });
 
-describe("Run scripts", () => {
+describe("Actions", () => {
 	test("Start cego.dk", async () => {
 		const actOpt = {
 			cwd: cwdStub,
