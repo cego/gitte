@@ -164,5 +164,5 @@ describe("Test fromConfig", () => {
 		expect(console.log).toHaveBeenCalledWith(
 			chalk`{yellow No groups found for action {cyan \"nonaction\"} and group {cyan \"nongroup\"}}`,
 		);
-	})
-})
+	});
+});
