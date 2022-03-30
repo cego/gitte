@@ -1,7 +1,6 @@
 import { default as to } from "await-to-js";
 import { CmdAction, ShellAction } from "./types/config";
 import * as pcp from "promisify-child-process";
-import { fromConfig } from "./actions";
 
 function isCmdAction(action: CmdAction | ShellAction): action is CmdAction {
 	return "cmd" in action;
