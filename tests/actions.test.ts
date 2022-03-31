@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { cnfStub, cwdStub } from "./utils/stubs";
 import * as pcp from "promisify-child-process";
 import { when } from "jest-when";
-import { runAction, actions } from "../src/actions";
+import { runAction, actions, fromConfig } from "../src/actions";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
@@ -152,5 +152,17 @@ describe("Run actions", () => {
 			stdout: "Mocked Stdout",
 			stderr: "Mocked Stderr",
 		});
+	});
+});
+
+describe("Test fromConfig", () => {
+	test("It prints hint if no action or group is found at all", async () => {
+		const cnf = { ...cnfStub };
+		console.log = jest.fn();
+
+		await fromConfig(cwdStub, cnf, "nonaction", "nongroup");
+		expect(console.log).toHaveBeenCalledWith(
+			chalk`{yellow No groups found for action {cyan nonaction} and group {cyan nongroup}}`,
+		);
 	});
 });

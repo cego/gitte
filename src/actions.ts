@@ -82,4 +82,7 @@ export async function runAction(options: RunActionOpts): Promise<(GroupKey & pcp
 export async function fromConfig(cwd: string, cnf: Config, actionToRun: string, groupToRun: string) {
 	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, cwd, actionToRun, groupToRun);
 	if (cnf.searchFor) searchOutputForHints(cnf.searchFor, stdoutBuffer);
+	if (stdoutBuffer.length === 0) {
+		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
+	}
 }
