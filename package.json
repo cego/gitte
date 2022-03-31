@@ -35,6 +35,7 @@
 		"@types/jest": "^27.4.1",
 		"@types/jest-when": "^3.5.0",
 		"@types/js-yaml": "^4.0.5",
+		"@types/yargs": "^17.0.10",
 		"@types/node": "^16.11.26",
 		"@typescript-eslint/eslint-plugin": "^5.16.0",
 		"@typescript-eslint/parser": "^5.16.0",
@@ -49,13 +50,13 @@
 		"typescript": "^4.6.3"
 	},
 	"scripts": {
-		"eslint": "eslint .",
+		"eslint": "eslint . --max-warnings=0",
 		"prettier": "prettier -c .",
 		"prettier:fix": "prettier -c --write .",
 		"lint": "npm run eslint && npm run prettier",
 		"lint:fix": "npm run eslint && npm run prettier:fix",
 		"build": "rm -f src/*.js src/*.d.ts && tsc",
 		"test": "jest",
-		"test:coverage": "jest --coverage"
+		"test:coverage": "jest --coverage "
 	}
 }

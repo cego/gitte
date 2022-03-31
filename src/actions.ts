@@ -5,24 +5,19 @@ import { Config } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { GroupKey, ToChildProcessOutput } from "./types/utils";
 import { getPriorityRange } from "./priority";
+import { searchOutputForHints } from "./search_output";
 
-export async function runActions(
+export async function actions(
 	config: Config,
 	cwd: string,
 	actionToRun: string,
 	groupToRun: string,
-	runActionFn: (
-		opts: RunActionOpts,
-	) => Promise<(GroupKey & pcp.Output) | undefined> = runAction,
+	runActionFn: (opts: RunActionOpts) => Promise<(GroupKey & pcp.Output) | undefined> = runAction,
 ): Promise<(GroupKey & pcp.Output)[]> {
 	const prioRange = getPriorityRange(Object.values(config.projects));
 
 	const stdoutBuffer: (GroupKey & pcp.Output)[] = [];
-	for (
-		let currentPrio = prioRange.min;
-		currentPrio <= prioRange.max;
-		currentPrio++
-	) {
+	for (let currentPrio = prioRange.min; currentPrio <= prioRange.max; currentPrio++) {
 		const runActionPromises = Object.keys(config.projects).map((project) =>
 			runActionFn({
 				cwd,
@@ -45,9 +40,7 @@ interface RunActionOpts {
 	currentPrio: number;
 }
 
-export async function runAction(
-	options: RunActionOpts,
-): Promise<(GroupKey & pcp.Output) | undefined> {
+export async function runAction(options: RunActionOpts): Promise<(GroupKey & pcp.Output) | undefined> {
 	if (!(options.keys.project in options.config.projects)) return;
 	const project = options.config.projects[options.keys.project];
 
@@ -84,4 +77,9 @@ export async function runAction(
 		stdout: res?.stdout?.toString() ?? "",
 		stderr: res?.stderr?.toString() ?? "",
 	};
+}
+
+export async function fromConfig(cwd: string, cnf: Config, actionToRun: string, groupToRun: string) {
+	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, cwd, actionToRun, groupToRun);
+	if (cnf.searchFor) searchOutputForHints(cnf.searchFor, stdoutBuffer);
 }

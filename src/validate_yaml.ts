@@ -1,6 +1,7 @@
 import Ajv2019 from "ajv/dist/2019";
-const ajv = new Ajv2019();
 import { Config } from "./types/config";
+
+const ajv = new Ajv2019();
 
 const schema = {
 	type: "object",

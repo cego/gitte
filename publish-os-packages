@@ -18,7 +18,7 @@ mkdir -p ppa
 mkdir -p "pkg/git-local-devops_${VERSION}_amd64/DEBIAN/"
 cat << EOF > "pkg/git-local-devops_${VERSION}_amd64/DEBIAN/control"
 Name: git-local-devops
-Package: com.github.cego.git-local-devops
+Package: git-local-devops
 Version: ${VERSION}
 Architecture: amd64
 Author: Mads Jon Nielsen <madsjon@gmail.com>
