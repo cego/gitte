@@ -23,7 +23,7 @@ export const describe = "Run startup, git operations and actions on all projects
 // noinspection JSUnusedGlobalSymbols
 export async function handler(argv: any) {
 	const cnf = await loadConfig(argv.cwd);
-	await startup(Object.values(cnf.startup));
+	await startup(Object.entries(cnf.startup));
 	await gitOpsFromConfig(argv.cwd, cnf);
 	await actionsFromConfig(argv.cwd, cnf, argv.action, argv.group);
 }

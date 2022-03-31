@@ -24,6 +24,7 @@
 		"ajv": "^8.11.0",
 		"await-to-js": "^3.0.0",
 		"chalk": "^4.1.2",
+		"cli-progress": "^3.10.0",
 		"dotenv": "^16.0.0",
 		"fs-extra": "^10.0.1",
 		"js-yaml": "^4.1.0",
@@ -31,12 +32,13 @@
 		"yargs": "^17.4.0"
 	},
 	"devDependencies": {
+		"@types/cli-progress": "^3.9.2",
 		"@types/fs-extra": "^9.0.13",
 		"@types/jest": "^27.4.1",
 		"@types/jest-when": "^3.5.0",
 		"@types/js-yaml": "^4.0.5",
-		"@types/yargs": "^17.0.10",
 		"@types/node": "^16.11.26",
+		"@types/yargs": "^17.0.10",
 		"@typescript-eslint/eslint-plugin": "^5.16.0",
 		"@typescript-eslint/parser": "^5.16.0",
 		"eslint": "^8.12.0",

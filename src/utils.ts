@@ -19,3 +19,21 @@ export function printLogs(projectNames: string[], logs: any[]) {
 		throw new Error("At least one git operation failed");
 	}
 }
+
+export async function wrapEntryPromiseWithKey<TArgs extends any[], TReturn>(arg: [string, TArgs], fn: (...args: TArgs) => TReturn): Promise<{key: string, res: T2}> {
+	const res = await fn(...arg[1]);
+	return { key: arg[0], res };
+}
+
+export function waitingOnToString(waitingOn: string[]): string {
+	// max 40 chars
+	let str = "";
+	for(let [i,waitingOnStr] of waitingOn.entries()) {
+		if(i !== 0 && str.length + waitingOnStr.length > 40){
+			return `${str} and ${waitingOn.length - i} more`;
+		}
+		str += waitingOnStr;
+	}
+	return str;
+
+}

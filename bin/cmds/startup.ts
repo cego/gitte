@@ -8,5 +8,5 @@ export const describe = "Run startup checks";
 // noinspection JSUnusedGlobalSymbols
 export async function handler(argv: any) {
 	const cnf = await loadConfig(argv.cwd);
-	await startup(Object.values(cnf.startup));
+	await startup(Object.entries(cnf.startup));
 }
