@@ -36,6 +36,8 @@ export async function loadConfig(cwd: string): Promise<Config> {
 			{ shell: "bash", cwd, env: process.env, encoding: "utf8" },
 		);
 		fileContent = `${res.stdout}`;
+		// write to file
+		await fs.writeFile(cnfPath, fileContent);
 	} else if (await fs.pathExists(cnfPath)) {
 		fileContent = await fs.readFile(cnfPath, "utf8");
 	} else if (cwd === "/") {
