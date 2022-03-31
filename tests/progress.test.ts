@@ -22,14 +22,14 @@ describe("Progress helper", () => {
 	});
 	describe("Apply promise sync", () => {
 		test("One task", async () => {
-			const fn = jest.fn(() => "test");
+			const fn = jest.fn(() => Promise.resolve("test"));
 			const result = await applyPromiseToEntriesWithProgressBarSync("test", [["test", "test"]], fn);
 			expect(result).toEqual(["test"]);
 			expect(fn).toHaveBeenCalledTimes(1);
 		});
 
 		test("Many tasks", async () => {
-			const fn = jest.fn(() => "test");
+			const fn = jest.fn(() => Promise.resolve("test"));
 			const result = await applyPromiseToEntriesWithProgressBarSync(
 				"test",
 				[

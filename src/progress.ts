@@ -3,7 +3,7 @@ import cliProgress from "cli-progress";
 
 export async function wrapEntryPromiseWithKey<TArg, TReturn>(
 	arg: [string, TArg],
-	fn: (arg: TArg) => TReturn,
+	fn: (arg: TArg) => Promise<TReturn>,
 ): Promise<{ key: string; res: TReturn }> {
 	const res = await fn(arg[1]);
 	return { key: arg[0], res };
@@ -24,8 +24,8 @@ export function waitingOnToString(waitingOn: string[]): string {
 export async function applyPromiseToEntriesWithProgressBar<TArg, TReturn>(
 	label: string,
 	entries: [string, TArg][],
-	fn: (arg: TArg) => TReturn,
-): Promise<Promise<TReturn>[]> {
+	fn: (arg: TArg) => Promise<TReturn>,
+): Promise<TReturn[]> {
 	const promises = entries.map(([key, value]) => wrapEntryPromiseWithKey([key, value], fn));
 	const waitingOn = entries.map(([key]) => key);
 
@@ -59,7 +59,7 @@ export function getProgressBar(label: string) {
 export async function applyPromiseToEntriesWithProgressBarSync<TArg, TReturn>(
 	label: string,
 	entries: [string, TArg][],
-	fn: (arg: TArg) => TReturn,
+	fn: (arg: TArg) => Promise<TReturn>,
 ): Promise<TReturn[]> {
 	const progressBar = getProgressBar(label);
 
