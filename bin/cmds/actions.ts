@@ -6,11 +6,11 @@ import { Argv } from "yargs";
 export function builder(y: Argv) {
 	return y
 		.positional("action", {
-			required: false,
+			required: true,
 			describe: "action to run for each project in config",
 		})
 		.positional("group", {
-			required: false,
+			required: true,
 			describe: "group entry to run for specified action",
 		});
 }
