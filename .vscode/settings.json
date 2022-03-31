@@ -1,0 +1,7 @@
+{
+	"files.exclude": {
+		"bin/**/*.js": true,
+		"src/**/*.js": true,
+		"tests/**/*.js": true
+	}
+}

@@ -6,6 +6,7 @@ import * as pcp from "promisify-child-process";
 import { GroupKey, ToChildProcessOutput } from "./types/utils";
 import { getPriorityRange } from "./priority";
 import { searchOutputForHints } from "./search_output";
+import { printHeader } from "./utils";
 
 export async function actions(
 	config: Config,
@@ -80,6 +81,7 @@ export async function runAction(options: RunActionOpts): Promise<(GroupKey & pcp
 }
 
 export async function fromConfig(cwd: string, cnf: Config, actionToRun: string, groupToRun: string) {
+	printHeader("Running actions");
 	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, cwd, actionToRun, groupToRun);
 	if (cnf.searchFor) searchOutputForHints(cnf.searchFor, stdoutBuffer);
 }
