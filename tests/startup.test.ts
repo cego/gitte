@@ -7,6 +7,7 @@ let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
 	// @ts-ignore
 	pcp.spawn = jest.fn();
+	console.log = jest.fn();
 	spawnSpy = jest.spyOn(pcp, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" });
 	fs.pathExists = jest.fn();
 });

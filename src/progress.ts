@@ -16,7 +16,7 @@ export function waitingOnToString(waitingOn: string[]): string {
 		if (i !== 0 && str.length + waitingOnStr.length > 40) {
 			return `${str} and ${waitingOn.length - i} more`;
 		}
-		str += waitingOnStr;
+		str += `${str ? ", " : ""}${waitingOnStr}`;
 	}
 	return str;
 }
