@@ -5,8 +5,8 @@ import chalk from "chalk";
 import { Config, Project } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { ToChildProcessOutput } from "./types/utils";
-import { printLogs, waitingOnToString, wrapEntryPromiseWithKey } from "./utils";
-import cliProgress from "cli-progress";
+import { printHeader, printLogs } from "./utils";
+import { applyPromiseToEntriesWithProgressBar } from "./progress";
 
 async function hasLocalChanges(dir: string) {
 	const res = await pcp.spawn("git", ["status", "--porcelain"], {
@@ -130,37 +130,13 @@ export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
 	return logs;
 }
 
-async function gitopsHelper(cwd:string, project: [string, Project]) {
-	const [name, projectObj] = project;
-	const logs = await gitops(cwd, projectObj);
-	return { name, logs };
-}
-
-
 export async function fromConfig(cwd: string, cnf: Config) {
-	// move all progress logic to own file.
-	const gitOperationsPromises = Object.entries(cnf.projects).map((project) => wrapEntryPromiseWithKey([project[0],[project[1]]], (arg) => gitops(cwd, arg)));
-	const waitingOn = Object.keys(cnf.projects)
-
-	const progressBar = new cliProgress.SingleBar(
-		{
-			format: chalk`\{bar\} \{value\}/\{total\} | Git-operations: {cyan \{waitingOn\}} `,
-		},
-		cliProgress.Presets.shades_classic,
+	printHeader("Git Operations");
+	const result = await applyPromiseToEntriesWithProgressBar("git-operations", Object.entries(cnf.projects), (arg) =>
+		gitops(cwd, arg),
 	);
-	progressBar.start(gitOperationsPromises.length, 0, { waitingOn: waitingOnToString(waitingOn) });
 
-	const logs = await Promise.all(
-		gitOperationsPromises.map((p) =>
-			p
-				.then((res) => {
-					waitingOn.splice(waitingOn.indexOf(res.key), 1);
-					progressBar.increment({ waitingOn: waitingOnToString(waitingOn) });
-					return res.res;
-				})
-				.catch((e) => e),
-		),
-	);
-	progressBar.stop();
-	printLogs(Object.keys(cnf.projects), logs);
+	console.log();
+
+	printLogs(Object.keys(cnf.projects), result);
 }
