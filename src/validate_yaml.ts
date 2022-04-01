@@ -1,4 +1,5 @@
 import Ajv2019 from "ajv/dist/2019";
+import { ActionGraphs, createActionGraphs } from "./graph";
 import { Config } from "./types/config";
 
 const ajv = new Ajv2019();
@@ -85,6 +86,12 @@ const schema = {
 									minimum: 0,
 									maximum: 1000,
 								},
+								needs: {
+									type: "array",
+									items: {
+										type: "string",
+									},
+								},
 								groups: {
 									type: "object",
 									additionalProperties: {
@@ -104,10 +111,13 @@ const schema = {
 
 const validate = ajv.compile<Config>(schema);
 
-export function validateYaml(obj: any) {
+export function validateYaml(obj: any): Config & ActionGraphs {
 	const valid = validate(obj);
 	if (!valid) {
 		console.error(validate.errors);
 	}
-	return valid;
+
+	const actionGraphs = createActionGraphs(obj);
+
+	return { ...obj, actionGraphs };
 }

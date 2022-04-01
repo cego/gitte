@@ -53,7 +53,7 @@ export async function runAction(options: RunActionOpts): Promise<(GroupKey & pcp
 	if (!(options.keys.group in action.groups)) return;
 	const group = action.groups[options.keys.group];
 
-	const priority = action.priority ?? project.priority ?? 0;
+	const priority = action.priority ?? 0;
 
 	if (options.currentPrio !== priority) return;
 
