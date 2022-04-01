@@ -21,7 +21,7 @@ export async function actions(
 	const blockedActions = actions.filter((action) => action.needs?.length ?? 0 > 0);
 
 	const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`);
-	const waitingOn = actions.map((action) => action.project);
+	const waitingOn = [] as string[];
 
 	progressBar.start(actions.length, 0, { status: waitingOnToString(waitingOn) });
 
@@ -44,6 +44,7 @@ export async function actions(
 		);
 	}
 
+	progressBar.update({ status: waitingOnToString([]) });
 	progressBar.stop();
 	console.log();
 
@@ -66,10 +67,12 @@ export async function runActionPromiseWrapper(
 	blockedActions: (GroupKey & ProjectAction)[],
 	waitingOn: string[],
 ): Promise<ActionOutput[]> {
+	waitingOn.push(runActionOpts.keys.project);
+	progressBar.update({ status: waitingOnToString(waitingOn) });
 	return await runActionFn(runActionOpts)
 		.then((res) => {
 			waitingOn.splice(waitingOn.indexOf(runActionOpts.keys.project), 1);
-			progressBar.increment({ status: waitingOnToString(waitingOn) });
+			progressBar.increment();
 			return res;
 		})
 		.then(async (res) => {

@@ -13,7 +13,7 @@ export function waitingOnToString(waitingOn: string[]): string {
 	if (waitingOn.length === 0) return "Finished all tasks";
 	let str = "";
 	for (const [i, waitingOnStr] of waitingOn.entries()) {
-		if (i !== 0 && str.length + waitingOnStr.length > 40) {
+		if (i !== 0 && str.length + waitingOnStr.length > 80) {
 			return `${str} and ${waitingOn.length - i} more`;
 		}
 		str += `${str ? ", " : ""}${waitingOnStr}`;
