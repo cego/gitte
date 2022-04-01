@@ -23,7 +23,7 @@ function createActionGraph(obj: Config, actionName: string) {
 
 	// Explore edges:
 	Object.entries(obj.projects).forEach(([projectKey, project]) => {
-		const needs = project.actions[actionName]?.needs ?? [];
+		const needs = [...(project.actions[actionName]?.needs ?? [])];
 		if (project.actions[actionName]?.priority) {
 			assert(needs.length === 0, `Priority actions cannot have needs: ${projectKey}/${actionName}`);
 		}

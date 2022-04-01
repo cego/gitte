@@ -6,15 +6,18 @@ import * as pcp from "promisify-child-process";
 import { GroupKey, ToChildProcessOutput } from "./types/utils";
 import { searchOutputForHints } from "./search_output";
 import { printHeader } from "./utils";
-import { getProgressBar } from "./progress";
+import { getProgressBar, waitingOnToString } from "./progress";
 import { SingleBar } from "cli-progress";
+
+// TODO: Skip actions which does not have the group, but respect the need chain
+// TODO: Add back the logging based of the output
 
 export async function actions(
 	config: Config,
 	cwd: string,
 	actionToRun: string,
 	groupToRun: string,
-	runActionFn: (opts: RunActionOpts) => Promise<(GroupKey & pcp.Output) | undefined> = runAction,
+	runActionFn: (opts: RunActionOpts) => Promise<(GroupKey & pcp.Output)> = runAction,
 ): Promise<(GroupKey & pcp.Output)[]> {
 	const uniquePriorities = getUniquePriorities(config, actionToRun, groupToRun);
 	const actions = Object.entries(config.projects)
@@ -32,21 +35,23 @@ export async function actions(
 	const blockedActions = actions.filter((action) => action.needs?.length ?? 0 > 0);
 
 	const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`);
+	const waitingOn = actions.map((action) => action.project);
 
-	progressBar.start(actions.length, 0);
+	progressBar.start(actions.length, 0, { status: waitingOnToString(waitingOn) });
 
+	const stdoutBuffer: (GroupKey & pcp.Output)[] = [];
 	for (const priority of uniquePriorities) {
-		const runActionPromises = actions.filter(action => action.priority === priority).map(action => {
-			return runActionPromiseWrapper({ cwd, config, keys: action }, runActionFn, progressBar, blockedActions);
+		const runActionPromises = actions.filter(action => (action.priority ?? 0) === priority && (action.needs?.length ?? 0) === 0).map(action => {
+			return runActionPromiseWrapper({ cwd, config, keys: action }, runActionFn, progressBar, blockedActions, waitingOn);
 
 		});
 
-		await Promise.all(runActionPromises);
+		(await Promise.all(runActionPromises)).forEach((outputArr) => outputArr.forEach(output => stdoutBuffer.push(output)));
 	}
 
 	progressBar.stop();
 
-	const stdoutBuffer: (GroupKey & pcp.Output)[] = [];
+
 	return stdoutBuffer;
 }
 function getUniquePriorities(config: Config, actionToRun: string, groupToRun: string): Set<number> {
@@ -58,18 +63,27 @@ function getUniquePriorities(config: Config, actionToRun: string, groupToRun: st
 	}, new Set<number>());
 }
 
-export async function runActionPromiseWrapper(runActionOpts: RunActionOpts, runActionFn: (opts: RunActionOpts) => Promise<(GroupKey & pcp.Output) | undefined>, progressBar: SingleBar, blockedActions: (GroupKey & ProjectAction)[]): Promise<(GroupKey & pcp.Output)[]> {
+export async function runActionPromiseWrapper(runActionOpts: RunActionOpts, runActionFn: (opts: RunActionOpts) => Promise<(GroupKey & pcp.Output)>, progressBar: SingleBar, blockedActions: (GroupKey & ProjectAction)[], waitingOn: string[]): Promise<(GroupKey & pcp.Output)[]> {
 	return await runActionFn(runActionOpts)
-		.then((res) => { progressBar.increment({ status: `tbd` }); return res; })
+		.then((res) => { 
+			waitingOn.splice(waitingOn.indexOf(runActionOpts.keys.project), 1);
+			progressBar.increment({ status: waitingOnToString(waitingOn) });
+			return res; 
+		})
 		.then(async (res) => {
 			blockedActions.forEach((action) => {
-				action.needs?.filter(need => need !== action.project);
+				action.needs = action.needs?.filter(need => need !== runActionOpts.keys.project);
 			});
 
 			const runBlockedActionPromises = blockedActions.filter(action => action.needs?.length === 0).map(action => {
-				runActionPromiseWrapper({ ...runActionOpts, keys: action }, runActionFn, progressBar, blockedActions);
+				const newBlockedActions = blockedActions.filter(action => action.needs?.length !== 0);
+				return runActionPromiseWrapper({ ...runActionOpts, keys: action }, runActionFn, progressBar, newBlockedActions, waitingOn);
 			});
-			return [res, ...await Promise.all(runBlockedActionPromises)];
+
+			const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce((carry, res) => {
+				return [...carry, ...res];
+			}, [] as (GroupKey & pcp.Output)[]);
+			return [res, ...blockedActionsResult];
 		});
 }
 
@@ -79,7 +93,7 @@ interface RunActionOpts {
 	keys: GroupKey;
 }
 
-export async function runAction(options: RunActionOpts): Promise<(GroupKey & pcp.Output) | undefined> {
+export async function runAction(options: RunActionOpts): Promise<(GroupKey & pcp.Output)> {
 	const project = options.config.projects[options.keys.project];
 	const group = project.actions[options.keys.action].groups[options.keys.group];
 	const dir = getProjectDirFromRemote(options.cwd, project.remote);

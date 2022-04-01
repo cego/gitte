@@ -64,17 +64,13 @@ const schema = {
 			additionalProperties: {
 				type: "object",
 				required: ["remote", "default_branch"],
+				additionalProperties: false,
 				properties: {
 					remote: {
 						type: "string",
 					},
 					default_branch: {
 						type: "string",
-					},
-					priority: {
-						type: "integer",
-						minimum: 0,
-						maximum: 1000,
 					},
 					actions: {
 						type: "object",
@@ -109,6 +105,7 @@ const schema = {
 	},
 };
 
+// todo validation does not fail even though priority on project is set
 const validate = ajv.compile<Config>(schema);
 
 export function validateYaml(obj: any): Config & ActionGraphs {
