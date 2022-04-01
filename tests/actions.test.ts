@@ -19,7 +19,6 @@ describe("Run action", () => {
 			cwd: cwdStub,
 			config: cnfStub,
 			keys: { project: "projecta", action: "start", group: "cego.dk" },
-			currentPrio: 0,
 		});
 		expect(console.log).toHaveBeenCalledWith(
 			chalk`{blue docker-compose up} is running in {cyan /home/user/git-local-devops/cego-example}`,
@@ -34,7 +33,6 @@ describe("Run action", () => {
 			cwd: cwdStub,
 			config: cnfStub,
 			keys: { project: "projecta", action: "start", group: "cego.dk" },
-			currentPrio: 0,
 		});
 		expect(console.error).toHaveBeenCalledWith(
 			chalk`"start" "cego.dk" {red failed}, goto {cyan /home/user/git-local-devops/cego-example} and run {blue docker-compose up} manually`,
@@ -52,7 +50,6 @@ describe("Run action", () => {
 			cwd: cwdStub,
 			config: cnf,
 			keys: { project: "projecta", action: "start", group: "cego.dk" },
-			currentPrio: 0,
 		});
 		expect(res1).toBeUndefined();
 
@@ -60,7 +57,6 @@ describe("Run action", () => {
 			cwd: cwdStub,
 			config: cnf,
 			keys: { project: "projectb", action: "start", group: "cego.dk" },
-			currentPrio: 0,
 		});
 		expect(res2).toBeUndefined();
 
@@ -68,7 +64,6 @@ describe("Run action", () => {
 			cwd: cwdStub,
 			config: cnf,
 			keys: { project: "projectc", action: "start", group: "cego.dk" },
-			currentPrio: 0,
 		});
 		expect(res3).toBeUndefined();
 	});
@@ -78,7 +73,6 @@ describe("Run action", () => {
 			cwd: cwdStub,
 			config: cnfStub,
 			keys: { project: "projecta", action: "start", group: "cego.dk" },
-			currentPrio: 1,
 		});
 		expect(res).toBeUndefined();
 	});
