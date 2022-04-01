@@ -35,20 +35,20 @@ async function pull(dir: string, currentBranch: string, log: (arg: any) => void)
 }
 
 async function merge(dir: string, currentBranch: string, defaultBranch: string, log: (arg: any) => void) {
-	let m, pcpPromise;
+	let m, pcpPromise, err;
 	const mergeError = async function () {
 		m = chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`;
 		log(m);
 
 		pcpPromise = pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
-		const [err]: ToChildProcessOutput = await to(pcpPromise);
+		[err] = await to(pcpPromise);
 		if (err) {
 			m = chalk`{yellow ${currentBranch}} merge --abort also {red failed} in {cyan ${dir}}`;
 			log(m);
 		}
 	};
 	pcpPromise = pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" });
-	const [err]: ToChildProcessOutput = await to(pcpPromise);
+	[err] = await to(pcpPromise);
 
 	if (err) {
 		return mergeError();
