@@ -34,7 +34,7 @@ async function pull(dir: string, currentBranch: string, log: (arg: any) => void)
 	}
 }
 
-async function merge(dir: string, currentBranch: string, defaultBranch: string, log: (arg: any) => void = console.log) {
+async function merge(dir: string, currentBranch: string, defaultBranch: string, log: (arg: any) => void) {
 	let m, pcpPromise;
 	const mergeError = async function () {
 		m = chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`;
