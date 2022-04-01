@@ -120,7 +120,7 @@ describe("Run actions", () => {
 
 		const cnf = { ...cnfStub };
 		cnf.projects["projectb"] = { ...cnfStub.projects["projecta"] };
-		cnf.projects["projectb"].priority = 1;
+		cnf.projects["projectb"].actions["start"].priority = 1;
 
 		cnf.projects["projectc"] = { ...cnfStub.projects["projecta"] };
 		cnf.projects["projectc"].actions["start"].priority = 2;

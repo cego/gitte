@@ -6,13 +6,13 @@ export type ShellAction = Action & { shell: string; script: string };
 
 export type ProjectAction = {
 	priority?: number;
+	needs?: string[];
 	groups: { [key: string]: [string, ...string[]] };
 };
 
 export type Project = {
 	remote: string;
 	default_branch: string;
-	priority?: number;
 	actions: { [key: string]: ProjectAction };
 };
 
