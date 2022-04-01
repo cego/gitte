@@ -14,23 +14,25 @@ export function createActionGraphs(obj: Config): ActionGraphs {
 
 	// create a graph for each action
 	return [...actionNames.keys()].reduce((acc, actionName) => {
-		return { ...acc, [actionName]: createActionGraph(obj, actionName) };
+		return { ...acc, [actionName]: topologicalSortActionGraph(obj, actionName) };
 	}, {});
 }
 
-function createActionGraph(obj: Config, actionName: string) {
+export function topologicalSortActionGraph(obj: Config, actionName: string): string[] {
 	const edges = new Map<string, string[]>();
 
 	// Explore edges:
-	Object.entries(obj.projects).forEach(([projectKey, project]) => {
-		const needs = [...(project.actions[actionName]?.needs ?? [])];
-		if (project.actions[actionName]?.priority) {
-			assert(needs.length === 0, `Priority actions cannot have needs: ${projectKey}/${actionName}`);
-		}
-		edges.set(projectKey, needs);
-	});
+	Object.entries(obj.projects)
+		.filter(([, project]) => project.actions[actionName])
+		.forEach(([projectKey, project]) => {
+			const needs = [...(project.actions[actionName]?.needs ?? [])];
+			if (project.actions[actionName]?.priority) {
+				assert(needs.length === 0, `Priority actions cannot have needs: ${projectKey}/${actionName}`);
+			}
+			edges.set(projectKey, needs);
+		});
 
-	validateAcyclic(edges, actionName);
+	return topologicalSort(edges, actionName);
 }
 
 /**
@@ -40,13 +42,15 @@ function createActionGraph(obj: Config, actionName: string) {
  * @param edges
  * @returns
  */
-function validateAcyclic(edges: Map<string, string[]>, actionName: string) {
+export function topologicalSort(edges: Map<string, string[]>, actionName: string): string[] {
 	// Copy map to avoid mutations
 	edges = new Map(edges);
 
+	const sorted = [] as string[];
 	const leaves = [...edges.entries()].filter(([, mapsTo]) => mapsTo.length === 0).map(([mapsFrom]) => mapsFrom);
 	while (leaves.length > 0) {
 		const leaf = leaves.shift() as string; // We just checked length, so this is safe
+		sorted.push(leaf);
 		edges.delete(leaf);
 		edges.forEach((mapsTo, mapsFrom) => {
 			if (mapsTo.includes(leaf)) {
@@ -66,4 +70,6 @@ function validateAcyclic(edges: Map<string, string[]>, actionName: string) {
 		console.table(edgesWithNames);
 		assert(false, "Cycle detected in action dependencies or an action dependency is not defined");
 	}
+
+	return sorted;
 }
