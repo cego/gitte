@@ -1,7 +1,20 @@
 import chalk from "chalk";
 import { SearchFor } from "./types/config";
-import { GroupKey } from "./types/utils";
+import { ActionOutput, GroupKey } from "./types/utils";
 import { Output } from "promisify-child-process";
+
+export function logActionOutput(stdoutHistory: ActionOutput[]): void {
+	for (const entry of stdoutHistory) {
+		if (entry.code === 0) {
+			console.log(chalk`{blue ${entry.cmd.join(" ")}} ran in {cyan ${entry.dir}}`);
+		} else {
+			console.error(
+				chalk`"${entry.action}" "${entry.group}" {red failed}, ` +
+					chalk`goto {cyan ${entry.dir}} and run {blue ${entry.cmd.join(" ")}} manually`,
+			);
+		}
+	}
+}
 
 export function searchOutputForHints(searchFor: SearchFor[], stdoutHistory: (GroupKey & Output)[]) {
 	searchFor.forEach((search) => searchForRegex(search, stdoutHistory));

@@ -7,3 +7,5 @@ export type GroupKey = {
 	action: string;
 	group: string;
 };
+
+export type ActionOutput = GroupKey & pcp.Output & { dir: string; cmd: string[] };
