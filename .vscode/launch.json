@@ -13,7 +13,7 @@
 			"skipFiles": ["<node_internals>/**", "node_modules/**"],
 			"internalConsoleOptions": "openOnSessionStart",
 			"cwd": "${workspaceRoot}",
-			"args": ["bin/main.ts", "validate", "--cwd", "../gldtest/"]
+			"args": ["bin/main.ts", "run", "down", "ht", "--cwd", "../gldtest/"]
 		}
 	]
 }

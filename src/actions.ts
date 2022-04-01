@@ -1,12 +1,13 @@
 import { getProjectDirFromRemote } from "./project";
 import chalk from "chalk";
 import { default as to } from "await-to-js";
-import { Config } from "./types/config";
+import { Config, ProjectAction } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { GroupKey, ToChildProcessOutput } from "./types/utils";
-import { getPriorityRange } from "./priority";
 import { searchOutputForHints } from "./search_output";
 import { printHeader } from "./utils";
+import { getProgressBar } from "./progress";
+import { SingleBar } from "cli-progress";
 
 export async function actions(
 	config: Config,
@@ -15,49 +16,75 @@ export async function actions(
 	groupToRun: string,
 	runActionFn: (opts: RunActionOpts) => Promise<(GroupKey & pcp.Output) | undefined> = runAction,
 ): Promise<(GroupKey & pcp.Output)[]> {
-	const prioRange = getPriorityRange(Object.values(config.projects));
+	const uniquePriorities = getUniquePriorities(config, actionToRun, groupToRun);
+	const actions = Object.entries(config.projects)
+		.filter(([, project]) => project.actions[actionToRun]?.groups[groupToRun])
+		.reduce((carry, [projectName, project]) => {
+			carry.push({
+				project: projectName,
+				action: actionToRun,
+				group: groupToRun,
+				...project.actions[actionToRun],
+			});
+
+			return carry;
+		}, [] as (GroupKey & ProjectAction)[]);
+	const blockedActions = actions.filter((action) => action.needs?.length ?? 0 > 0);
+
+	const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`);
+
+	progressBar.start(actions.length, 0);
+
+	for (const priority of uniquePriorities) {
+		const runActionPromises = actions.filter(action => action.priority === priority).map(action => {
+			return runActionPromiseWrapper({ cwd, config, keys: action }, runActionFn, progressBar, blockedActions);
+
+		});
+
+		await Promise.all(runActionPromises);
+	}
+
+	progressBar.stop();
 
 	const stdoutBuffer: (GroupKey & pcp.Output)[] = [];
-	for (let currentPrio = prioRange.min; currentPrio <= prioRange.max; currentPrio++) {
-		const runActionPromises = Object.keys(config.projects).map((project) =>
-			runActionFn({
-				cwd,
-				config,
-				keys: { project: project, action: actionToRun, group: groupToRun },
-				currentPrio,
-			}),
-		);
-		(await Promise.all(runActionPromises))
-			.filter((p) => p)
-			.forEach((p) => stdoutBuffer.push(p as GroupKey & { stdout: string }));
-	}
 	return stdoutBuffer;
+}
+function getUniquePriorities(config: Config, actionToRun: string, groupToRun: string): Set<number> {
+	return Object.values(config.projects).reduce((carry, project) => {
+		if (project.actions[actionToRun]?.groups[groupToRun]) {
+			carry.add(project.actions[actionToRun].priority ?? 0);
+		}
+		return carry;
+	}, new Set<number>());
+}
+
+export async function runActionPromiseWrapper(runActionOpts: RunActionOpts, runActionFn: (opts: RunActionOpts) => Promise<(GroupKey & pcp.Output) | undefined>, progressBar: SingleBar, blockedActions: (GroupKey & ProjectAction)[]): Promise<(GroupKey & pcp.Output)[]> {
+	return await runActionFn(runActionOpts)
+		.then((res) => { progressBar.increment({ status: `tbd` }); return res; })
+		.then(async (res) => {
+			blockedActions.forEach((action) => {
+				action.needs?.filter(need => need !== action.project);
+			});
+
+			const runBlockedActionPromises = blockedActions.filter(action => action.needs?.length === 0).map(action => {
+				runActionPromiseWrapper({ ...runActionOpts, keys: action }, runActionFn, progressBar, blockedActions);
+			});
+			return [res, ...await Promise.all(runBlockedActionPromises)];
+		});
 }
 
 interface RunActionOpts {
 	cwd: string;
 	config: Config;
 	keys: GroupKey;
-	currentPrio: number;
 }
 
 export async function runAction(options: RunActionOpts): Promise<(GroupKey & pcp.Output) | undefined> {
-	if (!(options.keys.project in options.config.projects)) return;
 	const project = options.config.projects[options.keys.project];
-
+	const group = project.actions[options.keys.action].groups[options.keys.group];
 	const dir = getProjectDirFromRemote(options.cwd, project.remote);
 
-	if (!(options.keys.action in project.actions)) return;
-	const action = project.actions[options.keys.action];
-
-	if (!(options.keys.group in action.groups)) return;
-	const group = action.groups[options.keys.group];
-
-	const priority = action.priority ?? 0;
-
-	if (options.currentPrio !== priority) return;
-
-	console.log(chalk`{blue ${group.join(" ")}} is running in {cyan ${dir}}`);
+	// console.log(chalk`{blue ${group.join(" ")}} is running in {cyan ${dir}}`);
 	const [err, res]: ToChildProcessOutput = await to(
 		pcp.spawn(group[0], group.slice(1), {
 			cwd: dir,
@@ -67,10 +94,10 @@ export async function runAction(options: RunActionOpts): Promise<(GroupKey & pcp
 	);
 
 	if (err) {
-		console.error(
-			chalk`"${options.keys.action}" "${options.keys.group}" {red failed}, ` +
-				chalk`goto {cyan ${dir}} and run {blue ${group.join(" ")}} manually`,
-		);
+		// console.error(
+		// 	chalk`"${options.keys.action}" "${options.keys.group}" {red failed}, ` +
+		// 		chalk`goto {cyan ${dir}} and run {blue ${group.join(" ")}} manually`,
+		// );
 	}
 
 	return {
@@ -88,3 +115,5 @@ export async function fromConfig(cwd: string, cnf: Config, actionToRun: string, 
 		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
 	}
 }
+
+
