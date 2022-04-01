@@ -1,7 +1,7 @@
 import { Config } from "./types/config";
 import * as pcp from "promisify-child-process";
 import path from "path";
-import assert from "assert";
+import assert, {AssertionError} from "assert";
 import dotenv from "dotenv";
 import { validateYaml } from "./validate_yaml";
 import fs from "fs-extra";
@@ -39,7 +39,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	} else if (await fs.pathExists(cnfPath)) {
 		fileContent = await fs.readFile(cnfPath, "utf8");
 	} else if (cwd === "/") {
-		throw new Error(`No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.`);
+		throw new AssertionError({message: `No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.`});
 	} else {
 		return loadConfig(path.resolve(cwd, ".."));
 	}
