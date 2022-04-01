@@ -35,26 +35,27 @@ async function pull(dir: string, currentBranch: string, log: (arg: any) => void)
 }
 
 async function merge(dir: string, currentBranch: string, defaultBranch: string, log: (arg: any) => void = console.log) {
+	let m, pcpPromise;
 	const mergeError = async function () {
-		const msg = chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`;
-		log(msg);
+		m = chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`;
+		log(m);
 
-		const pcpPromise = pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
+		pcpPromise = pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
 		const [err]: ToChildProcessOutput = await to(pcpPromise);
 		if (err) {
-			const msg = chalk`{yellow ${currentBranch}} merge --abort also {red failed} in {cyan ${dir}}`;
-			log(msg);
+			m = chalk`{yellow ${currentBranch}} merge --abort also {red failed} in {cyan ${dir}}`;
+			log(m);
 		}
 	};
-	const pcpPromise = pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" });
+	pcpPromise = pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" });
 	const [err]: ToChildProcessOutput = await to(pcpPromise);
 
 	if (err) {
 		return mergeError();
 	}
 
-	const msg = chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`;
-	log(msg);
+	m = chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`;
+	log(m);
 }
 
 export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
