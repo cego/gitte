@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import "source-map-support/register";
 import yargs from "yargs/yargs";
 import fs from "fs-extra";
 import path from "path";
