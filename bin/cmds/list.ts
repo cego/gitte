@@ -1,6 +1,6 @@
 import { loadConfig } from "../../src/config_loader";
 import chalk from "chalk";
-import {errorHandler} from "../../src/error_handler";
+import { errorHandler } from "../../src/error_handler";
 
 // noinspection JSUnusedGlobalSymbols
 export const command = "list";

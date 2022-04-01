@@ -1,6 +1,6 @@
 import { loadConfig } from "../../src/config_loader";
 import { fromConfig } from "../../src/gitops";
-import {errorHandler} from "../../src/error_handler";
+import { errorHandler } from "../../src/error_handler";
 
 // noinspection JSUnusedGlobalSymbols
 export const command = "gitops";

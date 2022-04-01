@@ -1,6 +1,6 @@
 import { startup } from "../../src/startup";
 import { loadConfig } from "../../src/config_loader";
-import {errorHandler} from "../../src/error_handler";
+import { errorHandler } from "../../src/error_handler";
 
 // noinspection JSUnusedGlobalSymbols
 export const command = "startup";
@@ -14,5 +14,4 @@ export async function handler(argv: any) {
 	} catch (e) {
 		errorHandler(e);
 	}
-
 }
