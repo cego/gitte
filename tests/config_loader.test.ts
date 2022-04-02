@@ -2,7 +2,7 @@ import fs from "fs-extra";
 import { when } from "jest-when";
 import yaml from "js-yaml";
 import * as pcp from "promisify-child-process";
-import { projectStub, startupStub, cwdStub } from "./utils/stubs";
+import { cwdStub, projectStub, startupStub } from "./utils/stubs";
 import { loadConfig } from "../src/config_loader";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;

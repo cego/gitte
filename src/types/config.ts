@@ -17,6 +17,7 @@ export type Project = {
 };
 
 export type Config = {
+	cwd: string;
 	startup: { [key: string]: CmdAction | ShellAction };
 	projects: { [key: string]: Project };
 	searchFor: SearchFor[];

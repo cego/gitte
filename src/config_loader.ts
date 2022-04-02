@@ -36,6 +36,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
 			{ shell: "bash", cwd, env: process.env, encoding: "utf8" },
 		);
 		fileContent = `${res.stdout}`;
+		fs.writeFileSync(cnfPath, fileContent);
 	} else if (await fs.pathExists(cnfPath)) {
 		fileContent = await fs.readFile(cnfPath, "utf8");
 	} else if (cwd === "/") {
@@ -48,5 +49,5 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	const yml: any = yaml.load(fileContent);
 	assert(validateYaml(yml), "Invalid .git-local-devops.yml file");
 
-	return yml;
+	return { ...yml, cwd };
 }

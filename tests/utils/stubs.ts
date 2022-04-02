@@ -23,6 +23,7 @@ export const startupStub: { [key: string]: CmdAction | ShellAction } = {
 	bashWorld: { shell: "bash", script: "echo world" },
 };
 export const cnfStub: Config = {
+	cwd: "/home/user/git-local-devops",
 	startup: startupStub,
 	projects: {
 		projecta: projectStub,

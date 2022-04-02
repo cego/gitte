@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { cnfStub, cwdStub } from "./utils/stubs";
+import { cnfStub } from "./utils/stubs";
 import * as pcp from "promisify-child-process";
 import { when } from "jest-when";
 import {
@@ -29,7 +29,6 @@ describe("Action", () => {
 	describe("Run action", () => {
 		test("Start cego.dk", async () => {
 			await runAction({
-				cwd: cwdStub,
 				config: cnf,
 				keys: { project: "projecta", action: "start", group: "cego.dk" },
 			});
@@ -37,7 +36,7 @@ describe("Action", () => {
 			expect(spawnSpy).toBeCalledWith(
 				"docker-compose",
 				["up"],
-				expect.objectContaining({ cwd: `${cwdStub}/cego-example` }),
+				expect.objectContaining({ cwd: `${cnf.cwd}/cego-example` }),
 			);
 		});
 
@@ -46,7 +45,6 @@ describe("Action", () => {
 				.calledWith("docker-compose", ["up"], expect.objectContaining({}))
 				.mockRejectedValue({ code: "ENOENT" });
 			const res = await runAction({
-				cwd: cwdStub,
 				config: cnf,
 				keys: { project: "projecta", action: "start", group: "cego.dk" },
 			});
@@ -65,10 +63,9 @@ describe("Action", () => {
 				cmd: ["docker-compose", "up"],
 			});
 
-			const res = await actions(cnf, cwdStub, "start", "cego.dk", runActionFn);
+			const res = await actions(cnf, "start", "cego.dk", runActionFn);
 			expect(runActionFn).toHaveBeenCalledTimes(1);
 			expect(runActionFn).toHaveBeenCalledWith({
-				cwd: cwdStub,
 				config: cnf,
 				keys,
 			});
@@ -96,20 +93,17 @@ describe("Action", () => {
 			cnf.projects["projectc"] = { ...cnf.projects["projecta"] };
 			cnf.projects["projectc"].actions["start"].priority = 2;
 
-			const res = await actions(cnf, cwdStub, "start", "cego.dk", runActionFn);
+			const res = await actions(cnf, "start", "cego.dk", runActionFn);
 			expect(runActionFn).toHaveBeenCalledTimes(3);
 			expect(runActionFn).toHaveBeenCalledWith({
-				cwd: cwdStub,
 				config: cnf,
 				keys,
 			});
 			expect(runActionFn).toHaveBeenCalledWith({
-				cwd: cwdStub,
 				config: cnf,
 				keys: { ...keys, project: "projectb" },
 			});
 			expect(runActionFn).toHaveBeenCalledWith({
-				cwd: cwdStub,
 				config: cnf,
 				keys: { ...keys, project: "projectc" },
 			});
@@ -126,7 +120,7 @@ describe("Action", () => {
 
 	describe("Test fromConfig", () => {
 		test("It prints hint if no action or group is found at all", async () => {
-			await fromConfig(cwdStub, cnf, "nonaction", "nongroup");
+			await fromConfig(cnf, "nonaction", "nongroup");
 			expect(console.log).toHaveBeenCalledWith(
 				chalk`{yellow No groups found for action {cyan nonaction} and group {cyan nongroup}}`,
 			);
@@ -177,7 +171,6 @@ describe("Action", () => {
 
 			await runActionPromiseWrapper(
 				{
-					cwd: cwdStub,
 					config: cnf,
 					keys,
 				},
@@ -187,12 +180,10 @@ describe("Action", () => {
 				[],
 			);
 			expect(runActionFn).toHaveBeenNthCalledWith(1, {
-				cwd: cwdStub,
 				config: cnf,
 				keys,
 			});
 			expect(runActionFn).toHaveBeenNthCalledWith(2, {
-				cwd: cwdStub,
 				config: cnf,
 				keys: { ...keys, project: "projectb" },
 			});

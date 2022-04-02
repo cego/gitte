@@ -13,7 +13,6 @@ export type ActionOutput = GroupKey & pcp.Output & { dir: string; cmd: string[] 
 
 export async function actions(
 	config: Config,
-	cwd: string,
 	actionToRun: string,
 	groupToRun: string,
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput> = runAction,
@@ -35,7 +34,7 @@ export async function actions(
 			.filter((action) => (action.priority ?? 0) === priority && (action.needs?.length ?? 0) === 0)
 			.map((action) => {
 				return runActionPromiseWrapper(
-					{ cwd, config, keys: { project: action.project, action: action.action, group: action.group } },
+					{ config, keys: { project: action.project, action: action.action, group: action.group } },
 					runActionFn,
 					progressBar,
 					blockedActions,
@@ -108,7 +107,6 @@ export async function runActionPromiseWrapper(
 }
 
 interface RunActionOpts {
-	cwd: string;
 	config: Config;
 	keys: GroupKey;
 }
@@ -116,7 +114,7 @@ interface RunActionOpts {
 export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	const project = options.config.projects[options.keys.project];
 	const group = project.actions[options.keys.action].groups[options.keys.group];
-	const dir = getProjectDirFromRemote(options.cwd, project.remote);
+	const dir = getProjectDirFromRemote(options.config.cwd, project.remote);
 
 	const res = await pcp
 		.spawn(group[0], group.slice(1), {
@@ -136,9 +134,9 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	};
 }
 
-export async function fromConfig(cwd: string, cnf: Config, actionToRun: string, groupToRun: string) {
+export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: string) {
 	printHeader("Running actions");
-	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, cwd, actionToRun, groupToRun);
+	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, actionToRun, groupToRun);
 	if (cnf.searchFor) searchOutputForHints(cnf.searchFor, stdoutBuffer);
 	if (stdoutBuffer.length === 0) {
 		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);

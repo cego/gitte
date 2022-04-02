@@ -1,5 +1,5 @@
 import { default as to } from "await-to-js";
-import { CmdAction, ShellAction } from "./types/config";
+import { CmdAction, Config, ShellAction } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { printHeader } from "./utils";
 import { applyPromiseToEntriesWithProgressBarSync } from "./progress";
@@ -8,8 +8,10 @@ function isCmdAction(action: CmdAction | ShellAction): action is CmdAction {
 	return "cmd" in action;
 }
 
-export async function startup(cwd: string, startupList: [string, CmdAction | ShellAction][]) {
+export async function startup(cnf: Config) {
 	printHeader("Startup checks");
+
+	const startupList = Object.entries(cnf.startup);
 
 	const fn = async (action: CmdAction | ShellAction) => {
 		let err;
@@ -18,7 +20,7 @@ export async function startup(cwd: string, startupList: [string, CmdAction | She
 				pcp.spawn(action.cmd[0], action.cmd.slice(1), {
 					env: process.env,
 					encoding: "utf8",
-					cwd,
+					cwd: cnf.cwd,
 				}),
 			);
 			if (err) {
@@ -32,7 +34,7 @@ export async function startup(cwd: string, startupList: [string, CmdAction | She
 					shell: action.shell,
 					env: process.env,
 					encoding: "utf8",
-					cwd,
+					cwd: cnf.cwd,
 				}),
 			);
 			if (err) {
