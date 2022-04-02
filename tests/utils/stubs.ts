@@ -34,9 +34,9 @@ export const cnfStub: Config = {
 					needs: ["projecte"],
 					groups: {
 						"cego.dk": ["docker-compose", "up"],
-					}
-				}
-			}
+					},
+				},
+			},
 		},
 		projecte: {
 			default_branch: "main",
@@ -46,10 +46,10 @@ export const cnfStub: Config = {
 					needs: [],
 					groups: {
 						"cego.dk": ["docker-compose", "up"],
-					}
-				}
-			}
-		}
+					},
+				},
+			},
+		},
 	},
 	searchFor: [],
 };

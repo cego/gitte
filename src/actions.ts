@@ -17,19 +17,19 @@ export async function actions(
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput> = runAction,
 ): Promise<ActionOutput[]> {
 	const uniquePriorities = getUniquePriorities(config, actionToRun, groupToRun);
-	const actions = getActions(config, actionToRun, groupToRun);
-	const blockedActions = actions.filter((action) => (action.needs?.length ?? 0) > 0);
+	const actionsToRun = getActions(config, actionToRun, groupToRun);
+	const blockedActions = actionsToRun.filter((action) => (action.needs?.length ?? 0) > 0);
 
 	const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`);
 	const waitingOn = [] as string[];
 
-	progressBar.start(actions.length, 0, { status: waitingOnToString(waitingOn) });
+	progressBar.start(actionsToRun.length, 0, { status: waitingOnToString(waitingOn) });
 
 	// Go through the sorted priority groups, and run the actions
 	// After an action is run, the runActionPromiseWrapper will handle calling any actions that needs the completed action.
 	const stdoutBuffer: ActionOutput[] = [];
 	for (const priority of uniquePriorities) {
-		const runActionPromises = actions
+		const runActionPromises = actionsToRun
 			.filter((action) => (action.priority ?? 0) === priority && (action.needs?.length ?? 0) === 0)
 			.map((action) => {
 				return runActionPromiseWrapper(
@@ -71,7 +71,7 @@ export async function runActionPromiseWrapper(
 ): Promise<ActionOutput[]> {
 	waitingOn.push(runActionOpts.keys.project);
 	progressBar.update({ status: waitingOnToString(waitingOn) });
-	return await runActionFn(runActionOpts)
+	return runActionFn(runActionOpts)
 		.then((res) => {
 			waitingOn.splice(waitingOn.indexOf(runActionOpts.keys.project), 1);
 			progressBar.increment();
@@ -85,7 +85,7 @@ export async function runActionPromiseWrapper(
 			const runBlockedActionPromises = blockedActions
 				.filter((action) => action.needs?.length === 0)
 				.map((action) => {
-					const newBlockedActions = blockedActions.filter((action) => action.needs?.length !== 0);
+					const newBlockedActions = blockedActions.filter((blockedAction) => blockedAction.needs?.length !== 0);
 					return runActionPromiseWrapper(
 						{ ...runActionOpts, keys: action },
 						runActionFn,
@@ -95,9 +95,12 @@ export async function runActionPromiseWrapper(
 					);
 				});
 
-			const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce((carry, res) => {
-				return [...carry, ...res];
-			}, [] as ActionOutput[]);
+			const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce(
+				(carry, blockedActionResult) => {
+					return [...carry, ...blockedActionResult];
+				},
+				[] as ActionOutput[],
+			);
 			return [res, ...blockedActionsResult];
 		});
 }
