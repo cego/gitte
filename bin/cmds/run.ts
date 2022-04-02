@@ -18,7 +18,7 @@ export const describe = "Run startup, git operations and actions on all projects
 export async function handler(argv: any) {
 	try {
 		const cnf = await loadConfig(argv.cwd);
-		await startup(Object.entries(cnf.startup));
+		await startup(argv.cwd, Object.entries(cnf.startup));
 		await gitOpsFromConfig(argv.cwd, cnf);
 		await actionsFromConfig(argv.cwd, cnf, argv.action, argv.group);
 	} catch (e) {
