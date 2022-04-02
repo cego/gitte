@@ -16,7 +16,13 @@ describe("Progress helper", () => {
 			expect(waitingOnToString(["test", "test2"])).toBe("test, test2");
 		});
 		test("Many tasks", () => {
-			const waitingOn = ["long test string", "boring", "tests", "pls longer strings lmao", "aadw wd w d w d wd w verrryy long name"];
+			const waitingOn = [
+				"long test string",
+				"boring",
+				"tests",
+				"pls longer strings lmao",
+				"aadw wd w d w d wd w verrryy long name",
+			];
 			expect(waitingOnToString(waitingOn)).toBe("long test string, boring, tests, pls longer strings lmao and 1 more");
 		});
 	});

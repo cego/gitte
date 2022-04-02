@@ -120,12 +120,12 @@ export function validateYaml(obj: any): obj is Config {
 	}
 
 	// Fail fast if graph is invalid.
-	try{
-		createActionGraphs(obj)
-	} catch(e: any) { 
+	try {
+		createActionGraphs(obj);
+	} catch (e: any) {
 		console.log(e.message);
-		return false
-	};
+		return false;
+	}
 
 	return true;
 }

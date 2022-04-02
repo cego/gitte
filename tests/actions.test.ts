@@ -21,13 +21,17 @@ describe("Run action", () => {
 			keys: { project: "projecta", action: "start", group: "cego.dk" },
 		});
 		expect(spawnSpy).toBeCalledTimes(1);
-		expect(spawnSpy).toBeCalledWith("docker-compose", ["up"], expect.objectContaining({ cwd: `${cwdStub}/cego-example` }));
+		expect(spawnSpy).toBeCalledWith(
+			"docker-compose",
+			["up"],
+			expect.objectContaining({ cwd: `${cwdStub}/cego-example` }),
+		);
 	});
 
 	test("Start cego.dk, failure in script", async () => {
 		when(spawnSpy)
 			.calledWith("docker-compose", ["up"], expect.objectContaining({}))
-			.mockRejectedValue({ code: 'ENOENT' });
+			.mockRejectedValue({ code: "ENOENT" });
 		const res = await runAction({
 			cwd: cwdStub,
 			config: cnfStub,
