@@ -26,6 +26,30 @@ export const cnfStub: Config = {
 	startup: startupStub,
 	projects: {
 		projecta: projectStub,
+		projectd: {
+			default_branch: "main",
+			remote: "git@gitlab.com:cego/exampled.git",
+			actions: {
+				up: {
+					needs: ["projecte"],
+					groups: {
+						"cego.dk": ["docker-compose", "up"],
+					}
+				}
+			}
+		},
+		projecte: {
+			default_branch: "main",
+			remote: "git@gitlab.com:cego/exampled.git",
+			actions: {
+				up: {
+					needs: [],
+					groups: {
+						"cego.dk": ["docker-compose", "up"],
+					}
+				}
+			}
+		}
 	},
 	searchFor: [],
 };

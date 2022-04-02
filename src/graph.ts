@@ -18,7 +18,7 @@ export function createActionGraphs(obj: Config): ActionGraphs {
 	}, {});
 }
 
-export function topologicalSortActionGraph(obj: Config, actionName: string): string[] {
+export function topologicalSortActionGraph(obj: Config, actionName: string, sorter = topologicalSort): string[] {
 	const edges = new Map<string, string[]>();
 
 	// Explore edges:
@@ -26,17 +26,16 @@ export function topologicalSortActionGraph(obj: Config, actionName: string): str
 		.filter(([, project]) => project.actions[actionName])
 		.forEach(([projectKey, project]) => {
 			const needs = [...(project.actions[actionName]?.needs ?? [])];
-			if (project.actions[actionName]?.priority) {
+			if (project.actions[actionName]?.priority !== undefined) {
 				assert(needs.length === 0, `Priority actions cannot have needs: ${projectKey}/${actionName}`);
 			}
 			edges.set(projectKey, needs);
 		});
 
-	return topologicalSort(edges, actionName);
+	return sorter(edges, actionName);
 }
 
 /**
- * This function is basically a topological sort.
  * https://stackoverflow.com/a/4577/17466122
  *
  * @param edges
