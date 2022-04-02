@@ -2,6 +2,7 @@ import fs from "fs-extra";
 import { when } from "jest-when";
 import * as pcp from "promisify-child-process";
 import { startup } from "../src/startup";
+import { cwdStub } from "./utils/stubs";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
@@ -15,13 +16,13 @@ beforeEach(() => {
 describe("Startup checks", () => {
 	test("failing argv", async () => {
 		when(spawnSpy).calledWith("echo", ["hello"], expect.objectContaining({})).mockRejectedValue(new Error("WHAT"));
-		await expect(startup([["test", { cmd: ["echo", "hello"] }]])).rejects.toThrow("WHAT");
+		await expect(startup(cwdStub, [["test", { cmd: ["echo", "hello"] }]])).rejects.toThrow("WHAT");
 	});
 
 	test("failing shell", async () => {
 		when(spawnSpy)
 			.calledWith("echo hello", [], expect.objectContaining({ shell: "bash" }))
 			.mockRejectedValue(new Error("WHAT"));
-		await expect(startup([["test", { shell: "bash", script: "echo hello" }]])).rejects.toThrow("WHAT");
+		await expect(startup(cwdStub, [["test", { shell: "bash", script: "echo hello" }]])).rejects.toThrow("WHAT");
 	});
 });

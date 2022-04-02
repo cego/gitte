@@ -8,7 +8,7 @@ function isCmdAction(action: CmdAction | ShellAction): action is CmdAction {
 	return "cmd" in action;
 }
 
-export async function startup(startupList: [string, CmdAction | ShellAction][]) {
+export async function startup(cwd: string, startupList: [string, CmdAction | ShellAction][]) {
 	printHeader("Startup checks");
 
 	const fn = async (action: CmdAction | ShellAction) => {
@@ -18,6 +18,7 @@ export async function startup(startupList: [string, CmdAction | ShellAction][]) 
 				pcp.spawn(action.cmd[0], action.cmd.slice(1), {
 					env: process.env,
 					encoding: "utf8",
+					cwd,
 				}),
 			);
 			if (err) {
@@ -31,6 +32,7 @@ export async function startup(startupList: [string, CmdAction | ShellAction][]) 
 					shell: action.shell,
 					env: process.env,
 					encoding: "utf8",
+					cwd,
 				}),
 			);
 			if (err) {
