@@ -18,7 +18,7 @@ export async function actions(
 ): Promise<ActionOutput[]> {
 	const uniquePriorities = getUniquePriorities(config, actionToRun, groupToRun);
 	const actions = getActions(config, actionToRun, groupToRun);
-	const blockedActions = actions.filter((action) => action.needs?.length ?? 0 > 0);
+	const blockedActions = actions.filter((action) => (action.needs?.length ?? 0) > 0);
 
 	const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`);
 	const waitingOn = [] as string[];
