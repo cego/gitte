@@ -1,7 +1,7 @@
 {
 	"name": "git-local-devops",
 	"version": "0.0.1",
-	"description": "Git automation and script execution across a list of projects",
+	"description": "Git automation and action execution across a list of projects",
 	"main": "bin/main.ts",
 	"repository": {
 		"type": "git",
