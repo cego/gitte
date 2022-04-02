@@ -61,15 +61,15 @@ REMOTE_GIT_FILE=".git-local-devops.yml"
 REMOTE_GIT_REF="master"
 ```
 
-## Running scripts
+## Git operations
 
-Run `git-local-devops up cego.dk` inside `~/git-local-devops` folder
+Run `git-local-devops gitops` inside `~/git-local-devops` folder
 
-All projects specified will pull the latest changes if on default branch
+All projects will pull the latest changes and/or merge with origin/<default_branch>
 
-All projects on custom branch, will attempt to rebase `origin/<default_branch>` first, if that fails a merge with `origin/<default_branch>` will be attempted.
+## Running actions
 
-After git operations are done, scripts matching cli inputs will be executed.
+Run `git-local-devops actions up cego.dk` inside `~/git-local-devops` folder
 
 In this example only `"bash", "-c", "start-docker-stack.sh"` will be executed in `~/git-local-devops/cego/example` checkout
 
