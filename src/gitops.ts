@@ -9,19 +9,13 @@ import { printHeader, printLogs } from "./utils";
 import { applyPromiseToEntriesWithProgressBar } from "./progress";
 
 async function hasLocalChanges(dir: string) {
-	const res = await pcp.spawn("git", ["status", "--porcelain"], {
-		cwd: dir,
-		encoding: "utf8",
-	});
+	const res = await pcp.spawn("git", ["status", "--porcelain"], { cwd: dir, encoding: "utf8" });
 	return `${res.stdout}`.trim().length !== 0;
 }
 
-async function fetch(dir: string) {
-	await pcp.spawn("git", ["fetch"], { cwd: dir, encoding: "utf8" });
-}
-
-async function pull(dir: string, currentBranch: string, log: (arg: any) => void = console.log) {
-	const [err, res]: ToChildProcessOutput = await to(pcp.spawn("git", ["pull"], { cwd: dir, encoding: "utf8" }));
+async function pull(dir: string, currentBranch: string, log: (arg: any) => void) {
+	const pcpPromise = pcp.spawn("git", ["pull", "--ff-only"], { cwd: dir, encoding: "utf8" });
+	const [err, res]: ToChildProcessOutput = await to(pcpPromise);
 
 	if (err || !res) {
 		if (`${err?.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
@@ -29,7 +23,7 @@ async function pull(dir: string, currentBranch: string, log: (arg: any) => void 
 		} else {
 			log(chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} {cyan ${dir}}`);
 		}
-		return false;
+		return;
 	}
 
 	const msg = `${res.stdout}`.trim();
@@ -38,51 +32,30 @@ async function pull(dir: string, currentBranch: string, log: (arg: any) => void 
 	} else {
 		log(chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 	}
-	return true;
 }
 
-async function rebase(
-	dir: string,
-	currentBranch: string,
-	defaultBranch: string,
-	log: (arg: any) => void = console.log,
-) {
-	const [err, res]: ToChildProcessOutput = await to(
-		pcp.spawn("git", ["rebase", `origin/${defaultBranch}`], {
-			cwd: dir,
-			encoding: "utf8",
-		}),
-	);
+async function merge(dir: string, currentBranch: string, defaultBranch: string, log: (arg: any) => void) {
+	let m, pcpPromise, err;
+	const mergeError = async function () {
+		m = chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`;
+		log(m);
 
-	if (err || !res) {
-		await pcp.spawn("git", ["rebase", "--abort"], {
-			cwd: dir,
-			encoding: "utf8",
-		});
-		return false;
+		pcpPromise = pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
+		[err] = await to(pcpPromise);
+		if (err) {
+			m = chalk`{yellow ${currentBranch}} merge --abort also {red failed} in {cyan ${dir}}`;
+			log(m);
+		}
+	};
+	pcpPromise = pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" });
+	[err] = await to(pcpPromise);
+
+	if (err) {
+		return mergeError();
 	}
 
-	if (`${res.stdout}`.trim() === `Current branch ${currentBranch} is up to date.`) {
-		log(chalk`{yellow ${currentBranch}} is already on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
-	} else {
-		log(chalk`{yellow ${currentBranch}} was rebased on {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
-	}
-	return true;
-}
-
-async function merge(dir: string, currentBranch: string, defaultBranch: string, log: (arg: any) => void = console.log) {
-	const [err, res]: ToChildProcessOutput = await to(
-		pcp.spawn("git", ["merge", `origin/${defaultBranch}`], {
-			cwd: dir,
-			encoding: "utf8",
-		}),
-	);
-	if (!err && res) {
-		log(chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
-		return;
-	}
-	await pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
-	log(chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`);
+	m = chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`;
+	log(m);
 }
 
 export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
@@ -100,12 +73,8 @@ export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
 		return logs;
 	}
 
-	const [err, res]: ToChildProcessOutput = await to(
-		pcp.spawn("git", ["branch", "--show-current"], {
-			cwd: dir,
-			encoding: "utf8",
-		}),
-	);
+	const pcpPromise = pcp.spawn("git", ["branch", "--show-current"], { cwd: dir, encoding: "utf8" });
+	const [err, res]: ToChildProcessOutput = await to(pcpPromise);
 
 	if (err || !res) {
 		log(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} ${err}`);
@@ -118,25 +87,18 @@ export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
 	if (await hasLocalChanges(dir)) {
 		log(chalk`{yellow ${currentBranch}} has local changes in {cyan ${dir}}`);
 	} else if (currentBranch === defaultBranch) {
-		await fetch(dir);
 		await pull(dir, currentBranch, log);
 	} else {
-		await fetch(dir);
-		if (!(await pull(dir, currentBranch, log))) return logs;
-		if (!(await rebase(dir, currentBranch, defaultBranch, log))) {
-			await merge(dir, currentBranch, defaultBranch, log);
-		}
+		await pull(dir, currentBranch, log);
+		await merge(dir, currentBranch, defaultBranch, log);
 	}
 	return logs;
 }
 
 export async function fromConfig(cwd: string, cnf: Config) {
 	printHeader("Git Operations");
-	const result = await applyPromiseToEntriesWithProgressBar("git-operations", Object.entries(cnf.projects), (arg) =>
-		gitops(cwd, arg),
-	);
-
+	const fn = (arg: Project) => gitops(cwd, arg);
+	const result = await applyPromiseToEntriesWithProgressBar("git-operations", Object.entries(cnf.projects), fn);
 	console.log();
-
 	printLogs(Object.keys(cnf.projects), result);
 }

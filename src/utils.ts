@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { AssertionError } from "assert";
 
 export function printLogs(projectNames: string[], logs: any[]) {
 	// print the succesful logs
@@ -16,7 +17,7 @@ export function printLogs(projectNames: string[], logs: any[]) {
 		console.log(chalk`└─ {red ${logs[i].stack}}`);
 	}
 	if (logs.filter((l) => l instanceof Error).length > 0) {
-		throw new Error("At least one git operation failed");
+		throw new AssertionError({ message: "At least one git operation failed" });
 	}
 }
 

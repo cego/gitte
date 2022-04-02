@@ -1,5 +1,6 @@
 import { startup } from "../../src/startup";
 import { loadConfig } from "../../src/config_loader";
+import { errorHandler } from "../../src/error_handler";
 
 // noinspection JSUnusedGlobalSymbols
 export const command = "startup";
@@ -7,6 +8,10 @@ export const command = "startup";
 export const describe = "Run startup checks";
 // noinspection JSUnusedGlobalSymbols
 export async function handler(argv: any) {
-	const cnf = await loadConfig(argv.cwd);
-	await startup(Object.entries(cnf.startup));
+	try {
+		const cnf = await loadConfig(argv.cwd);
+		await startup(Object.entries(cnf.startup));
+	} catch (e) {
+		errorHandler(e);
+	}
 }
