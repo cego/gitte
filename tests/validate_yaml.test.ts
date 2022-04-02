@@ -1,4 +1,3 @@
-import { Config } from "../src/types/config";
 import { validateYaml } from "../src/validate_yaml";
 import { cnfStub } from "./utils/stubs";
 
