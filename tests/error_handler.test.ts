@@ -6,6 +6,7 @@ beforeEach(() => {
 	// @ts-ignore
 	process.exit = jest.fn();
 	console.error = jest.fn();
+	console.log = jest.fn();
 });
 
 describe("Error Handler", () => {
@@ -13,6 +14,26 @@ describe("Error Handler", () => {
 		const err = new AssertionError({ message: "Im an assertion error" });
 		errorHandler(err);
 		expect(console.error).toHaveBeenCalledWith(chalk`{red Im an assertion error}`);
+		expect(process.exit).toHaveBeenCalledWith(1);
+	});
+
+	test("Error with hint", async () => {
+		const err = new Error("uncaught error");
+		// @ts-ignore
+		err.hint = `Have you tried turning it on and off again`;
+		errorHandler(err);
+		expect(console.log).toHaveBeenCalledWith(chalk`Have you tried turning it on and off again`);
+		expect(process.exit).toHaveBeenCalledWith(1);
+	});
+
+	test("Child process error with exit code", async () => {
+		const err = new Error("child process exited");
+		// @ts-ignore
+		err.code = 29;
+		// @ts-ignore
+		err.stderr = "im depressed\n";
+		errorHandler(err);
+		expect(console.error).toHaveBeenCalledWith(chalk`{red im depressed}`);
 		expect(process.exit).toHaveBeenCalledWith(1);
 	});
 
