@@ -48,5 +48,5 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	const yml: any = yaml.load(fileContent);
 	assert(validateYaml(yml), "Invalid .git-local-devops.yml file");
 
-	return yml as Config;
+	return yml;
 }

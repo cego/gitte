@@ -20,61 +20,20 @@ describe("Run action", () => {
 			config: cnfStub,
 			keys: { project: "projecta", action: "start", group: "cego.dk" },
 		});
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{blue docker-compose up} is running in {cyan /home/user/git-local-devops/cego-example}`,
-		);
+		expect(spawnSpy).toBeCalledTimes(1);
+		expect(spawnSpy).toBeCalledWith("docker-compose", ["up"], expect.objectContaining({ cwd: `${cwdStub}/cego-example` }));
 	});
 
 	test("Start cego.dk, failure in script", async () => {
 		when(spawnSpy)
 			.calledWith("docker-compose", ["up"], expect.objectContaining({}))
-			.mockRejectedValue({ stderr: "ARRRG FAILURE" });
-		await runAction({
-			cwd: cwdStub,
-			config: cnfStub,
-			keys: { project: "projecta", action: "start", group: "cego.dk" },
-		});
-		expect(console.error).toHaveBeenCalledWith(
-			chalk`"start" "cego.dk" {red failed}, goto {cyan /home/user/git-local-devops/cego-example} and run {blue docker-compose up} manually`,
-		);
-	});
-
-	test("Returns if project action or group is not in config", async () => {
-		// deep copy cnfStub
-		const cnf = JSON.parse(JSON.stringify(cnfStub));
-		cnf.projects["projecta"] = { ...cnf.projects["projecta"], actions: {} };
-		cnf.projects["projectb"] = { ...cnf.projects["projecta"] };
-		cnf.projects["projectb"].actions["start"] = { ...cnf.projects["projectb"].actions["start"], groups: {} };
-
-		const res1 = await runAction({
-			cwd: cwdStub,
-			config: cnf,
-			keys: { project: "projecta", action: "start", group: "cego.dk" },
-		});
-		expect(res1).toBeUndefined();
-
-		const res2 = await runAction({
-			cwd: cwdStub,
-			config: cnf,
-			keys: { project: "projectb", action: "start", group: "cego.dk" },
-		});
-		expect(res2).toBeUndefined();
-
-		const res3 = await runAction({
-			cwd: cwdStub,
-			config: cnf,
-			keys: { project: "projectc", action: "start", group: "cego.dk" },
-		});
-		expect(res3).toBeUndefined();
-	});
-
-	test("Returns if not current prio", async () => {
+			.mockRejectedValue({ code: 'ENOENT' });
 		const res = await runAction({
 			cwd: cwdStub,
 			config: cnfStub,
 			keys: { project: "projecta", action: "start", group: "cego.dk" },
 		});
-		expect(res).toBeUndefined();
+		expect(res.code !== 0);
 	});
 });
 
@@ -86,6 +45,7 @@ describe("Run actions", () => {
 			...keys,
 			stdout: "Mocked Stdout",
 			stderr: "Mocked Stderr",
+			cmd: ["docker-compose", "up"],
 		});
 
 		const res = await actions(cnfStub, cwdStub, "start", "cego.dk", runActionFn);
@@ -94,7 +54,6 @@ describe("Run actions", () => {
 			cwd: cwdStub,
 			config: cnfStub,
 			keys,
-			currentPrio: 0,
 		});
 
 		expect(res).toHaveLength(1);
@@ -102,6 +61,7 @@ describe("Run actions", () => {
 			...keys,
 			stdout: "Mocked Stdout",
 			stderr: "Mocked Stderr",
+			cmd: ["docker-compose", "up"],
 		});
 	});
 
@@ -110,6 +70,7 @@ describe("Run actions", () => {
 			...keys,
 			stdout: "Mocked Stdout",
 			stderr: "Mocked Stderr",
+			cmd: ["docker-compose", "up"],
 		});
 
 		const cnf = { ...cnfStub };
@@ -120,29 +81,27 @@ describe("Run actions", () => {
 		cnf.projects["projectc"].actions["start"].priority = 2;
 
 		const res = await actions(cnfStub, cwdStub, "start", "cego.dk", runActionFn);
-		expect(runActionFn).toHaveBeenCalledTimes(9); // 3 for every action because of 3 different priorities
+		expect(runActionFn).toHaveBeenCalledTimes(3);
 		expect(runActionFn).toHaveBeenCalledWith({
 			cwd: cwdStub,
 			config: cnf,
 			keys,
-			currentPrio: 0,
 		});
 		expect(runActionFn).toHaveBeenCalledWith({
 			cwd: cwdStub,
 			config: cnf,
 			keys: { ...keys, project: "projectb" },
-			currentPrio: 1,
 		});
 		expect(runActionFn).toHaveBeenCalledWith({
 			cwd: cwdStub,
 			config: cnf,
 			keys: { ...keys, project: "projectc" },
-			currentPrio: 2,
 		});
 
-		expect(res).toHaveLength(9);
+		expect(res).toHaveLength(3);
 		expect(res).toContainEqual({
 			...keys,
+			cmd: ["docker-compose", "up"],
 			stdout: "Mocked Stdout",
 			stderr: "Mocked Stderr",
 		});

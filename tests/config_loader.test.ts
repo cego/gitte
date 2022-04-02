@@ -49,7 +49,7 @@ describe("Config loader", () => {
 		// @ts-ignore
 		when(fs.readFile).calledWith(`${cwdStub}/.git-local-devops-env`, "utf8").mockResolvedValue(envFileCnt);
 
-		const gitArchiveCnt = `---\n${JSON.stringify({
+		const gitArchiveCnt = `---\n${yaml.dump({
 			startup: startupStub,
 			projects: { example: projectStub },
 		})}`;
