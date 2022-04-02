@@ -33,7 +33,7 @@ export async function actions(
 			.filter((action) => (action.priority ?? 0) === priority && (action.needs?.length ?? 0) === 0)
 			.map((action) => {
 				return runActionPromiseWrapper(
-					{ cwd, config, keys: action },
+					{ cwd, config, keys: { project: action.project, action: action.action, group: action.group } },
 					runActionFn,
 					progressBar,
 					blockedActions,
