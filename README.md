@@ -74,13 +74,15 @@ After git operations are done, scripts matching cli inputs will be executed.
 In this example only `"bash", "-c", "start-docker-stack.sh"` will be executed in `~/git-local-devops/cego/example` checkout
 
 ## Execution order
+
 You may specify either a priority or a needs array for each action, but never both.
 The needs array must point to other project names and must be acyclic.
 
 If there is no priority or needs, the action has a default priority of 0.
 
 Execution order is as follows:
+
 1. Execute the lowest priority actions (Will execute in parallel if same priority)
 2. When these actions finish, remove their needs from other action that needs these actions
-    - If this result in an action with an empty needs array, it will start execution of that action, then go back to step 2.
+   - If this result in an action with an empty needs array, it will start execution of that action, then go back to step 2.
 3. Remove the lowest priority actions and go back to step 1.

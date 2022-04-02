@@ -55,7 +55,7 @@ export async function actions(
 	logActionOutput(stdoutBuffer);
 	return stdoutBuffer;
 }
-function getUniquePriorities(config: Config, actionToRun: string, groupToRun: string): Set<number> {
+export function getUniquePriorities(config: Config, actionToRun: string, groupToRun: string): Set<number> {
 	return Object.values(config.projects).reduce((carry, project) => {
 		if (project.actions[actionToRun]?.groups[groupToRun]) {
 			carry.add(project.actions[actionToRun].priority ?? 0);
@@ -89,7 +89,7 @@ export async function runActionPromiseWrapper(
 				.map((action) => {
 					const newBlockedActions = blockedActions.filter((blockedAction) => blockedAction.needs?.length !== 0);
 					return runActionPromiseWrapper(
-						{ ...runActionOpts, keys: action },
+						{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
 						runActionFn,
 						progressBar,
 						newBlockedActions,
@@ -145,7 +145,7 @@ export async function fromConfig(cwd: string, cnf: Config, actionToRun: string, 
 	}
 }
 
-function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
+export function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
 	// get all actions from all projects with actionToRun key
 	const actionsToRun = Object.entries(config.projects)
 		.filter(([, project]) => project.actions[actionToRun]?.groups[groupToRun])
