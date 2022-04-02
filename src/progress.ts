@@ -68,7 +68,12 @@ export async function applyPromiseToEntriesWithProgressBarSync<TArg, TReturn>(
 	const result = [] as TReturn[];
 	for (const [key, value] of entries) {
 		progressBar.update({ status: key });
-		result.push(await fn(value));
+		result.push(
+			await fn(value).catch((err) => {
+				progressBar.stop();
+				throw err;
+			}),
+		);
 		progressBar.increment();
 	}
 
