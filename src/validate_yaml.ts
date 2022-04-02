@@ -112,13 +112,14 @@ const schema = {
 
 const validate = ajv.compile<Config>(schema);
 
-export function validateYaml(obj: any): Config & ActionGraphs {
+export function validateYaml(obj: any): Config {
 	const valid = validate(obj);
 	if (!valid) {
 		console.error(validate.errors);
 	}
 
-	const actionGraphs = createActionGraphs(obj);
+	// Fail fast if graph is invalid.
+	createActionGraphs(obj);
 
-	return { ...obj, actionGraphs };
+	return { ...obj };
 }
