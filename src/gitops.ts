@@ -99,9 +99,9 @@ export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
 	return logs;
 }
 
-export async function fromConfig(cwd: string, cnf: Config) {
+export async function fromConfig(cnf: Config) {
 	printHeader("Git Operations");
-	const fn = (arg: Project) => gitops(cwd, arg);
+	const fn = (arg: Project) => gitops(cnf.cwd, arg);
 	const result = await applyPromiseToEntriesWithProgressBar("git-operations", Object.entries(cnf.projects), fn);
 	console.log();
 	printLogs(Object.keys(cnf.projects), result);

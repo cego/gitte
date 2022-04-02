@@ -15,7 +15,7 @@ export const describe = "Run actions on all projects for <action> and <group>";
 export async function handler(argv: any) {
 	try {
 		const cnf = await loadConfig(argv.cwd);
-		await fromConfig(argv.cwd, cnf, argv.action, argv.group);
+		await fromConfig(cnf, argv.action, argv.group);
 	} catch (e) {
 		errorHandler(e);
 	}
