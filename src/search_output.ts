@@ -1,7 +1,8 @@
 import chalk from "chalk";
 import { SearchFor } from "./types/config";
-import { ActionOutput, GroupKey } from "./types/utils";
+import { GroupKey } from "./types/utils";
 import { Output } from "promisify-child-process";
+import { ActionOutput } from "./actions";
 
 export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 	for (const entry of stdoutHistory) {
