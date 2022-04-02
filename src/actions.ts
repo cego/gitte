@@ -9,7 +9,7 @@ import { getProgressBar, waitingOnToString } from "./progress";
 import { SingleBar } from "cli-progress";
 import { topologicalSortActionGraph } from "./graph";
 
-export type ActionOutput = GroupKey & pcp.Output & { dir: string; cmd: string[] };
+export type ActionOutput = GroupKey & pcp.Output & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
 export async function actions(
 	config: Config,
@@ -79,6 +79,9 @@ export async function runActionPromiseWrapper(
 			return res;
 		})
 		.then(async (res) => {
+			// if exit code was not zero, remove all blocked actions that needs this action
+			const removedBlockedActions = res.code === 0 ? [] : findActionsToSkipAfterFailure(res.project, blockedActions);
+
 			const actionsFreedtoRun = blockedActions.reduce((carry, action, i) => {
 				action.needs = action.needs?.filter((need) => need !== runActionOpts.keys.project);
 				if (action.needs?.length === 0) {
@@ -104,7 +107,7 @@ export async function runActionPromiseWrapper(
 				},
 				[] as ActionOutput[],
 			);
-			return [res, ...blockedActionsResult];
+			return [res, ...blockedActionsResult, ...removedBlockedActions];
 		});
 }
 
@@ -190,4 +193,22 @@ export function getActions(config: Config, actionToRun: string, groupToRun: stri
 		});
 
 	return actionsToRun;
+}
+export function findActionsToSkipAfterFailure(
+	failedProject: string,
+	blockedActions: (GroupKey & ProjectAction)[],
+): ActionOutput[] {
+	const blockedActionsSkipped = [] as ActionOutput[];
+	const actionsToSkip = blockedActions.filter((actionToSkip) => actionToSkip.needs?.includes(failedProject));
+	actionsToSkip.forEach((actionToSkip) => {
+		blockedActionsSkipped.push({
+			...actionToSkip,
+			wasSkippedBy: failedProject,
+		});
+		delete blockedActions[blockedActions.indexOf(actionToSkip)];
+		findActionsToSkipAfterFailure(actionToSkip.project, blockedActions).forEach((skippedActionResult) => {
+			blockedActionsSkipped.push(skippedActionResult);
+		});
+	});
+	return blockedActionsSkipped;
 }

@@ -6,12 +6,14 @@ import { ActionOutput } from "./actions";
 
 export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 	for (const entry of stdoutHistory) {
-		if (entry.code === 0) {
-			console.log(chalk`{blue ${entry.cmd.join(" ")}} ran in {cyan ${entry.dir}}`);
+		if (entry.wasSkippedBy) {
+			console.log(chalk`{yellow Skipped: ${entry.project} because it needed ${entry.wasSkippedBy}, which failed. }`);
+		} else if (entry.code === 0) {
+			console.log(chalk`{blue ${entry.cmd?.join(" ")}} ran in {cyan ${entry.dir}}`);
 		} else {
 			console.error(
 				chalk`"${entry.action}" "${entry.group}" {red failed}, ` +
-					chalk`goto {cyan ${entry.dir}} and run {blue ${entry.cmd.join(" ")}} manually`,
+					chalk`goto {cyan ${entry.dir}} and run {blue ${entry.cmd?.join(" ")}} manually`,
 			);
 		}
 	}

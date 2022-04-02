@@ -9,9 +9,11 @@ import {
 	getUniquePriorities,
 	runActionPromiseWrapper,
 	getActions,
+	findActionsToSkipAfterFailure,
 } from "../src/actions";
 import { SingleBar } from "cli-progress";
-import { Config } from "../src/types/config";
+import { Config, ProjectAction } from "../src/types/config";
+import { GroupKey } from "../src/types/utils";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 let cnf: Config;
@@ -153,6 +155,7 @@ describe("Action", () => {
 				...keys,
 				stdout: "Mocked Stdout",
 				stderr: "Mocked Stderr",
+				code: 0,
 				cmd: ["docker-compose", "up"],
 			});
 			const progressBarMock = {
@@ -233,6 +236,78 @@ describe("Action", () => {
 			expect(res).toHaveLength(2);
 			expect(res).toContainEqual(expect.objectContaining({ project: "projecta" }));
 			expect(res).toContainEqual(expect.objectContaining({ project: "projectc", needs: ["projecta"] }));
+		});
+	});
+	describe("findActionsToSkipAfterFailure", () => {
+		test("It finds actions to skip", () => {
+			const blockedActions: (GroupKey & ProjectAction)[] = [
+				{
+					needs: ["projecta"],
+					groups: { "cego.dk": ["start"] as [string, ...string[]] },
+					project: "projectb",
+					action: "start",
+					group: "cego.dk",
+				},
+			];
+			const res = findActionsToSkipAfterFailure("projecta", blockedActions);
+
+			expect(res).toEqual([
+				{
+					needs: ["projecta"],
+					groups: { "cego.dk": ["start"] },
+					project: "projectb",
+					action: "start",
+					group: "cego.dk",
+					wasSkippedBy: "projecta",
+				},
+			]);
+		});
+
+		test("It finds chained actions to skip", () => {
+			const blockedActions: (GroupKey & ProjectAction)[] = [
+				{
+					needs: ["projecta"],
+					groups: { "cego.dk": ["start"] as [string, ...string[]] },
+					project: "projectb",
+					action: "start",
+					group: "cego.dk",
+				},
+				{
+					needs: ["projectb"],
+					groups: { "cego.dk": ["start"] as [string, ...string[]] },
+					project: "projectc",
+					action: "start",
+					group: "cego.dk",
+				},
+				{
+					needs: ["projectd"],
+					groups: { "cego.dk": ["start"] as [string, ...string[]] },
+					project: "projecte",
+					action: "start",
+					group: "cego.dk",
+				},
+			];
+			const res = findActionsToSkipAfterFailure("projecta", blockedActions);
+
+			expect(res).toEqual([
+				{
+					needs: ["projecta"],
+					groups: { "cego.dk": ["start"] as [string, ...string[]] },
+					project: "projectb",
+					action: "start",
+					group: "cego.dk",
+					wasSkippedBy: "projecta",
+				},
+				{
+					needs: ["projectb"],
+					groups: { "cego.dk": ["start"] as [string, ...string[]] },
+					project: "projectc",
+					action: "start",
+					group: "cego.dk",
+					wasSkippedBy: "projectb",
+				},
+			]);
+			expect(blockedActions.filter((x) => x)).toHaveLength(1);
 		});
 	});
 });
