@@ -2,12 +2,14 @@ import { getProjectDirFromRemote } from "./project";
 import chalk from "chalk";
 import { Config, ProjectAction } from "./types/config";
 import * as pcp from "promisify-child-process";
-import { ActionOutput, GroupKey } from "./types/utils";
+import { GroupKey } from "./types/utils";
 import { logActionOutput, searchOutputForHints } from "./search_output";
 import { printHeader } from "./utils";
 import { getProgressBar, waitingOnToString } from "./progress";
 import { SingleBar } from "cli-progress";
 import { topologicalSortActionGraph } from "./graph";
+
+export type ActionOutput = GroupKey & pcp.Output & { dir: string; cmd: string[] };
 
 export async function actions(
 	config: Config,
@@ -145,7 +147,7 @@ export async function fromConfig(cwd: string, cnf: Config, actionToRun: string, 
 
 function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
 	// get all actions from all projects with actionToRun key
-	const actions = Object.entries(config.projects)
+	const actionsToRun = Object.entries(config.projects)
 		.filter(([, project]) => project.actions[actionToRun]?.groups[groupToRun])
 		.reduce((carry, [projectName, project]) => {
 			carry.push({
@@ -176,7 +178,7 @@ function getActions(config: Config, actionToRun: string, groupToRun: string): (G
 		.filter((action) => !config.projects[action].actions[actionToRun]?.groups[groupToRun])
 		.forEach((actionNoGroup) => {
 			// Find all actions that needs this action, remove this action from the needs list, and replace it with the needs of this action
-			actions
+			actionsToRun
 				.filter((action) => action.needs?.includes(actionNoGroup))
 				.forEach((action) => {
 					action.needs = action.needs?.filter((need) => need !== actionNoGroup);
@@ -187,5 +189,5 @@ function getActions(config: Config, actionToRun: string, groupToRun: string): (G
 				});
 		});
 
-	return actions;
+	return actionsToRun;
 }
