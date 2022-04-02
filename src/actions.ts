@@ -88,17 +88,15 @@ export async function runActionPromiseWrapper(
 				return carry;
 			}, [] as (GroupKey & ProjectAction)[]);
 
-
-			const runBlockedActionPromises = actionsFreedtoRun
-				.map((action) => {
-					return runActionPromiseWrapper(
-						{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
-						runActionFn,
-						progressBar,
-						blockedActions,
-						waitingOn,
-					);
-				});
+			const runBlockedActionPromises = actionsFreedtoRun.map((action) => {
+				return runActionPromiseWrapper(
+					{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
+					runActionFn,
+					progressBar,
+					blockedActions,
+					waitingOn,
+				);
+			});
 
 			const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce(
 				(carry, blockedActionResult) => {
