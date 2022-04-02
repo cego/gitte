@@ -25,6 +25,8 @@ export async function actions(
 
 	progressBar.start(actions.length, 0, { status: waitingOnToString(waitingOn) });
 
+	// Go through the sorted priority groups, and run the actions
+	// After an action is run, the runActionPromiseWrapper will handle calling any actions that needs the completed action.
 	const stdoutBuffer: ActionOutput[] = [];
 	for (const priority of uniquePriorities) {
 		const runActionPromises = actions
@@ -153,8 +155,20 @@ function getActions(config: Config, actionToRun: string, groupToRun: string): (G
 			return carry;
 		}, [] as (GroupKey & ProjectAction)[]);
 
-	// Find all actions that doesn't have the group, and fix the needs chain for actions that needs that action
-	// Use topological sort in order to only iterate once. createActionGra
+	/**
+	 * Sometime an action will not have the specific group it needs to run.
+	 * If another action needs such action, we have to rearrange dependencies, as such action cannot be run without the specific group.
+	 * This is done by adding the needs from the action without the specific group, to the actions that need the action witohut the specific group
+	 *
+	 * For example:
+	 *
+	 * A needs B, B needs C
+	 *
+	 * We want to run group X, but only A and C have group X.
+	 * In this case we rewrite A to needs C.
+	 *
+	 * In order to avoid having multiple iterations, we sort the actions topologically first to ensure the dependencies are always resolved.
+	 */
 	topologicalSortActionGraph(config, actionToRun)
 		.filter((action) => !config.projects[action].actions[actionToRun]?.groups[groupToRun])
 		.forEach((actionNoGroup) => {

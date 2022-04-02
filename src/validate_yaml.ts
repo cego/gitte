@@ -7,12 +7,14 @@ const ajv = new Ajv2019();
 const schema = {
 	type: "object",
 	required: ["startup", "projects"],
+	additionalProperties: false,
 	properties: {
 		searchFor: {
 			type: "array",
 			items: {
 				type: "object",
 				required: ["regex", "hint"],
+				additionalProperties: false,
 				properties: {
 					regex: {
 						type: "string",
@@ -30,6 +32,7 @@ const schema = {
 					{
 						type: "object",
 						required: ["cmd"],
+						additionalProperties: false,
 						properties: {
 							cmd: {
 								type: "array",
@@ -44,6 +47,7 @@ const schema = {
 					{
 						type: "object",
 						required: ["shell", "script"],
+						additionalProperties: false,
 						properties: {
 							shell: {
 								type: "string",
@@ -76,6 +80,7 @@ const schema = {
 						type: "object",
 						additionalProperties: {
 							type: "object",
+							additionalProperties: false,
 							properties: {
 								priority: {
 									type: "integer",
@@ -105,7 +110,6 @@ const schema = {
 	},
 };
 
-// todo validation does not fail even though priority on project is set
 const validate = ajv.compile<Config>(schema);
 
 export function validateYaml(obj: any): Config & ActionGraphs {
