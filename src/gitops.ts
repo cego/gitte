@@ -8,12 +8,14 @@ import { ToChildProcessOutput } from "./types/utils";
 import { printHeader, printLogs } from "./utils";
 import { applyPromiseToEntriesWithProgressBar } from "./progress";
 
+type LogFn = (arg: any) => void;
+
 async function hasLocalChanges(dir: string) {
 	const res = await pcp.spawn("git", ["status", "--porcelain"], { cwd: dir, encoding: "utf8" });
 	return `${res.stdout}`.trim().length !== 0;
 }
 
-async function pull(dir: string, currentBranch: string, log: (arg: any) => void) {
+async function pull(dir: string, currentBranch: string, log: LogFn) {
 	const pcpPromise = pcp.spawn("git", ["pull", "--ff-only"], { cwd: dir, encoding: "utf8" });
 	const [err, res]: ToChildProcessOutput = await to(pcpPromise);
 
@@ -28,34 +30,36 @@ async function pull(dir: string, currentBranch: string, log: (arg: any) => void)
 
 	const msg = `${res.stdout}`.trim();
 	if (msg === "Already up to date.") {
-		log(chalk`{yellow ${currentBranch}} is up to date in {cyan ${dir}}`);
+		log(chalk`{yellow ${currentBranch}} is up to date with {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 	} else {
 		log(chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 	}
 }
 
-async function merge(dir: string, currentBranch: string, defaultBranch: string, log: (arg: any) => void) {
-	let m, pcpPromise, err;
-	const mergeError = async function () {
-		m = chalk`{yellow ${currentBranch}} merge with {magenta origin/${defaultBranch}} {red failed} in {cyan ${dir}}`;
-		log(m);
+async function mergeError(dir: string, currentB: string, defaultB: string, log: LogFn) {
+	log(chalk`{yellow ${currentB}} merge with {magenta origin/${defaultB}} {red failed} in {cyan ${dir}}`);
 
-		pcpPromise = pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
-		[err] = await to(pcpPromise);
-		if (err) {
-			m = chalk`{yellow ${currentBranch}} merge --abort also {red failed} in {cyan ${dir}}`;
-			log(m);
-		}
-	};
-	pcpPromise = pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" });
-	[err] = await to(pcpPromise);
-
+	const pcpPromise = pcp.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
+	const [err] = await to(pcpPromise);
 	if (err) {
-		return mergeError();
+		log(chalk`{yellow ${currentB}} merge --abort also {red failed} in {cyan ${dir}}`);
+	}
+}
+
+async function merge(dir: string, currentB: string, defaultBranch: string, log: LogFn) {
+	const pcpPromise = pcp.spawn("git", ["merge", `origin/${defaultBranch}`], { cwd: dir, encoding: "utf8" });
+	const [err, res] = await to(pcpPromise);
+
+	if (err || !res) {
+		return mergeError(dir, currentB, defaultBranch, log);
 	}
 
-	m = chalk`{yellow ${currentBranch}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`;
-	log(m);
+	const msg = `${res.stdout}`.trim();
+	if (msg === "Already up to date.") {
+		log(chalk`{yellow ${currentB}} is up to date with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
+	} else {
+		log(chalk`{yellow ${currentB}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
+	}
 }
 
 export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {

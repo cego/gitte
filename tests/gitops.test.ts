@@ -97,7 +97,8 @@ describe("Git Operations", () => {
 				.calledWith("git", ["pull", "--ff-only"], expect.objectContaining({}))
 				.mockResolvedValue({ stdout: "Already up to date." });
 			const logs = await gitops(cwdStub, projectStub);
-			expect(logs).toContain(chalk`{yellow main} is up to date in {cyan ${cwdStub}/cego-example}`);
+			const msg = chalk`{yellow main} is up to date with {magenta origin/main} in {cyan ${cwdStub}/cego-example}`;
+			expect(logs).toContain(msg);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["pull", "--ff-only"], expect.objectContaining({}));
 		});
 
@@ -122,11 +123,22 @@ describe("Git Operations", () => {
 	});
 
 	describe("Custom branch", () => {
-		test("Merge success", async () => {
+		test("Merged successfully", async () => {
 			mockHasNoChanges();
 			mockCustomBranch();
 			const logs = await gitops(cwdStub, projectStub);
 			const msg = chalk`{yellow custom} was merged with {magenta origin/main} in {cyan ${cwdStub}/cego-example}`;
+			expect(logs).toContain(msg);
+		});
+
+		test("Already merged", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+			when(spawnSpy)
+				.calledWith("git", ["merge", `origin/main`], expect.objectContaining({}))
+				.mockResolvedValue({ stdout: "Already up to date." });
+			const logs = await gitops(cwdStub, projectStub);
+			const msg = chalk`{yellow custom} is up to date with {magenta origin/main} in {cyan ${cwdStub}/cego-example}`;
 			expect(logs).toContain(msg);
 		});
 
