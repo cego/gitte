@@ -1,11 +1,17 @@
+import { Config } from "../src/types/config";
 import { validateYaml } from "../src/validate_yaml";
 import { cnfStub } from "./utils/stubs";
 
 describe("Test validator", () => {
-	console.log = jest.fn();
+	let cnf: any;
+	beforeEach(() => {
+		cnf = { ...cnfStub };
+		delete cnf.cwd;
+		console.log = jest.fn();
+	});
 
 	test("Returns valid object", () => {
-		const res = validateYaml(cnfStub);
+		const res = validateYaml(cnf);
 		expect(res).toBeDefined();
 	});
 
