@@ -75,26 +75,28 @@ export async function runActionPromiseWrapper(
 	return runActionFn(runActionOpts)
 		.then((res) => {
 			waitingOn.splice(waitingOn.indexOf(runActionOpts.keys.project), 1);
-			progressBar.increment();
+			progressBar.increment({ status: waitingOnToString(waitingOn) });
 			return res;
 		})
 		.then(async (res) => {
-			blockedActions.forEach((action) => {
+			const actionsFreedtoRun = blockedActions.reduce((carry, action, i) => {
 				action.needs = action.needs?.filter((need) => need !== runActionOpts.keys.project);
-			});
+				if (action.needs?.length === 0) {
+					delete blockedActions[i];
+					carry.push(action);
+				}
+				return carry;
+			}, [] as (GroupKey & ProjectAction)[]);
 
-			const runBlockedActionPromises = blockedActions
-				.filter((action) => action.needs?.length === 0)
-				.map((action) => {
-					const newBlockedActions = blockedActions.filter((blockedAction) => blockedAction.needs?.length !== 0);
-					return runActionPromiseWrapper(
-						{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
-						runActionFn,
-						progressBar,
-						newBlockedActions,
-						waitingOn,
-					);
-				});
+			const runBlockedActionPromises = actionsFreedtoRun.map((action) => {
+				return runActionPromiseWrapper(
+					{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
+					runActionFn,
+					progressBar,
+					blockedActions,
+					waitingOn,
+				);
+			});
 
 			const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce(
 				(carry, blockedActionResult) => {
