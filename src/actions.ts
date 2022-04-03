@@ -178,6 +178,7 @@ export function getActions(config: Config, actionToRun: string, groupToRun: stri
 	 * In order to avoid having multiple iterations, we sort the actions topologically first to ensure the dependencies are always resolved.
 	 */
 	topologicalSortActionGraph(config, actionToRun)
+		.reverse()
 		.filter((action) => !config.projects[action].actions[actionToRun]?.groups[groupToRun])
 		.forEach((actionNoGroup) => {
 			// Find all actions that needs this action, remove this action from the needs list, and replace it with the needs of this action
