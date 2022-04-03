@@ -5,45 +5,55 @@ import { Output } from "promisify-child-process";
 import { ActionOutput } from "./actions";
 // @ts-ignore - does not have types
 import template from "chalk/source/templates";
+import { printHeader } from "./utils";
 
 export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 	for (const entry of stdoutHistory) {
 		if (entry.wasSkippedBy) {
-			console.log(chalk`{yellow Skipped: ${entry.project} because it needed ${entry.wasSkippedBy}, which failed. }`);
+			console.log(
+				chalk`{bgYellow  WARN } Skipped: {bold ${entry.project}} because it needed ${entry.wasSkippedBy}, which failed.`,
+			);
 		} else if (entry.code === 0) {
-			console.log(chalk`{blue ${entry.cmd?.join(" ")}} ran in {cyan ${entry.dir}}`);
+			console.log(
+				chalk`{bgGreen  PASS } {bold ${entry.project}} {blue ${entry.cmd?.join(" ")}} ran in {cyan ${entry.dir}}`,
+			);
 		} else {
 			console.error(
-				chalk`"${entry.action}" "${entry.group}" {red failed}, ` +
+				chalk`{bgRed  FAIL } {bold ${entry.project}} failed running ${entry.action} ${entry.group},` +
 					chalk`goto {cyan ${entry.dir}} and run {blue ${entry.cmd?.join(" ")}} manually`,
 			);
 		}
 	}
 }
 
-export function searchOutputForHints(cfg: Config, stdoutHistory: (GroupKey & Output)[]) {
-	cfg.searchFor.forEach((search) => searchForRegex(search, stdoutHistory));
+export function searchOutputForHints(cfg: Config, stdoutHistory: (GroupKey & Output)[], firstHint = true) {
+	cfg.searchFor.forEach((search) => (firstHint = searchForRegex(search, stdoutHistory, firstHint)));
 	stdoutHistory.forEach((entry) => {
 		const searchFor = cfg.projects[entry.project]?.actions[entry.action]?.searchFor;
 		if (searchFor) {
-			searchFor.forEach((search) => searchForRegex(search, [entry]));
+			searchFor.forEach((search) => (firstHint = searchForRegex(search, [entry], firstHint)));
 		}
 	});
 }
 
-function searchForRegex(searchFor: SearchFor, stdoutHistory: (GroupKey & Output)[]): void {
+function searchForRegex(searchFor: SearchFor, stdoutHistory: (GroupKey & Output)[], firstHint: boolean): boolean {
 	for (const entry of stdoutHistory) {
 		if (
 			(entry.stdout && new RegExp(searchFor.regex, "g").test(entry.stdout.toString())) ||
 			(entry.stderr && new RegExp(searchFor.regex, "g").test(entry.stderr.toString()))
 		) {
+			if (firstHint) {
+				printHeader("Hints");
+				firstHint = false;
+			}
 			const groups =
 				new RegExp(searchFor.regex, "g").exec(entry.stdout?.toString() ?? entry.stderr?.toString() ?? "") ??
 				([] as string[]);
 			let hint: string = searchFor.hint.replace(/{(\d+)}/g, (_, d) => groups[d]);
 
 			hint = template(chalk, hint);
-			console.log(chalk`{inverse  INFO } ${hint} {gray (Source: ${entry.project})}`);
+			console.log(chalk`${hint} {gray (Source: ${entry.project})}`);
 		}
 	}
+	return firstHint;
 }
