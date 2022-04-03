@@ -151,7 +151,7 @@ export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: s
 	if (stdoutBuffer.length === 0) {
 		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
 	}
-	fs.writeFile(path.join(cnf.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
+	fs.writeFileSync(path.join(cnf.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 }
 
 export function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
