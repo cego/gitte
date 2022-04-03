@@ -84,8 +84,6 @@ const schema = {
 							properties: {
 								priority: {
 									type: "integer",
-									minimum: 0,
-									maximum: 1000,
 								},
 								needs: {
 									type: "array",
@@ -98,7 +96,22 @@ const schema = {
 									additionalProperties: {
 										type: "array",
 										contains: { type: "string" },
-										minContains: 1,
+									},
+								},
+								searchFor: {
+									type: "array",
+									items: {
+										type: "object",
+										required: ["regex", "hint"],
+										additionalProperties: false,
+										properties: {
+											regex: {
+												type: "string",
+											},
+											hint: {
+												type: "string",
+											},
+										},
 									},
 								},
 							},
