@@ -14,6 +14,7 @@ import {
 import { SingleBar } from "cli-progress";
 import { Config, ProjectAction } from "../src/types/config";
 import { GroupKey } from "../src/types/utils";
+import fs from "fs-extra";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 let cnf: Config;
@@ -122,6 +123,7 @@ describe("Action", () => {
 
 	describe("Test fromConfig", () => {
 		test("It prints hint if no action or group is found at all", async () => {
+			fs.writeFileSync = jest.fn();
 			await fromConfig(cnf, "nonaction", "nongroup");
 			expect(console.log).toHaveBeenCalledWith(
 				chalk`{yellow No groups found for action {cyan nonaction} and group {cyan nongroup}}`,

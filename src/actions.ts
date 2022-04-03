@@ -8,6 +8,8 @@ import { printHeader } from "./utils";
 import { getProgressBar, waitingOnToString } from "./progress";
 import { SingleBar } from "cli-progress";
 import { topologicalSortActionGraph } from "./graph";
+import fs from "fs-extra";
+import path from "path";
 
 export type ActionOutput = GroupKey & pcp.Output & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
@@ -126,6 +128,8 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 			cwd: dir,
 			env: process.env,
 			encoding: "utf8",
+			// increase max buffer from 200KB to 2MB
+			maxBuffer: 1024 * 2048,
 		})
 		.catch((err) => err);
 
@@ -134,6 +138,7 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 		stdout: res.stdout?.toString() ?? "",
 		stderr: res.stderr?.toString() ?? "",
 		code: res.code,
+		signal: res.signal,
 		dir,
 		cmd: group,
 	};
@@ -146,6 +151,7 @@ export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: s
 	if (stdoutBuffer.length === 0) {
 		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
 	}
+	fs.writeFile(path.join(cnf.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 }
 
 export function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
