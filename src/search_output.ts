@@ -3,6 +3,8 @@ import { Config, SearchFor } from "./types/config";
 import { GroupKey } from "./types/utils";
 import { Output } from "promisify-child-process";
 import { ActionOutput } from "./actions";
+// @ts-ignore - does not have types
+import template from "chalk/source/templates";
 
 export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 	for (const entry of stdoutHistory) {
@@ -40,12 +42,7 @@ function searchForRegex(searchFor: SearchFor, stdoutHistory: (GroupKey & Output)
 				([] as string[]);
 			let hint: string = searchFor.hint.replace(/{(\d+)}/g, (_, d) => groups[d]);
 
-			/*
-			 * Yes this is a hack, but it works for now untill we upgrade to ESM and chalkTemplate
-			 * Yes this makes it possible for the config to execute arbitary javascript.
-			 * - The config already has access to define all the commands we execute, so this is nothing new.
-			 */
-			hint = eval(`require("chalk")\`${hint}\``);
+			hint = template(chalk, hint);
 			console.log(chalk`{inverse  INFO } ${hint} {gray (Source: ${entry.project})}`);
 		}
 	}
