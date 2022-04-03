@@ -1,8 +1,9 @@
 import chalk from "chalk";
 import { Output } from "promisify-child-process";
 import { searchOutputForHints } from "../src/search_output";
-import { SearchFor } from "../src/types/config";
+import { Config, SearchFor } from "../src/types/config";
 import { GroupKey } from "../src/types/utils";
+import { cnfStub } from "./utils/stubs";
 
 beforeEach(() => {
 	console.log = jest.fn();
@@ -27,15 +28,13 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints(searchFor, stdoutHistory);
+		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow Hint: ${searchFor[0].hint}} {gray (Source: project1/action1/group1)}`,
-		);
+		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
 	});
 
-	test("It searches stdout", async () => {
+	test("It searches stderr", async () => {
 		const searchFor: SearchFor[] = [
 			{
 				// string contain any digit
@@ -53,12 +52,10 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints(searchFor, stdoutHistory);
+		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow Hint: ${searchFor[0].hint}} {gray (Source: project1/action1/group1)}`,
-		);
+		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
 	});
 
 	test("It searches stdout and stderr", async () => {
@@ -79,12 +76,10 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints(searchFor, stdoutHistory);
+		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow Hint: ${searchFor[0].hint}} {gray (Source: project1/action1/group1)}`,
-		);
+		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
 	});
 
 	test("It searches multiple outputs", async () => {
@@ -131,20 +126,67 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints(searchFor, stdoutHistory);
+		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory);
 
 		expect(console.log).toHaveBeenCalledTimes(4);
+		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[1].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[1].hint} {gray (Source: project1)}`);
+	});
+
+	test("It searches action specific searchFor", () => {
+		const searchFor: SearchFor[] = [
+			{
+				// string contain any digit
+				regex: "[0-9]",
+				hint: "This string contains a digit",
+			},
+		];
+		const stdoutHistory: (GroupKey & Output)[] = [
+			{
+				project: "projecta",
+				action: "start",
+				group: "group1",
+				stdout: "This string does contain 1 digit",
+				stderr: "This string does not contain a digit",
+			},
+		];
+
+		const cfg: Config = JSON.parse(JSON.stringify(cnfStub));
+		cfg.projects["projecta"].actions["start"].searchFor = searchFor;
+
+		searchOutputForHints(cfg, stdoutHistory);
+
+		expect(console.log).toHaveBeenCalledTimes(1);
+		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: projecta)}`);
+	});
+
+	test("It supports chalking in searchFor", () => {
+		const searchFor: SearchFor[] = [
+			{
+				// string contain any digit
+				regex: "[0-9]",
+				hint: "{green This string contains a digit}",
+			},
+		];
+		const stdoutHistory: (GroupKey & Output)[] = [
+			{
+				project: "projecta",
+				action: "start",
+				group: "group1",
+				stdout: "This string does contain 1 digit",
+				stderr: "This string does not contain a digit",
+			},
+		];
+
+		const cfg: Config = JSON.parse(JSON.stringify(cnfStub));
+		cfg.projects["projecta"].actions["start"].searchFor = searchFor;
+
+		searchOutputForHints(cfg, stdoutHistory);
+
 		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow Hint: ${searchFor[0].hint}} {gray (Source: project1/action1/group1)}`,
-		);
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow Hint: ${searchFor[1].hint}} {gray (Source: project1/action1/group2)}`,
-		);
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow Hint: ${searchFor[0].hint}} {gray (Source: project1/action1/group4)}`,
-		);
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{yellow Hint: ${searchFor[1].hint}} {gray (Source: project1/action1/group4)}`,
+			chalk`{inverse  INFO } {green This string contains a digit} {gray (Source: projecta)}`,
 		);
 	});
 });
