@@ -22,7 +22,6 @@ export type Config = {
 	startup: { [key: string]: CmdAction | ShellAction };
 	projects: { [key: string]: Project };
 	searchFor: SearchFor[];
-	stdoutPassthrough?: SearchFor[];
 };
 
 export type SearchFor = {
