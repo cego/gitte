@@ -19,11 +19,14 @@ export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 	}
 }
 
-export function searchOutputForHints(cfg: Config, searchFor: SearchFor[], stdoutHistory: (GroupKey & Output)[]) {
-	searchFor.forEach((search) => searchForRegex(search, stdoutHistory));
-	stdoutHistory
-		.filter((entry) => cfg.projects[entry.project].actions[entry.action].searchFor)
-		.forEach((entry) => searchForRegex(cfg.projects[entry.project].actions[entry.action].searchFor, [entry]));
+export function searchOutputForHints(cfg: Config, stdoutHistory: (GroupKey & Output)[]) {
+	cfg.searchFor.forEach((search) => searchForRegex(search, stdoutHistory));
+	stdoutHistory.forEach((entry) => {
+		const searchFor = cfg.projects[entry.project]?.actions[entry.action]?.searchFor;
+		if (searchFor) {
+			searchFor.forEach((search) => searchForRegex(search, [entry]));
+		}
+	});
 }
 
 function searchForRegex(searchFor: SearchFor, stdoutHistory: (GroupKey & Output)[]): void {
