@@ -28,10 +28,10 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory);
+		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory, false);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
 	});
 
 	test("It searches stderr", async () => {
@@ -52,10 +52,10 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory);
+		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory, false);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
 	});
 
 	test("It searches stdout and stderr", async () => {
@@ -76,10 +76,10 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory);
+		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory, false);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
 	});
 
 	test("It searches multiple outputs", async () => {
@@ -126,13 +126,13 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory);
+		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory, false);
 
 		expect(console.log).toHaveBeenCalledTimes(4);
-		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
-		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[1].hint} {gray (Source: project1)}`);
-		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: project1)}`);
-		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[1].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[1].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[1].hint} {gray (Source: project1)}`);
 	});
 
 	test("It searches action specific searchFor", () => {
@@ -156,10 +156,10 @@ describe("Search action output", () => {
 		const cfg: Config = JSON.parse(JSON.stringify(cnfStub));
 		cfg.projects["projecta"].actions["start"].searchFor = searchFor;
 
-		searchOutputForHints(cfg, stdoutHistory);
+		searchOutputForHints(cfg, stdoutHistory, false);
 
 		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(chalk`{inverse  INFO } ${searchFor[0].hint} {gray (Source: projecta)}`);
+		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: projecta)}`);
 	});
 
 	test("It supports chalking in searchFor", () => {
@@ -183,10 +183,8 @@ describe("Search action output", () => {
 		const cfg: Config = JSON.parse(JSON.stringify(cnfStub));
 		cfg.projects["projecta"].actions["start"].searchFor = searchFor;
 
-		searchOutputForHints(cfg, stdoutHistory);
+		searchOutputForHints(cfg, stdoutHistory, false);
 
-		expect(console.log).toHaveBeenCalledWith(
-			chalk`{inverse  INFO } {green This string contains a digit} {gray (Source: projecta)}`,
-		);
+		expect(console.log).toHaveBeenCalledWith(chalk`{green This string contains a digit} {gray (Source: projecta)}`);
 	});
 });
