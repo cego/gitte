@@ -110,12 +110,12 @@ export async function gitops(cwd: string, projectObj: Project): Promise<(string 
 	let localChanges: boolean;
 	try {
 		localChanges = await hasLocalChanges(dir);
-	} catch (err) {
-		if (err instanceof ErrorWithHint) {
-			log(err);
+	} catch (error) {
+		if (error instanceof ErrorWithHint) {
+			log(error);
 			return logs;
 		}
-		throw err;
+		throw error;
 	}
 
 	if (localChanges) {
