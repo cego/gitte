@@ -7,6 +7,15 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cego_git-local-devops&metric=coverage)](https://sonarcloud.io/dashboard?id=cego_git-local-devops)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=cego_git-local-devops&metric=code_smells)](https://sonarcloud.io/dashboard?id=cego_git-local-devops)
 
+## Installation
+On most Linux distributions, install using apt:
+
+`sudo apt install git-local-devops`
+
+On Mac systems, install with brew:
+
+`brew install git-local-devops`
+
 ## Config setup
 
 Put `.git-local-devops.yml` in a designated folder. For reference on what should be in this config, see [config documentation](./docs/config.md)
