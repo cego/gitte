@@ -2,7 +2,8 @@
 	"name": "git-local-devops",
 	"version": "0.0.1",
 	"description": "Git automation and action execution across a list of projects",
-	"main": "bin/main.ts",
+	"main": "bin/main.js",
+	"bin": "bin/main.js",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/cego/git-local-devops.git"
@@ -60,6 +61,15 @@
 		"lint:fix": "npm run eslint && npm run prettier:fix",
 		"build": "rm -f src/*.js src/*.d.ts && tsc",
 		"test": "jest",
-		"test:coverage": "jest --coverage "
+		"test:coverage": "jest --coverage"
+	},
+	"pkg": {
+		"assets": [
+			"package.json"
+		],
+		"scripts": [
+			"bin/**/*.js",
+			"src/**/*.js"
+		]
 	}
 }

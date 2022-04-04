@@ -3,11 +3,10 @@ set -eo pipefail
 
 npm install
 npx tsc
-npx jest
 
-npx pkg bin/main.js --public -t node16-linux-x64 -o pkg/linux/git-local-devops && gzip -c pkg/linux/git-local-devops > pkg/linux.gz
-npx pkg bin/main.js --public -t node16-macos-x64 -o pkg/macos/git-local-devops && gzip -c pkg/macos/git-local-devops > pkg/macos.gz
-npx pkg bin/main.js --public -t node16-win-x64 -o pkg/win/git-local-devops && gzip -c pkg/win/git-local-devops.exe > pkg/win.gz
+npx pkg . --public -t node16-linux-x64 -o pkg/linux/git-local-devops && gzip -c pkg/linux/git-local-devops > pkg/linux.gz
+npx pkg . --public -t node16-macos-x64 -o pkg/macos/git-local-devops && gzip -c pkg/macos/git-local-devops > pkg/macos.gz
+npx pkg . --public -t node16-win-x64 -o pkg/win/git-local-devops && gzip -c pkg/win/git-local-devops.exe > pkg/win.gz
 
 VERSION=$(jq -r ".version" < package.json)
 DESCRIPTION=$(jq -r ".description" < package.json)
