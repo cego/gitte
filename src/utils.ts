@@ -1,22 +1,31 @@
 import chalk from "chalk";
 import { AssertionError } from "assert";
+import { ErrorWithHint } from "./types/utils";
 
-export function printLogs(projectNames: string[], logs: any[]) {
-	// print the succesful logs
+export function printLogs(projectNames: string[], logs: (string | ErrorWithHint)[][]) {
+	let errorCount = 0;
 	for (const [i, projectName] of projectNames.entries()) {
-		if (logs[i] instanceof Error) continue;
-		console.log(chalk`┌─ {green {bold ${projectName}}}`);
+		const isError = logs[i].filter((log) => log instanceof ErrorWithHint).length > 0;
+
+		if (!isError) {
+			console.log(chalk`┌─ {green {bold ${projectName}}}`);
+		} else {
+			errorCount++;
+			console.log(chalk`┌─ {red {bold ${projectName}}}`);
+		}
+
 		for (const [j, log] of logs[i].entries()) {
-			console.log(`${j === logs[i].length - 1 ? "└" : "├"}─── ${log}`);
+			let formattedLog = "";
+			if (log instanceof ErrorWithHint) {
+				formattedLog = chalk`{red ${log.message}}`;
+			} else {
+				formattedLog = log;
+			}
+
+			console.log(`${j === logs[i].length - 1 ? "└" : "├"}─── ${formattedLog}`);
 		}
 	}
-	// print the failed logs
-	for (const [i, projectName] of projectNames.entries()) {
-		if (!(logs[i] instanceof Error)) continue;
-		console.log(chalk`┌─ {red {bold ${projectName}}}`);
-		console.log(chalk`└─ {red ${logs[i].stack}}`);
-	}
-	if (logs.filter((l) => l instanceof Error).length > 0) {
+	if (errorCount > 0) {
 		throw new AssertionError({ message: "At least one git operation failed" });
 	}
 }
