@@ -9,7 +9,7 @@
 
 ## Config setup
 
-Put `.git-local-devops.yml` in designated folder. For reference on how to setup the config, see [config documentation](./docs/config.md)
+Put `.git-local-devops.yml` in a designated folder. For reference on what should be in this config, see [config documentation](./docs/config.md)
 
 You can also use a remote config file if a file exists named `.git-local-devops-env`.
 
