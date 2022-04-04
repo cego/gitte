@@ -16,6 +16,8 @@ On Mac systems, install with brew:
 
 `brew install git-local-devops`
 
+At this time there is no supplied Windows binaries.
+
 ## Config setup
 
 Put `.git-local-devops.yml` in a designated folder. For reference on what should be in this config, see [config documentation](./docs/config.md)
