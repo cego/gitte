@@ -23,33 +23,36 @@ Git-local-devops will search your current folder for a config. A env file will h
 
 ## Usage
 
-```git-local-devops run <action> <group>```
+`git-local-devops run <action> <group>`
 
 All startup checks will run. If they pass, all projects will be updated and the desired action and group will be run for each project.
 
 ### Git operations
 
-```git-local-devops gitops```
+`git-local-devops gitops`
 
 All projects will pull the latest changes and/or merge with origin/<default_branch>
 
 ### Running actions without startup checks and gitops
 
-```git-local-devops actions up cego.dk```
+`git-local-devops actions up cego.dk`
 
 All projects will run the action `up` with the group `cego.dk` in this case.
 
 ### Running startup checks alone
-```git-local-devops startup```
+
+`git-local-devops startup`
 
 ### Listing all projects and their actions
-```git-local-devops list```
+
+`git-local-devops list`
 
 ### Validate the config and dependency graph
 
-```git-local-devops validate```
+`git-local-devops validate`
 
 ### Other
-For more information on other options, try running 
 
-```git-local-devops --help```
+For more information on other options, try running
+
+`git-local-devops --help`
