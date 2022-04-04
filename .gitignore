@@ -1,7 +1,6 @@
 node_modules/
 coverage/
 pkg/
-ppa/
 example.yml
 .git-local-devops.yml
 src/**/*.js

@@ -1,0 +1,15 @@
+Package: git-local-devops
+Version: 0.0.1
+Architecture: amd64
+Maintainer: Mads Jon Nielsen <madsjon@gmail.com>
+Filename: ./git-local-devops_0.0.1_amd64.deb
+Size: 13168192
+MD5sum: 41dfd5fdc404b3e6b6674a49460c3e8a
+SHA1: 285c052b508242bf12258638088330432be2c2a1
+SHA256: 5c3b3adadfd0a193ba9be1efef31b01229f0b7176ac9e26db1ae67a9a447d994
+Homepage: https://github.com/cego/git-local-devops
+Description: Git automation and action execution across a list of projects
+Author: Mads Jon Nielsen <madsjon@gmail.com>
+Name: git-local-devops
+Website: https://github.com/cego/git-local-devops
+
