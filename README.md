@@ -7,53 +7,23 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cego_git-local-devops&metric=coverage)](https://sonarcloud.io/dashboard?id=cego_git-local-devops)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=cego_git-local-devops&metric=code_smells)](https://sonarcloud.io/dashboard?id=cego_git-local-devops)
 
+## Installation
+
+On most Linux distributions, install using apt:
+
+`sudo apt install git-local-devops`
+
+On Mac systems, install with brew:
+
+`brew install git-local-devops`
+
+At this time there is no supplied Windows binaries.
+
 ## Config setup
 
-Put `.git-local-devops.yml` in `~/git-local-devops` or another user owned folder.
+Put `.git-local-devops.yml` in a designated folder. For reference on what should be in this config, see [config documentation](./docs/config.md)
 
-```
----
-startup:
-  # Used to check host machine for various requirements.
-  git-present:
-    { cmd: ["git", "--version"], hint: "Git isn't installed on the system" }
-  docker-present:
-    { cmd: ["docker", "--version"], hint: "Docker isn't installed on the system" }
-  docker-login:
-    { cmd: ["docker", "login", "registry.gitlab.com"], hint: "You must be logged in on registry.gitlab.com to fetch docker images" }
-  ensure-docker-swarm-networks:
-    shell: "bash"
-    script: |
-      docker_overlay_networks="swarm-network"
-      for docker_overlay_network in ${docker_overlay_networks}
-      do
-        if (docker network ls | grep -w " ${docker_overlay_network} " 1> /dev/null)
-        then
-          echo "${docker_overlay_network} network exists, doing nothing"
-        else
-          echo "Creating ${docker_overlay_network} network"
-          docker network create "${docker_overlay_network}" --driver overlay --opt encrypted --attachable 1> /dev/null
-        fi
-      done
-
-
-projects:
-  example:
-    remote: git@gitlab.com:cego/example.git
-    default_branch: main
-    actions:
-      up:
-        groups:
-            cego.dk: ["bash", "-c", "start-docker-stack.sh"]
-            cego.net: ["docker-compose", "up"]
-      down:
-        priority: 1
-        groups:
-            cego.dk: ["docker", "stack", "rm", "cego.dk"]
-            cego.net: ["docker-compose", "down"]
-```
-
-You can also use a remote config file if you put `.git-local-devops-env` in `~/git-local-devops`
+You can also use a remote config file if a file exists named `.git-local-devops-env`.
 
 ```
 REMOTE_GIT_REPO="git@gitlab.com:cego/example.git"
@@ -61,28 +31,40 @@ REMOTE_GIT_FILE=".git-local-devops.yml"
 REMOTE_GIT_REF="master"
 ```
 
-## Git operations
+Git-local-devops will search your current folder for a config. A env file will have higher priority than `.yml`. If git-local-devops fail to find a configuration in your current folder, it will try parent folders.
 
-Run `git-local-devops gitops` inside `~/git-local-devops` folder
+## Usage
+
+`git-local-devops run <action> <group>`
+
+All startup checks will run. If they pass, all projects will be updated and the desired action and group will be run for each project.
+
+### Git operations
+
+`git-local-devops gitops`
 
 All projects will pull the latest changes and/or merge with origin/<default_branch>
 
-## Running actions
+### Running actions without startup checks and gitops
 
-Run `git-local-devops actions up cego.dk` inside `~/git-local-devops` folder
+`git-local-devops actions up cego.dk`
 
-In this example only `"bash", "-c", "start-docker-stack.sh"` will be executed in `~/git-local-devops/cego/example` checkout
+All projects will run the action `up` with the group `cego.dk` in this case.
 
-## Execution order
+### Running startup checks alone
 
-You may specify either a priority or a needs array for each action, but never both.
-The needs array must point to other project names and must be acyclic.
+`git-local-devops startup`
 
-If there is no priority or needs, the action has a default priority of 0.
+### Listing all projects and their actions
 
-Execution order is as follows:
+`git-local-devops list`
 
-1. Execute the lowest priority actions (Will execute in parallel if same priority)
-2. When these actions finish, remove their needs from other action that needs these actions
-   - If this result in an action with an empty needs array, it will start execution of that action, then go back to step 2.
-3. Remove the lowest priority actions and go back to step 1.
+### Validate the config and dependency graph
+
+`git-local-devops validate`
+
+### Other
+
+For more information on other options, try running
+
+`git-local-devops --help`
