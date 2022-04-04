@@ -8,6 +8,7 @@
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=cego_git-local-devops&metric=code_smells)](https://sonarcloud.io/dashboard?id=cego_git-local-devops)
 
 ## Installation
+
 On most Linux distributions, install using apt:
 
 `sudo apt install git-local-devops`
