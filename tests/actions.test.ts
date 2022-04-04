@@ -39,7 +39,7 @@ describe("Action", () => {
 			expect(spawnSpy).toBeCalledWith(
 				"docker-compose",
 				["up"],
-				expect.objectContaining({ cwd: `${cnf.cwd}/cego-example` }),
+				expect.objectContaining({ cwd: `${cnf.cwd}/cego/example` }),
 			);
 		});
 
