@@ -10,6 +10,10 @@ import { SingleBar } from "cli-progress";
 import { topologicalSortActionGraph } from "./graph";
 import fs from "fs-extra";
 import path from "path";
+import execa, { ExecaError, ExecaReturnValue } from "execa";
+import { Writable } from "stream";
+import ansi from "ansi-escape-sequences";
+import { clear } from "console";
 
 export type ActionOutput = GroupKey & pcp.Output & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
@@ -118,26 +122,79 @@ interface RunActionOpts {
 	keys: GroupKey;
 }
 
+const maxLines = 10;
+const lastFewLines = [] as string[];
+function handleLogOutput(str: string, projectName: string, type: "stderr" | "stdout") {
+	// Remove all ansi escape sequences
+	str = str.replace(/\u001b[^m]*?m/g, '')
+	const lines = str.split("\n");
+	lastFewLines.push(...lines);
+
+	while (lastFewLines.length > maxLines) {
+		lastFewLines.shift();
+	}
+
+	process.stdout.write(ansi.cursor.nextLine(1));
+	for (const line of lastFewLines) {
+		process.stdout.write(ansi.cursor.nextLine(1))
+		process.stdout.write(ansi.erase.inLine(2))
+		process.stdout.write(chalk`{inverse  ${projectName} } {gray ${line}}`);
+	}
+	process.stdout.write(ansi.cursor.previousLine(lastFewLines.length+1));
+}
+
+function clearOutputLines(){
+	for(let i = 0; i < maxLines; i++){
+		process.stdout.write(ansi.cursor.nextLine(1))
+		process.stdout.write(ansi.erase.inLine(2))
+	}
+	process.stdout.write(ansi.cursor.previousLine(maxLines));
+}
+function prepareOutputLines(){
+	for(let i = 0; i < maxLines; i++){
+		console.log();
+	}
+	process.stdout.write(ansi.cursor.hide);
+	process.stdout.write(ansi.cursor.previousLine(maxLines+1));
+}
+
 export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	const project = options.config.projects[options.keys.project];
 	const group = project.actions[options.keys.action].groups[options.keys.group];
 	const dir = getProjectDirFromRemote(options.config.cwd, project.remote);
 
-	const res = await pcp
-		.spawn(group[0], group.slice(1), {
-			cwd: dir,
-			env: process.env,
-			encoding: "utf8",
-			// increase max buffer from 200KB to 2MB
-			maxBuffer: 1024 * 2048,
-		})
-		.catch((err) => err);
+	const promise = execa(group[0], group.slice(1), {
+		cwd: dir,
+		env: process.env,
+		encoding: "utf8",
+		// increase max buffer from 200KB to 2MB
+		maxBuffer: 1024 * 2048,
+	})
+
+	// create writable streams for stdout and stderr
+	const stdout = new Writable({
+		write: (chunk, encoding, callback) => {
+			handleLogOutput(chunk.toString(), options.keys.project, "stdout");
+			callback();
+		},
+	});
+	const stderr = new Writable({
+		write: (chunk, encoding, callback) => {
+			handleLogOutput(chunk.toString(), options.keys.project, "stderr");
+			callback();
+		},
+	});
+
+	promise.stdout?.pipe(stdout);
+	promise.stderr?.pipe(stderr);
+
+	const res: ExecaReturnValue<string> | ExecaError<string> = await promise.catch((err) => err);
 
 	return {
 		...options.keys,
 		stdout: res.stdout?.toString() ?? "",
 		stderr: res.stderr?.toString() ?? "",
-		code: res.code,
+		code: res.exitCode,
 		signal: res.signal,
 		dir,
 		cmd: group,
@@ -146,7 +203,10 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 
 export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: string) {
 	printHeader("Running actions");
+
+	prepareOutputLines();
 	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, actionToRun, groupToRun);
+	clearOutputLines();
 	if (cnf.searchFor) searchOutputForHints(cnf, stdoutBuffer);
 	if (stdoutBuffer.length === 0) {
 		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
