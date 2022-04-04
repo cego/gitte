@@ -7,3 +7,11 @@ export type GroupKey = {
 	action: string;
 	group: string;
 };
+
+export class ErrorWithHint extends Error {
+	hint: string;
+	constructor(hint: string, message = hint) {
+		super(message);
+		this.hint = hint;
+	}
+}
