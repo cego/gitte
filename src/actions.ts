@@ -5,7 +5,7 @@ import * as pcp from "promisify-child-process";
 import { GroupKey } from "./types/utils";
 import { logActionOutput, searchOutputForHints } from "./search_output";
 import { printHeader } from "./utils";
-import { getProgressBar, waitingOnToString } from "./progress";
+import { waitingOnToString } from "./progress";
 import { SingleBar } from "cli-progress";
 import { topologicalSortActionGraph } from "./graph";
 import fs from "fs-extra";
@@ -13,7 +13,37 @@ import path from "path";
 import execa, { ExecaError, ExecaReturnValue } from "execa";
 import { Writable } from "stream";
 import ansi from "ansi-escape-sequences";
-import { clear } from "console";
+
+import cliProgress from "cli-progress";
+
+const maxLines = 10;
+// on write
+
+let termBuffer = "";
+
+// make writable stream with tty
+
+class BufferStreamWithTty extends Writable {
+	isTTY = true;
+}
+const bufferStream = new BufferStreamWithTty({
+	write(chunk, encoding, callback) {
+		termBuffer += chunk.toString();
+		callback();
+	},
+});
+
+function printOutputLines() {
+	process.stdout.write(ansi.cursor.previousLine(lastFewLines.length + 1));
+	process.stdout.write(termBuffer);
+	process.stdout.write(ansi.cursor.nextLine(1));
+	for (let i = 0; i < maxLines; i++) {
+		process.stdout.write(ansi.cursor.nextLine(1));
+		process.stdout.write(chalk`{inverse  ${lastFewLines[i]?.project} } {gray ${lastFewLines[i]?.out}}`);
+		process.stdout.write(ansi.erase.inLine());
+	}
+	process.stdout.write(ansi.cursor.nextLine(lastFewLines.length));
+}
 
 export type ActionOutput = GroupKey & pcp.Output & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
@@ -27,7 +57,17 @@ export async function actions(
 	const actionsToRun = getActions(config, actionToRun, groupToRun);
 	const blockedActions = actionsToRun.filter((action) => (action.needs?.length ?? 0) > 0);
 
-	const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`);
+	// const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`, bufferStream);
+	const progressBar = new cliProgress.SingleBar(
+		{
+			format: chalk`\{bar\} \{value\}/\{total\} | action: {cyan \{status\}} `,
+			// synchronousUpdate: true,
+			stream: bufferStream,
+
+			// terminal:
+		},
+		cliProgress.Presets.shades_classic,
+	);
 	const waitingOn = [] as string[];
 
 	progressBar.start(actionsToRun.length, 0, { status: waitingOnToString(waitingOn) });
@@ -55,9 +95,7 @@ export async function actions(
 
 	progressBar.update({ status: waitingOnToString([]) });
 	progressBar.stop();
-	console.log();
 
-	logActionOutput(stdoutBuffer);
 	return stdoutBuffer;
 }
 export function getUniquePriorities(config: Config, actionToRun: string, groupToRun: string): Set<number> {
@@ -122,40 +160,37 @@ interface RunActionOpts {
 	keys: GroupKey;
 }
 
-const maxLines = 10;
-const lastFewLines = [] as string[];
-function handleLogOutput(str: string, projectName: string, type: "stderr" | "stdout") {
-	// Remove all ansi escape sequences
-	str = str.replace(/\u001b[^m]*?m/g, '')
+const lastFewLines: { out: string; project: string }[] = [];
+function handleLogOutput(str: string, projectName: string) {
+	// Remove all ansi color and cursor codes
+	// eslint-disable-next-line no-control-regex
+	str = str.replace(/\u001b[^m]*?m/g, "").replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+
 	const lines = str.split("\n");
-	lastFewLines.push(...lines);
+	lines.forEach((line) => {
+		lastFewLines.push({ out: line, project: projectName });
+	});
 
 	while (lastFewLines.length > maxLines) {
 		lastFewLines.shift();
 	}
-
-	process.stdout.write(ansi.cursor.nextLine(1));
-	for (const line of lastFewLines) {
-		process.stdout.write(ansi.cursor.nextLine(1))
-		process.stdout.write(ansi.erase.inLine(2))
-		process.stdout.write(chalk`{inverse  ${projectName} } {gray ${line}}`);
-	}
-	process.stdout.write(ansi.cursor.previousLine(lastFewLines.length+1));
 }
 
-function clearOutputLines(){
-	for(let i = 0; i < maxLines; i++){
-		process.stdout.write(ansi.cursor.nextLine(1))
-		process.stdout.write(ansi.erase.inLine(2))
-	}
+async function clearOutputLines() {
 	process.stdout.write(ansi.cursor.previousLine(maxLines));
+	process.stdout.write(ansi.erase.display());
+	process.stdout.write(ansi.cursor.nextLine());
 }
-function prepareOutputLines(){
-	for(let i = 0; i < maxLines; i++){
-		console.log();
-	}
+function prepareOutputLines() {
+	process.on("exit", () => {
+		process.stdout.write(ansi.cursor.show);
+	});
 	process.stdout.write(ansi.cursor.hide);
-	process.stdout.write(ansi.cursor.previousLine(maxLines+1));
+
+	process.stdout.write("\n");
+	for (let i = 0; i < maxLines; i++) {
+		process.stdout.write("\n");
+	}
 }
 
 export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
@@ -169,24 +204,18 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 		encoding: "utf8",
 		// increase max buffer from 200KB to 2MB
 		maxBuffer: 1024 * 2048,
-	})
+	});
 
 	// create writable streams for stdout and stderr
 	const stdout = new Writable({
 		write: (chunk, encoding, callback) => {
-			handleLogOutput(chunk.toString(), options.keys.project, "stdout");
-			callback();
-		},
-	});
-	const stderr = new Writable({
-		write: (chunk, encoding, callback) => {
-			handleLogOutput(chunk.toString(), options.keys.project, "stderr");
+			handleLogOutput(chunk.toString(), options.keys.project);
 			callback();
 		},
 	});
 
 	promise.stdout?.pipe(stdout);
-	promise.stderr?.pipe(stderr);
+	promise.stderr?.pipe(stdout);
 
 	const res: ExecaReturnValue<string> | ExecaError<string> = await promise.catch((err) => err);
 
@@ -199,19 +228,6 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 		dir,
 		cmd: group,
 	};
-}
-
-export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: string) {
-	printHeader("Running actions");
-
-	prepareOutputLines();
-	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, actionToRun, groupToRun);
-	clearOutputLines();
-	if (cnf.searchFor) searchOutputForHints(cnf, stdoutBuffer);
-	if (stdoutBuffer.length === 0) {
-		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
-	}
-	fs.writeFileSync(path.join(cnf.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 }
 
 export function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
@@ -278,4 +294,25 @@ export function findActionsToSkipAfterFailure(
 		});
 	});
 	return blockedActionsSkipped;
+}
+
+export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: string) {
+	printHeader("Running actions");
+
+	prepareOutputLines();
+	// every 100ms, print output
+	const interval = setInterval(() => {
+		printOutputLines();
+	}, 100);
+	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, actionToRun, groupToRun);
+	clearInterval(interval);
+	// final flush
+	printOutputLines();
+	await clearOutputLines();
+	logActionOutput(stdoutBuffer);
+	if (cnf.searchFor) searchOutputForHints(cnf, stdoutBuffer);
+	if (stdoutBuffer.length === 0) {
+		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
+	}
+	fs.writeFileSync(path.join(cnf.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 }

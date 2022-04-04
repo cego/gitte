@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import cliProgress from "cli-progress";
+import { Writable } from "stream";
 
 export async function wrapEntryPromiseWithKey<TArg, TReturn>(
 	arg: [string, TArg],
@@ -47,10 +48,12 @@ export async function applyPromiseToEntriesWithProgressBar<TArg, TReturn>(
 	return result;
 }
 
-export function getProgressBar(label: string) {
+export function getProgressBar(label: string, stream: Writable = process.stdout) {
 	return new cliProgress.SingleBar(
 		{
 			format: chalk`\{bar\} \{value\}/\{total\} | ${label}: {cyan \{status\}} `,
+			synchronousUpdate: true,
+			stream,
 		},
 		cliProgress.Presets.shades_classic,
 	);
