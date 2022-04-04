@@ -9,15 +9,14 @@
 
 ## Installation
 
-On most Linux distributions, install using apt:
+### Linux
 
-`sudo apt install git-local-devops`
-
-On Mac systems, install with brew:
-
-`brew install git-local-devops`
-
-At this time there is no supplied Windows binaries.
+```bash
+curl -s "https://cego.github.io/git-local-devops/ppa/pubkey.gpg" | sudo apt-key add -
+sudo curl -s -o /etc/apt/sources.list.d/git-local-devops.list "https://cego.github.io/git-local-devops/ppa/git-local-devops.list"
+sudo apt-get update
+sudo apt-get install git-local-devops
+```
 
 ## Config setup
 
