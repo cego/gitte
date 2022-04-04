@@ -25,7 +25,7 @@ async function pull(dir: string, currentBranch: string, log: LogFn) {
 		} else {
 			log(chalk`{yellow ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} {cyan ${dir}}`);
 		}
-		return;
+		return false;
 	}
 
 	const msg = `${res.stdout}`.trim();
@@ -34,6 +34,7 @@ async function pull(dir: string, currentBranch: string, log: LogFn) {
 	} else {
 		log(chalk`{yellow ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 	}
+	return true;
 }
 
 async function mergeError(dir: string, currentB: string, defaultB: string, log: LogFn) {
@@ -93,8 +94,9 @@ export async function gitops(cwd: string, projectObj: Project): Promise<any[]> {
 	} else if (currentBranch === defaultBranch) {
 		await pull(dir, currentBranch, log);
 	} else {
-		await pull(dir, currentBranch, log);
-		await merge(dir, currentBranch, defaultBranch, log);
+		if (await pull(dir, currentBranch, log)) {
+			await merge(dir, currentBranch, defaultBranch, log);
+		}
 	}
 	return logs;
 }
