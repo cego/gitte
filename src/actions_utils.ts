@@ -9,7 +9,7 @@ import { SingleBar } from "cli-progress";
 import fs from "fs-extra";
 import path from "path";
 import { Writable } from "stream";
-import ansi from "ansi-escape-sequences";
+import ansiEscapes from "ansi-escapes";
 import ON_DEATH from "death";
 import { actions } from "./actions";
 
@@ -47,15 +47,15 @@ export class ActionOutputPrinter {
 	};
 
 	printOutputLines = () => {
-		process.stdout.write(ansi.cursor.previousLine(this.lastFewLines.length + 1));
+		process.stdout.write(ansiEscapes.cursorUp(this.lastFewLines.length + 1));
 		process.stdout.write(this.termBuffer);
-		process.stdout.write(ansi.cursor.nextLine(1));
+		process.stdout.write(ansiEscapes.cursorNextLine);
 		for (let i = 0; i < this.maxLines; i++) {
-			process.stdout.write(ansi.cursor.nextLine(1));
+			process.stdout.write(ansiEscapes.cursorNextLine);
 			process.stdout.write(chalk`{inverse  ${this.lastFewLines[i]?.project} } {gray ${this.lastFewLines[i]?.out}}`);
-			process.stdout.write(ansi.erase.inLine());
+			process.stdout.write(ansiEscapes.eraseEndLine);
 		}
-		process.stdout.write(ansi.cursor.nextLine(this.lastFewLines.length));
+		process.stdout.write(ansiEscapes.cursorDown(this.lastFewLines.length));
 	};
 
 	handleLogOutput = (str: string, projectName: string) => {
@@ -84,17 +84,17 @@ export class ActionOutputPrinter {
 	};
 
 	clearOutputLines = async () => {
-		process.stdout.write(ansi.cursor.previousLine(this.maxLines));
-		process.stdout.write(ansi.erase.display());
-		process.stdout.write(ansi.cursor.nextLine());
+		process.stdout.write(ansiEscapes.cursorUp(this.maxLines));
+		process.stdout.write(ansiEscapes.eraseDown);
+		process.stdout.write(ansiEscapes.cursorNextLine);
 	};
 	prepareOutputLines = () => {
 		const showCursor = () => {
-			process.stdout.write(ansi.cursor.show);
+			process.stdout.write(ansiEscapes.cursorShow);
 		};
 		process.on("exit", showCursor);
 		ON_DEATH(showCursor);
-		process.stdout.write(ansi.cursor.hide);
+		process.stdout.write(ansiEscapes.cursorHide);
 
 		process.stdout.write("\n");
 		for (let i = 0; i < this.maxLines; i++) {
@@ -121,7 +121,7 @@ export class ActionOutputPrinter {
 		this.progressBar.start(actionsToRun.length, 0, { status: waitingOnToString([]) });
 	};
 
-	run = async () => {
+	run = async (): Promise<void> => {
 		printHeader("Running actions");
 		this.prepareOutputLines();
 		// every 100ms, print output

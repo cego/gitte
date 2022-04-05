@@ -2,7 +2,6 @@ import chalk from "chalk";
 import { AssertionError } from "assert";
 import { ErrorWithHint } from "./types/utils";
 import execa from "execa";
-import { string } from "yargs";
 
 export function printLogs(projectNames: string[], logs: (string | ErrorWithHint)[][]) {
 	let errorCount = 0;

@@ -23,7 +23,7 @@
 	"homepage": "https://github.com/cego/git-local-devops#readme",
 	"dependencies": {
 		"ajv": "^8.11.0",
-		"ansi-escape-sequences": "^6.2.1",
+		"ansi-escapes": "^4.3.2",
 		"await-to-js": "^3.0.0",
 		"chalk": "^4.1.2",
 		"cli-progress": "^3.10.0",

@@ -1,4 +1,3 @@
-import chalk from "chalk";
 import { cnfStub } from "./utils/stubs";
 import * as utils from "../src/utils";
 import { when } from "jest-when";
@@ -10,22 +9,26 @@ import {
 	getActions,
 	findActionsToSkipAfterFailure,
 } from "../src/actions";
-import { SingleBar } from "cli-progress";
 import { Config, ProjectAction } from "../src/types/config";
 import { GroupKey } from "../src/types/utils";
-import fs from "fs-extra";
 import { ActionOutputPrinter } from "../src/actions_utils";
-import { ExecaReturnBase, ExecaReturnValue } from "execa";
+import { ExecaReturnValue } from "execa";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
-let mockedActionOutputPrinter = { beganTask: jest.fn(), finishedTask: jest.fn(), init: jest.fn() } as unknown as ActionOutputPrinter;
+const mockedActionOutputPrinter = {
+	beganTask: jest.fn(),
+	finishedTask: jest.fn(),
+	init: jest.fn(),
+} as unknown as ActionOutputPrinter;
 let cnf: Config;
 beforeEach(() => {
 	// deep copy cnf
 	cnf = JSON.parse(JSON.stringify(cnfStub));
 	// @ts-ignore
 	utils.spawn = jest.fn();
-	spawnSpy = jest.spyOn(utils, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" } as unknown as ExecaReturnValue<string>);
+	spawnSpy = jest
+		.spyOn(utils, "spawn")
+		.mockResolvedValue({ stdout: "Mocked Stdout" } as unknown as ExecaReturnValue<string>);
 	console.log = jest.fn();
 	console.error = jest.fn();
 });
@@ -75,7 +78,7 @@ describe("Action", () => {
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
 				keys,
-				actionOutputPrinter: mockedActionOutputPrinter
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 
 			expect(res).toHaveLength(1);
@@ -106,17 +109,17 @@ describe("Action", () => {
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
 				keys,
-				actionOutputPrinter: mockedActionOutputPrinter
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
 				keys: { ...keys, project: "projectb" },
-				actionOutputPrinter: mockedActionOutputPrinter
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
 				keys: { ...keys, project: "projectc" },
-				actionOutputPrinter: mockedActionOutputPrinter
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 
 			expect(res).toHaveLength(3);
@@ -128,16 +131,6 @@ describe("Action", () => {
 			});
 		});
 	});
-
-	// describe("Test fromConfig", () => {
-	// 	test("It prints hint if no action or group is found at all", async () => {
-	// 		fs.writeFileSync = jest.fn();
-	// 		await fromConfig(cnf, "nonaction", "nongroup");
-	// 		expect(console.log).toHaveBeenCalledWith(
-	// 			chalk`{yellow No groups found for action {cyan nonaction} and group {cyan nongroup}}`,
-	// 		);
-	// 	});
-	// });
 
 	describe("getUniquePriorities", () => {
 		test("It returns unique priorities", () => {
@@ -168,10 +161,6 @@ describe("Action", () => {
 				code: 0,
 				cmd: ["docker-compose", "up"],
 			});
-			const progressBarMock = {
-				update: jest.fn(),
-				increment: jest.fn(),
-			} as unknown as SingleBar;
 
 			const blockedActions = [
 				{
@@ -186,7 +175,7 @@ describe("Action", () => {
 				{
 					config: cnf,
 					keys,
-					actionOutputPrinter: mockedActionOutputPrinter
+					actionOutputPrinter: mockedActionOutputPrinter,
 				},
 				runActionFn,
 				mockedActionOutputPrinter,
@@ -196,12 +185,12 @@ describe("Action", () => {
 			expect(runActionFn).toHaveBeenNthCalledWith(1, {
 				config: cnf,
 				keys,
-				actionOutputPrinter: mockedActionOutputPrinter
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 			expect(runActionFn).toHaveBeenNthCalledWith(2, {
 				config: cnf,
 				keys: { ...keys, project: "projectb" },
-				actionOutputPrinter: mockedActionOutputPrinter
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 		});
 	});
