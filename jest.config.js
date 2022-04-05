@@ -3,9 +3,5 @@ module.exports = {
 	testMatch: [
 		"**/*.test.ts"
 	],
-	coverageReporters: [
-		"lcov",
-		"json-summary",
-		"text-summary"
-	]
+	modulePathIgnorePatterns: ["test/"]
 };

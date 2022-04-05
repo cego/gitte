@@ -3,7 +3,8 @@ import { Config, ProjectAction } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { GroupKey } from "./types/utils";
 import { topologicalSortActionGraph } from "./graph";
-import execa, { ExecaError, ExecaReturnValue } from "execa";
+import * as utils from "./utils";
+import { ExecaError, ExecaReturnValue } from "execa";
 import { ActionOutputPrinter } from "./actions_utils";
 
 export type ActionOutput = GroupKey & pcp.Output & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
@@ -109,7 +110,7 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	const group = project.actions[options.keys.action].groups[options.keys.group];
 	const dir = getProjectDirFromRemote(options.config.cwd, project.remote);
 
-	const promise = execa(group[0], group.slice(1), {
+	const promise = utils.spawn(group[0], group.slice(1), {
 		cwd: dir,
 		env: process.env,
 		encoding: "utf8",
