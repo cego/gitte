@@ -1,49 +1,10 @@
 import { getProjectDirFromRemote } from "./project";
-import chalk from "chalk";
 import { Config, ProjectAction } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { GroupKey } from "./types/utils";
-import { logActionOutput, searchOutputForHints } from "./search_output";
-import { printHeader } from "./utils";
-import { waitingOnToString } from "./progress";
-import { SingleBar } from "cli-progress";
 import { topologicalSortActionGraph } from "./graph";
-import fs from "fs-extra";
-import path from "path";
 import execa, { ExecaError, ExecaReturnValue } from "execa";
-import { Writable } from "stream";
-import ansi from "ansi-escape-sequences";
-
-import cliProgress from "cli-progress";
-
-const maxLines = 10;
-// on write
-
-let termBuffer = "";
-
-// make writable stream with tty
-
-class BufferStreamWithTty extends Writable {
-	isTTY = true;
-}
-const bufferStream = new BufferStreamWithTty({
-	write(chunk, encoding, callback) {
-		termBuffer += chunk.toString();
-		callback();
-	},
-});
-
-function printOutputLines() {
-	process.stdout.write(ansi.cursor.previousLine(lastFewLines.length + 1));
-	process.stdout.write(termBuffer);
-	process.stdout.write(ansi.cursor.nextLine(1));
-	for (let i = 0; i < maxLines; i++) {
-		process.stdout.write(ansi.cursor.nextLine(1));
-		process.stdout.write(chalk`{inverse  ${lastFewLines[i]?.project} } {gray ${lastFewLines[i]?.out}}`);
-		process.stdout.write(ansi.erase.inLine());
-	}
-	process.stdout.write(ansi.cursor.nextLine(lastFewLines.length));
-}
+import { ActionOutputPrinter } from "./actions_utils";
 
 export type ActionOutput = GroupKey & pcp.Output & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
@@ -51,26 +12,15 @@ export async function actions(
 	config: Config,
 	actionToRun: string,
 	groupToRun: string,
+	actionOutputPrinter: ActionOutputPrinter,
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput> = runAction,
 ): Promise<ActionOutput[]> {
 	const uniquePriorities = getUniquePriorities(config, actionToRun, groupToRun);
 	const actionsToRun = getActions(config, actionToRun, groupToRun);
 	const blockedActions = actionsToRun.filter((action) => (action.needs?.length ?? 0) > 0);
-
-	// const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`, bufferStream);
-	const progressBar = new cliProgress.SingleBar(
-		{
-			format: chalk`\{bar\} \{value\}/\{total\} | action: {cyan \{status\}} `,
-			// synchronousUpdate: true,
-			stream: bufferStream,
-
-			// terminal:
-		},
-		cliProgress.Presets.shades_classic,
-	);
 	const waitingOn = [] as string[];
 
-	progressBar.start(actionsToRun.length, 0, { status: waitingOnToString(waitingOn) });
+	actionOutputPrinter.init(actionsToRun);
 
 	// Go through the sorted priority groups, and run the actions
 	// After an action is run, the runActionPromiseWrapper will handle calling any actions that needs the completed action.
@@ -80,9 +30,13 @@ export async function actions(
 			.filter((action) => (action.priority ?? 0) === priority && (action.needs?.length ?? 0) === 0)
 			.map((action) => {
 				return runActionPromiseWrapper(
-					{ config, keys: { project: action.project, action: action.action, group: action.group } },
+					{
+						config,
+						keys: { project: action.project, action: action.action, group: action.group },
+						actionOutputPrinter,
+					},
 					runActionFn,
-					progressBar,
+					actionOutputPrinter,
 					blockedActions,
 					waitingOn,
 				);
@@ -92,9 +46,6 @@ export async function actions(
 			outputArr.forEach((output) => stdoutBuffer.push(output)),
 		);
 	}
-
-	progressBar.update({ status: waitingOnToString([]) });
-	progressBar.stop();
 
 	return stdoutBuffer;
 }
@@ -110,87 +61,47 @@ export function getUniquePriorities(config: Config, actionToRun: string, groupTo
 export async function runActionPromiseWrapper(
 	runActionOpts: RunActionOpts,
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput>,
-	progressBar: SingleBar,
+	actionOutputPrinter: ActionOutputPrinter,
 	blockedActions: (GroupKey & ProjectAction)[],
 	waitingOn: string[],
 ): Promise<ActionOutput[]> {
-	waitingOn.push(runActionOpts.keys.project);
-	progressBar.update({ status: waitingOnToString(waitingOn) });
-	return runActionFn(runActionOpts)
-		.then((res) => {
-			waitingOn.splice(waitingOn.indexOf(runActionOpts.keys.project), 1);
-			progressBar.increment({ status: waitingOnToString(waitingOn) });
-			return res;
-		})
-		.then(async (res) => {
-			// if exit code was not zero, remove all blocked actions that needs this action
-			const removedBlockedActions = res.code === 0 ? [] : findActionsToSkipAfterFailure(res.project, blockedActions);
+	actionOutputPrinter.beganTask(runActionOpts.keys.project);
+	return runActionFn(runActionOpts).then(async (res) => {
+		actionOutputPrinter.finishedTask(runActionOpts.keys.project);
 
-			const actionsFreedtoRun = blockedActions.reduce((carry, action, i) => {
-				action.needs = action.needs?.filter((need) => need !== runActionOpts.keys.project);
-				if (action.needs?.length === 0) {
-					delete blockedActions[i];
-					carry.push(action);
-				}
-				return carry;
-			}, [] as (GroupKey & ProjectAction)[]);
+		// if exit code was not zero, remove all blocked actions that needs this action
+		const removedBlockedActions = res.code === 0 ? [] : findActionsToSkipAfterFailure(res.project, blockedActions);
 
-			const runBlockedActionPromises = actionsFreedtoRun.map((action) => {
-				return runActionPromiseWrapper(
-					{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
-					runActionFn,
-					progressBar,
-					blockedActions,
-					waitingOn,
-				);
-			});
+		const actionsFreedtoRun = blockedActions.reduce((carry, action, i) => {
+			action.needs = action.needs?.filter((need) => need !== runActionOpts.keys.project);
+			if (action.needs?.length === 0) {
+				delete blockedActions[i];
+				carry.push(action);
+			}
+			return carry;
+		}, [] as (GroupKey & ProjectAction)[]);
 
-			const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce(
-				(carry, blockedActionResult) => {
-					return [...carry, ...blockedActionResult];
-				},
-				[] as ActionOutput[],
+		const runBlockedActionPromises = actionsFreedtoRun.map((action) => {
+			return runActionPromiseWrapper(
+				{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
+				runActionFn,
+				actionOutputPrinter,
+				blockedActions,
+				waitingOn,
 			);
-			return [res, ...blockedActionsResult, ...removedBlockedActions];
 		});
+
+		const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce((carry, blockedActionResult) => {
+			return [...carry, ...blockedActionResult];
+		}, [] as ActionOutput[]);
+		return [res, ...blockedActionsResult, ...removedBlockedActions];
+	});
 }
 
 interface RunActionOpts {
 	config: Config;
 	keys: GroupKey;
-}
-
-const lastFewLines: { out: string; project: string }[] = [];
-function handleLogOutput(str: string, projectName: string) {
-	// Remove all ansi color and cursor codes
-	// eslint-disable-next-line no-control-regex
-	str = str.replace(/\u001b[^m]*?m/g, "").replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
-
-	const lines = str.split("\n");
-	lines.forEach((line) => {
-		lastFewLines.push({ out: line, project: projectName });
-	});
-
-	while (lastFewLines.length > maxLines) {
-		lastFewLines.shift();
-	}
-}
-
-async function clearOutputLines() {
-	process.stdout.write(ansi.cursor.previousLine(maxLines));
-	process.stdout.write(ansi.erase.display());
-	process.stdout.write(ansi.cursor.nextLine());
-}
-function prepareOutputLines() {
-	process.on("exit", () => {
-		process.stdout.write(ansi.cursor.show);
-	});
-	process.stdout.write(ansi.cursor.hide);
-
-	process.stdout.write("\n");
-	for (let i = 0; i < maxLines; i++) {
-		process.stdout.write("\n");
-	}
+	actionOutputPrinter: ActionOutputPrinter;
 }
 
 export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
@@ -206,16 +117,8 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 		maxBuffer: 1024 * 2048,
 	});
 
-	// create writable streams for stdout and stderr
-	const stdout = new Writable({
-		write: (chunk, encoding, callback) => {
-			handleLogOutput(chunk.toString(), options.keys.project);
-			callback();
-		},
-	});
-
-	promise.stdout?.pipe(stdout);
-	promise.stderr?.pipe(stdout);
+	promise.stdout?.pipe(options.actionOutputPrinter.getWritableStream(options.keys.project));
+	promise.stderr?.pipe(options.actionOutputPrinter.getWritableStream(options.keys.project));
 
 	const res: ExecaReturnValue<string> | ExecaError<string> = await promise.catch((err) => err);
 
@@ -294,25 +197,4 @@ export function findActionsToSkipAfterFailure(
 		});
 	});
 	return blockedActionsSkipped;
-}
-
-export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: string) {
-	printHeader("Running actions");
-
-	prepareOutputLines();
-	// every 100ms, print output
-	const interval = setInterval(() => {
-		printOutputLines();
-	}, 100);
-	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, actionToRun, groupToRun);
-	clearInterval(interval);
-	// final flush
-	printOutputLines();
-	await clearOutputLines();
-	logActionOutput(stdoutBuffer);
-	if (cnf.searchFor) searchOutputForHints(cnf, stdoutBuffer);
-	if (stdoutBuffer.length === 0) {
-		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
-	}
-	fs.writeFileSync(path.join(cnf.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 }

@@ -1,7 +1,7 @@
 import { loadConfig } from "../../src/config_loader";
-import { fromConfig } from "../../src/actions";
 import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
+import { ActionOutputPrinter } from "../../src/actions_utils";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -15,7 +15,7 @@ export const describe = "Run actions on all projects for <action> and <group>";
 export async function handler(argv: any) {
 	try {
 		const cnf = await loadConfig(argv.cwd);
-		await fromConfig(cnf, argv.action, argv.group);
+		await new ActionOutputPrinter(cnf, argv.action, argv.group).run();
 	} catch (e) {
 		errorHandler(e);
 	}
