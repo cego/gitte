@@ -47,15 +47,20 @@ export class ActionOutputPrinter {
 	};
 
 	printOutputLines = () => {
-		process.stdout.write(ansiEscapes.cursorUp(this.lastFewLines.length + 1));
+		process.stdout.write(ansiEscapes.cursorUp(this.maxLines + 1));
 		process.stdout.write(this.termBuffer);
 		process.stdout.write(ansiEscapes.cursorNextLine);
 		for (let i = 0; i < this.maxLines; i++) {
 			process.stdout.write(ansiEscapes.cursorNextLine);
-			process.stdout.write(chalk`{inverse  ${this.lastFewLines[i]?.project} } {gray ${this.lastFewLines[i]?.out}}`);
+
+			process.stdout.write(
+				this.lastFewLines[i]
+					? chalk`{inverse  ${this.lastFewLines[i].project} } {gray ${this.lastFewLines[i].out}}`
+					: ``,
+			);
 			process.stdout.write(ansiEscapes.eraseEndLine);
 		}
-		process.stdout.write(ansiEscapes.cursorDown(this.lastFewLines.length));
+		process.stdout.write(ansiEscapes.cursorDown(this.maxLines + 1));
 	};
 
 	handleLogOutput = (str: string, projectName: string) => {
@@ -63,7 +68,10 @@ export class ActionOutputPrinter {
 		// eslint-disable-next-line no-control-regex
 		str = str.replace(/\u001b[^m]*?m/g, "").replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
 
-		const lines = str.split("\n");
+		const lines = str
+			.split("\n")
+			.map((splitted) => splitted.replace(/\n/g, ""))
+			.filter((splitted) => splitted.length);
 		lines.forEach((line) => {
 			this.lastFewLines.push({ out: line, project: projectName });
 		});
