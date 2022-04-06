@@ -147,7 +147,7 @@ export class ActionOutputPrinter {
 		if (this.config.searchFor) searchOutputForHints(this.config, stdoutBuffer);
 		if (stdoutBuffer.length === 0) {
 			console.log(
-				chalk`{yellow No groups found for action {cyan ${this.actionToRun}} and group {cyan ${this.groupToRun}}}`,
+				chalk`{yellow No groups found for action {cyan ${this.actionToRun}} and group in {cyan ${this.groupToRun}}}`,
 			);
 		}
 		fs.writeFileSync(path.join(this.config.cwd, ".output.json"), JSON.stringify(stdoutBuffer));

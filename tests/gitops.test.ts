@@ -89,7 +89,7 @@ describe("Git Operations", () => {
 
 			const logs = await gitops(cwdStub, projectStub);
 
-			expect(logs).toContain(chalk`{cyan main} {red doesn't have a remote origin} {cyan ${cwdStub}/cego/example}`);
+			expect(logs).toContain(chalk`{cyan main} {red doesn't have a remote origin} in {cyan ${cwdStub}/cego/example}`);
 		});
 
 		test("Already up to date", async () => {
@@ -111,6 +111,18 @@ describe("Git Operations", () => {
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["pull", "--ff-only"], expect.objectContaining({}));
 		});
 
+		test("Remote ref has gone away", async () => {
+			mockHasNoChanges();
+			when(spawnSpy)
+				.calledWith("git", ["pull", "--ff-only"], expect.objectContaining({}))
+				.mockRejectedValue({ stderr: "Your configuration specifies to merge with the ref" });
+
+			const logs = await gitops(cwdStub, projectStub);
+			const msg = chalk`{cyan main} {red no such ref could be fetched} in {cyan ${cwdStub}/cego/example}`;
+			expect(logs).toContain(msg);
+			expect(spawnSpy).toHaveBeenCalledWith("git", ["pull", "--ff-only"], expect.objectContaining({}));
+		});
+
 		test("Conflicts with origin", async () => {
 			mockHasNoChanges();
 			when(spawnSpy)
@@ -118,7 +130,7 @@ describe("Git Operations", () => {
 				.mockRejectedValue({ stderr: "I'M IN CONFLICT" });
 
 			const logs = await gitops(cwdStub, projectStub);
-			const msg = chalk`{cyan main} {red conflicts} with {magenta origin/main} {cyan ${cwdStub}/cego/example}`;
+			const msg = chalk`{cyan main} {red conflicts} with {magenta origin/main} in {cyan ${cwdStub}/cego/example}`;
 			expect(logs).toContain(msg);
 		});
 	});

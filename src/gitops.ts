@@ -26,9 +26,11 @@ async function pull(dir: string, currentBranch: string, log: LogFn) {
 
 	if (err || !res) {
 		if (`${err?.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
-			log(chalk`{cyan ${currentBranch}} {red doesn't have a remote origin} {cyan ${dir}}`);
+			log(chalk`{cyan ${currentBranch}} {red doesn't have a remote origin} in {cyan ${dir}}`);
+		} else if (`${err?.stderr}`.trim().startsWith(`Your configuration specifies to merge with the ref`)) {
+			log(chalk`{cyan ${currentBranch}} {red no such ref could be fetched} in {cyan ${dir}}`);
 		} else {
-			log(chalk`{cyan ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} {cyan ${dir}}`);
+			log(chalk`{cyan ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} in {cyan ${dir}}`);
 		}
 		return false;
 	}
