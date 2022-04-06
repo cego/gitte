@@ -1,10 +1,10 @@
 import { loadConfig } from "../../src/config_loader";
 import { startup } from "../../src/startup";
 import { fromConfig as gitOpsFromConfig } from "../../src/gitops";
-import { fromConfig as actionsFromConfig } from "../../src/actions";
 import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
 import { actionsBuilder } from "./actions";
+import { ActionOutputPrinter } from "../../src/actions_utils";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -20,7 +20,7 @@ export async function handler(argv: any) {
 		const cnf = await loadConfig(argv.cwd);
 		await startup(cnf);
 		await gitOpsFromConfig(cnf);
-		await actionsFromConfig(cnf, argv.action, argv.group);
+		await new ActionOutputPrinter(cnf, argv.action, argv.group).run();
 	} catch (e) {
 		errorHandler(e);
 	}

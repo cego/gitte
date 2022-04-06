@@ -1,15 +1,11 @@
 import { getProjectDirFromRemote } from "./project";
-import chalk from "chalk";
 import { Config, ProjectAction } from "./types/config";
 import * as pcp from "promisify-child-process";
 import { GroupKey } from "./types/utils";
-import { logActionOutput, searchOutputForHints } from "./search_output";
-import { printHeader } from "./utils";
-import { getProgressBar, waitingOnToString } from "./progress";
-import { SingleBar } from "cli-progress";
 import { topologicalSortActionGraph } from "./graph";
-import fs from "fs-extra";
-import path from "path";
+import * as utils from "./utils";
+import { ExecaError, ExecaReturnValue } from "execa";
+import { ActionOutputPrinter } from "./actions_utils";
 
 export type ActionOutput = GroupKey & pcp.Output & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
@@ -17,16 +13,15 @@ export async function actions(
 	config: Config,
 	actionToRun: string,
 	groupToRun: string,
+	actionOutputPrinter: ActionOutputPrinter,
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput> = runAction,
 ): Promise<ActionOutput[]> {
-	const uniquePriorities = getUniquePriorities(config, actionToRun, groupToRun);
 	const actionsToRun = getActions(config, actionToRun, groupToRun);
+	const uniquePriorities = getUniquePriorities(actionsToRun);
 	const blockedActions = actionsToRun.filter((action) => (action.needs?.length ?? 0) > 0);
-
-	const progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`);
 	const waitingOn = [] as string[];
 
-	progressBar.start(actionsToRun.length, 0, { status: waitingOnToString(waitingOn) });
+	actionOutputPrinter.init(actionsToRun);
 
 	// Go through the sorted priority groups, and run the actions
 	// After an action is run, the runActionPromiseWrapper will handle calling any actions that needs the completed action.
@@ -36,9 +31,13 @@ export async function actions(
 			.filter((action) => (action.priority ?? 0) === priority && (action.needs?.length ?? 0) === 0)
 			.map((action) => {
 				return runActionPromiseWrapper(
-					{ config, keys: { project: action.project, action: action.action, group: action.group } },
+					{
+						config,
+						keys: { project: action.project, action: action.action, group: action.group },
+						actionOutputPrinter,
+					},
 					runActionFn,
-					progressBar,
+					actionOutputPrinter,
 					blockedActions,
 					waitingOn,
 				);
@@ -49,18 +48,11 @@ export async function actions(
 		);
 	}
 
-	progressBar.update({ status: waitingOnToString([]) });
-	progressBar.stop();
-	console.log();
-
-	logActionOutput(stdoutBuffer);
 	return stdoutBuffer;
 }
-export function getUniquePriorities(config: Config, actionToRun: string, groupToRun: string): Set<number> {
-	return Object.values(config.projects).reduce((carry, project) => {
-		if (project.actions[actionToRun]?.groups[groupToRun]) {
-			carry.add(project.actions[actionToRun].priority ?? 0);
-		}
+export function getUniquePriorities(actionsToRun: (GroupKey & ProjectAction)[]): Set<number> {
+	return actionsToRun.reduce((carry, action) => {
+		carry.add(action.priority ?? 0);
 		return carry;
 	}, new Set<number>());
 }
@@ -68,54 +60,47 @@ export function getUniquePriorities(config: Config, actionToRun: string, groupTo
 export async function runActionPromiseWrapper(
 	runActionOpts: RunActionOpts,
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput>,
-	progressBar: SingleBar,
+	actionOutputPrinter: ActionOutputPrinter,
 	blockedActions: (GroupKey & ProjectAction)[],
 	waitingOn: string[],
 ): Promise<ActionOutput[]> {
-	waitingOn.push(runActionOpts.keys.project);
-	progressBar.update({ status: waitingOnToString(waitingOn) });
-	return runActionFn(runActionOpts)
-		.then((res) => {
-			waitingOn.splice(waitingOn.indexOf(runActionOpts.keys.project), 1);
-			progressBar.increment({ status: waitingOnToString(waitingOn) });
-			return res;
-		})
-		.then(async (res) => {
-			// if exit code was not zero, remove all blocked actions that needs this action
-			const removedBlockedActions = res.code === 0 ? [] : findActionsToSkipAfterFailure(res.project, blockedActions);
+	actionOutputPrinter.beganTask(runActionOpts.keys.project);
+	return runActionFn(runActionOpts).then(async (res) => {
+		actionOutputPrinter.finishedTask(runActionOpts.keys.project);
 
-			const actionsFreedtoRun = blockedActions.reduce((carry, action, i) => {
-				action.needs = action.needs?.filter((need) => need !== runActionOpts.keys.project);
-				if (action.needs?.length === 0) {
-					delete blockedActions[i];
-					carry.push(action);
-				}
-				return carry;
-			}, [] as (GroupKey & ProjectAction)[]);
+		// if exit code was not zero, remove all blocked actions that needs this action
+		const removedBlockedActions = res.code === 0 ? [] : findActionsToSkipAfterFailure(res.project, blockedActions);
 
-			const runBlockedActionPromises = actionsFreedtoRun.map((action) => {
-				return runActionPromiseWrapper(
-					{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
-					runActionFn,
-					progressBar,
-					blockedActions,
-					waitingOn,
-				);
-			});
+		const actionsFreedtoRun = blockedActions.reduce((carry, action, i) => {
+			action.needs = action.needs?.filter((need) => need !== runActionOpts.keys.project);
+			if (action.needs?.length === 0) {
+				delete blockedActions[i];
+				carry.push(action);
+			}
+			return carry;
+		}, [] as (GroupKey & ProjectAction)[]);
 
-			const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce(
-				(carry, blockedActionResult) => {
-					return [...carry, ...blockedActionResult];
-				},
-				[] as ActionOutput[],
+		const runBlockedActionPromises = actionsFreedtoRun.map((action) => {
+			return runActionPromiseWrapper(
+				{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
+				runActionFn,
+				actionOutputPrinter,
+				blockedActions,
+				waitingOn,
 			);
-			return [res, ...blockedActionsResult, ...removedBlockedActions];
 		});
+
+		const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce((carry, blockedActionResult) => {
+			return [...carry, ...blockedActionResult];
+		}, [] as ActionOutput[]);
+		return [res, ...blockedActionsResult, ...removedBlockedActions];
+	});
 }
 
 interface RunActionOpts {
 	config: Config;
 	keys: GroupKey;
+	actionOutputPrinter: ActionOutputPrinter;
 }
 
 export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
@@ -123,46 +108,41 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	const group = project.actions[options.keys.action].groups[options.keys.group];
 	const dir = getProjectDirFromRemote(options.config.cwd, project.remote);
 
-	const res = await pcp
-		.spawn(group[0], group.slice(1), {
-			cwd: dir,
-			env: process.env,
-			encoding: "utf8",
-			// increase max buffer from 200KB to 2MB
-			maxBuffer: 1024 * 2048,
-		})
-		.catch((err) => err);
+	const promise = utils.spawn(group[0], group.slice(1), {
+		cwd: dir,
+		env: process.env,
+		encoding: "utf8",
+		// increase max buffer from 200KB to 2MB
+		maxBuffer: 1024 * 2048,
+	});
+
+	promise.stdout?.pipe(options.actionOutputPrinter.getWritableStream(options.keys.project));
+	promise.stderr?.pipe(options.actionOutputPrinter.getWritableStream(options.keys.project));
+
+	const res: ExecaReturnValue<string> | ExecaError<string> = await promise.catch((err) => err);
 
 	return {
 		...options.keys,
 		stdout: res.stdout?.toString() ?? "",
 		stderr: res.stderr?.toString() ?? "",
-		code: res.code,
+		code: res.exitCode,
 		signal: res.signal,
 		dir,
 		cmd: group,
 	};
 }
 
-export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: string) {
-	printHeader("Running actions");
-	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, actionToRun, groupToRun);
-	if (cnf.searchFor) searchOutputForHints(cnf, stdoutBuffer);
-	if (stdoutBuffer.length === 0) {
-		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group in {cyan ${groupToRun}}}`);
-	}
-	fs.writeFileSync(path.join(cnf.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
-}
-
 export function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
 	// get all actions from all projects with actionToRun key
 	const actionsToRun = Object.entries(config.projects)
-		.filter(([, project]) => project.actions[actionToRun]?.groups[groupToRun])
+		.filter(
+			([, project]) => project.actions[actionToRun]?.groups[groupToRun] || project.actions[actionToRun]?.groups["*"],
+		)
 		.reduce((carry, [projectName, project]) => {
 			carry.push({
 				project: projectName,
 				action: actionToRun,
-				group: groupToRun,
+				group: project.actions[actionToRun]?.groups[groupToRun] ? groupToRun : "*",
 				...project.actions[actionToRun],
 			});
 

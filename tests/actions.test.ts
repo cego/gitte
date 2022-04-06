@@ -1,29 +1,34 @@
-import chalk from "chalk";
 import { cnfStub } from "./utils/stubs";
-import * as pcp from "promisify-child-process";
+import * as utils from "../src/utils";
 import { when } from "jest-when";
 import {
 	runAction,
 	actions,
-	fromConfig,
 	getUniquePriorities,
 	runActionPromiseWrapper,
 	getActions,
 	findActionsToSkipAfterFailure,
 } from "../src/actions";
-import { SingleBar } from "cli-progress";
 import { Config, ProjectAction } from "../src/types/config";
 import { GroupKey } from "../src/types/utils";
-import fs from "fs-extra";
+import { ActionOutputPrinter } from "../src/actions_utils";
+import { ExecaReturnValue } from "execa";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
+const mockedActionOutputPrinter = {
+	beganTask: jest.fn(),
+	finishedTask: jest.fn(),
+	init: jest.fn(),
+} as unknown as ActionOutputPrinter;
 let cnf: Config;
 beforeEach(() => {
 	// deep copy cnf
 	cnf = JSON.parse(JSON.stringify(cnfStub));
 	// @ts-ignore
-	pcp.spawn = jest.fn();
-	spawnSpy = jest.spyOn(pcp, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" });
+	utils.spawn = jest.fn();
+	spawnSpy = jest
+		.spyOn(utils, "spawn")
+		.mockResolvedValue({ stdout: "Mocked Stdout" } as unknown as ExecaReturnValue<string>);
 	console.log = jest.fn();
 	console.error = jest.fn();
 });
@@ -34,6 +39,7 @@ describe("Action", () => {
 			await runAction({
 				config: cnf,
 				keys: { project: "projecta", action: "start", group: "cego.dk" },
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 			expect(spawnSpy).toBeCalledTimes(1);
 			expect(spawnSpy).toBeCalledWith(
@@ -50,6 +56,7 @@ describe("Action", () => {
 			const res = await runAction({
 				config: cnf,
 				keys: { project: "projecta", action: "start", group: "cego.dk" },
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 			expect(res.code !== 0);
 		});
@@ -66,11 +73,12 @@ describe("Action", () => {
 				cmd: ["docker-compose", "up"],
 			});
 
-			const res = await actions(cnf, "start", "cego.dk", runActionFn);
+			const res = await actions(cnf, "start", "cego.dk", mockedActionOutputPrinter, runActionFn);
 			expect(runActionFn).toHaveBeenCalledTimes(1);
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
 				keys,
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 
 			expect(res).toHaveLength(1);
@@ -96,19 +104,22 @@ describe("Action", () => {
 			cnf.projects["projectc"] = { ...cnf.projects["projecta"] };
 			cnf.projects["projectc"].actions["start"].priority = 2;
 
-			const res = await actions(cnf, "start", "cego.dk", runActionFn);
+			const res = await actions(cnf, "start", "cego.dk", mockedActionOutputPrinter, runActionFn);
 			expect(runActionFn).toHaveBeenCalledTimes(3);
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
 				keys,
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
 				keys: { ...keys, project: "projectb" },
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
 				keys: { ...keys, project: "projectc" },
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 
 			expect(res).toHaveLength(3);
@@ -119,15 +130,71 @@ describe("Action", () => {
 				stderr: "Mocked Stderr",
 			});
 		});
-	});
 
-	describe("Test fromConfig", () => {
-		test("It prints hint if no action or group is found at all", async () => {
-			fs.writeFileSync = jest.fn();
-			await fromConfig(cnf, "nonaction", "nongroup");
-			expect(console.log).toHaveBeenCalledWith(
-				chalk`{yellow No groups found for action {cyan nonaction} and group in {cyan nongroup}}`,
-			);
+		describe("Understands wildcard", () => {
+			test("It should run wildcard if it is the only group match", async () => {
+				cnf.projects = {
+					projecta: {
+						...cnf.projects.projecta,
+						actions: {
+							start: {
+								groups: {
+									"*": ["docker-compose", "up"],
+									"not-this": ["docker-compose", "down"],
+								},
+							},
+						},
+					},
+				};
+
+				const runActionFn = jest.fn().mockResolvedValue({ ...keys, stdout: "Mocked Stdout" });
+
+				const res = await actions(cnf, "start", "cego.dk", mockedActionOutputPrinter, runActionFn);
+
+				expect(runActionFn).toHaveBeenCalledWith({
+					config: cnf,
+					keys: { ...keys, group: "*" },
+					actionOutputPrinter: mockedActionOutputPrinter,
+				});
+				expect(runActionFn).toHaveBeenCalledTimes(1);
+				expect(res).toHaveLength(1);
+				expect(res).toContainEqual({
+					...keys,
+					stdout: "Mocked Stdout",
+				});
+			});
+
+			test("It should not run wildcard if other match", async () => {
+				cnf.projects = {
+					projecta: {
+						...cnf.projects.projecta,
+						actions: {
+							start: {
+								groups: {
+									"*": ["docker-compose", "up"],
+									"not-this": ["docker-compose", "down"],
+								},
+							},
+						},
+					},
+				};
+
+				const runActionFn = jest.fn().mockResolvedValue({ ...keys, stdout: "Mocked Stdout" });
+
+				const res = await actions(cnf, "start", "not-this", mockedActionOutputPrinter, runActionFn);
+
+				expect(runActionFn).toHaveBeenCalledWith({
+					config: cnf,
+					keys: { ...keys, group: "not-this" },
+					actionOutputPrinter: mockedActionOutputPrinter,
+				});
+				expect(runActionFn).toHaveBeenCalledTimes(1);
+				expect(res).toHaveLength(1);
+				expect(res).toContainEqual({
+					...keys,
+					stdout: "Mocked Stdout",
+				});
+			});
 		});
 	});
 
@@ -143,8 +210,8 @@ describe("Action", () => {
 			// deep copy project a
 			cnf.projects["projectd"] = JSON.parse(JSON.stringify(cnf.projects["projecta"]));
 			cnf.projects["projectd"].actions["start"].priority = 2;
-
-			const res = getUniquePriorities(cnf, "start", "cego.dk");
+			const actionsToRun = getActions(cnf, "start", "cego.dk");
+			const res = getUniquePriorities(actionsToRun);
 			expect(res).toEqual(new Set([1, 2]));
 		});
 	});
@@ -160,10 +227,6 @@ describe("Action", () => {
 				code: 0,
 				cmd: ["docker-compose", "up"],
 			});
-			const progressBarMock = {
-				update: jest.fn(),
-				increment: jest.fn(),
-			} as unknown as SingleBar;
 
 			const blockedActions = [
 				{
@@ -178,19 +241,22 @@ describe("Action", () => {
 				{
 					config: cnf,
 					keys,
+					actionOutputPrinter: mockedActionOutputPrinter,
 				},
 				runActionFn,
-				progressBarMock,
+				mockedActionOutputPrinter,
 				blockedActions,
 				[],
 			);
 			expect(runActionFn).toHaveBeenNthCalledWith(1, {
 				config: cnf,
 				keys,
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 			expect(runActionFn).toHaveBeenNthCalledWith(2, {
 				config: cnf,
 				keys: { ...keys, project: "projectb" },
+				actionOutputPrinter: mockedActionOutputPrinter,
 			});
 		});
 	});
