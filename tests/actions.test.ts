@@ -130,6 +130,72 @@ describe("Action", () => {
 				stderr: "Mocked Stderr",
 			});
 		});
+
+		describe("Understands wildcard", () => {
+			test("It should run wildcard if it is the only group match", async () => {
+				cnf.projects = {
+					projecta: {
+						...cnf.projects.projecta,
+						actions: {
+							start: {
+								groups: {
+									"*": ["docker-compose", "up"],
+									"not-this": ["docker-compose", "down"],
+								},
+							},
+						},
+					},
+				};
+
+				const runActionFn = jest.fn().mockResolvedValue({ ...keys, stdout: "Mocked Stdout" });
+
+				const res = await actions(cnf, "start", "cego.dk", mockedActionOutputPrinter, runActionFn);
+
+				expect(runActionFn).toHaveBeenCalledWith({
+					config: cnf,
+					keys: { ...keys, group: "*" },
+					actionOutputPrinter: mockedActionOutputPrinter,
+				});
+				expect(runActionFn).toHaveBeenCalledTimes(1);
+				expect(res).toHaveLength(1);
+				expect(res).toContainEqual({
+					...keys,
+					stdout: "Mocked Stdout",
+				});
+			});
+
+			test("It should not run wildcard if other match", async () => {
+				cnf.projects = {
+					projecta: {
+						...cnf.projects.projecta,
+						actions: {
+							start: {
+								groups: {
+									"*": ["docker-compose", "up"],
+									"not-this": ["docker-compose", "down"],
+								},
+							},
+						},
+					},
+				};
+
+				const runActionFn = jest.fn().mockResolvedValue({ ...keys, stdout: "Mocked Stdout" });
+
+				const res = await actions(cnf, "start", "not-this", mockedActionOutputPrinter, runActionFn);
+
+				expect(runActionFn).toHaveBeenCalledWith({
+					config: cnf,
+					keys: { ...keys, group: "not-this" },
+					actionOutputPrinter: mockedActionOutputPrinter,
+				});
+				expect(runActionFn).toHaveBeenCalledTimes(1);
+				expect(res).toHaveLength(1);
+				expect(res).toContainEqual({
+					...keys,
+					stdout: "Mocked Stdout",
+				});
+			});
+		});
 	});
 
 	describe("getUniquePriorities", () => {
@@ -144,8 +210,8 @@ describe("Action", () => {
 			// deep copy project a
 			cnf.projects["projectd"] = JSON.parse(JSON.stringify(cnf.projects["projecta"]));
 			cnf.projects["projectd"].actions["start"].priority = 2;
-
-			const res = getUniquePriorities(cnf, "start", "cego.dk");
+			const actionsToRun = getActions(cnf, "start", "cego.dk");
+			const res = getUniquePriorities(actionsToRun);
 			expect(res).toEqual(new Set([1, 2]));
 		});
 	});

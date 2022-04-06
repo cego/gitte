@@ -16,8 +16,8 @@ export async function actions(
 	actionOutputPrinter: ActionOutputPrinter,
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput> = runAction,
 ): Promise<ActionOutput[]> {
-	const uniquePriorities = getUniquePriorities(config, actionToRun, groupToRun);
 	const actionsToRun = getActions(config, actionToRun, groupToRun);
+	const uniquePriorities = getUniquePriorities(actionsToRun);
 	const blockedActions = actionsToRun.filter((action) => (action.needs?.length ?? 0) > 0);
 	const waitingOn = [] as string[];
 
@@ -50,11 +50,9 @@ export async function actions(
 
 	return stdoutBuffer;
 }
-export function getUniquePriorities(config: Config, actionToRun: string, groupToRun: string): Set<number> {
-	return Object.values(config.projects).reduce((carry, project) => {
-		if (project.actions[actionToRun]?.groups[groupToRun]) {
-			carry.add(project.actions[actionToRun].priority ?? 0);
-		}
+export function getUniquePriorities(actionsToRun: (GroupKey & ProjectAction)[]): Set<number> {
+	return actionsToRun.reduce((carry, action) => {
+		carry.add(action.priority ?? 0);
 		return carry;
 	}, new Set<number>());
 }
@@ -137,12 +135,14 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 export function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
 	// get all actions from all projects with actionToRun key
 	const actionsToRun = Object.entries(config.projects)
-		.filter(([, project]) => project.actions[actionToRun]?.groups[groupToRun])
+		.filter(
+			([, project]) => project.actions[actionToRun]?.groups[groupToRun] || project.actions[actionToRun]?.groups["*"],
+		)
 		.reduce((carry, [projectName, project]) => {
 			carry.push({
 				project: projectName,
 				action: actionToRun,
-				group: groupToRun,
+				group: project.actions[actionToRun]?.groups[groupToRun] ? groupToRun : "*",
 				...project.actions[actionToRun],
 			});
 
