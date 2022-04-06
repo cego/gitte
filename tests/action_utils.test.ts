@@ -21,6 +21,6 @@ describe("ActionOutputPrinter", () => {
 
 		expect(spawnSpy).toBeCalledTimes(1);
 		expect(fs.writeFileSync).toBeCalledTimes(1);
-		expect(process.stdout.write).toBeCalledTimes(49); // lol 🙃
+		expect(process.stdout.write).toBeCalledTimes(3);
 	});
 });

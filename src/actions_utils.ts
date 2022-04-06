@@ -47,22 +47,23 @@ export class ActionOutputPrinter {
 	};
 
 	printOutputLines = () => {
-		process.stdout.write(ansiEscapes.cursorUp(this.maxLines + 1));
-		process.stdout.write(this.termBuffer);
-		process.stdout.write(ansiEscapes.cursorDown(1));
+		let toWrite = "";
+		toWrite += ansiEscapes.cursorUp(this.maxLines + 1);
+		toWrite += this.termBuffer;
+		toWrite += ansiEscapes.cursorDown(1);
+		const width = process.stdout.columns;
 		for (let i = 0; i < this.maxLines; i++) {
-			process.stdout.write(ansiEscapes.cursorDown(1));
-			// move cursor all the way left
-			process.stdout.write(ansiEscapes.cursorLeft);
-			process.stdout.write(ansiEscapes.eraseLine);
-			
-
-			process.stdout.write(
-				this.lastFewLines[i]
-					? chalk`{inverse  ${this.lastFewLines[i].project} } {gray ${this.lastFewLines[i].out}}`
-					: ``,
-			);
+			toWrite += ansiEscapes.cursorDown(1) + ansiEscapes.cursorLeft + ansiEscapes.eraseLine;
+			// get terminal width
+			if (this.lastFewLines[i]) {
+				const maxWidth = Math.max(width - (this.lastFewLines[i].project.length + 3), 0);
+				toWrite += chalk`{inverse  ${this.lastFewLines[i].project} } {gray ${this.lastFewLines[i].out.slice(
+					0,
+					maxWidth,
+				)}}`;
+			}
 		}
+		process.stdout.write(toWrite);
 	};
 
 	handleLogOutput = (str: string, projectName: string) => {
@@ -71,7 +72,7 @@ export class ActionOutputPrinter {
 
 		const lines = str
 			.split("\n")
-			.map((splitted) => splitted.replace(/\n/g, ""))
+			.map((splitted) => splitted.replace(/\r/g, ""))
 			.filter((splitted) => splitted.length);
 		lines.forEach((line) => {
 			this.lastFewLines.push({ out: line, project: projectName });
@@ -93,7 +94,9 @@ export class ActionOutputPrinter {
 	};
 
 	clearOutputLines = async () => {
-		process.stdout.write(ansiEscapes.cursorUp(this.maxLines)+ansiEscapes.eraseDown+ansiEscapes.cursorDown(1)+ansiEscapes.cursorLeft);
+		process.stdout.write(
+			ansiEscapes.cursorShow + ansiEscapes.cursorUp(this.maxLines) + ansiEscapes.cursorLeft + ansiEscapes.eraseDown,
+		);
 	};
 	prepareOutputLines = () => {
 		const showCursor = () => {
@@ -101,8 +104,7 @@ export class ActionOutputPrinter {
 		};
 		process.on("exit", showCursor);
 		ON_DEATH(showCursor);
-		process.stdout.write(ansiEscapes.cursorHide+ansiEscapes.cursorDown(this.maxLines+1));
-
+		process.stdout.write(ansiEscapes.cursorHide + Array(this.maxLines + 2).join("\n"));
 	};
 
 	beganTask = (project: string) => {
