@@ -6,7 +6,7 @@ export function errorHandler(err: any) {
 		console.error(chalk`{red ${err.message}}`);
 	} else if (err.code && err.code !== 0) {
 		if (err.stderr) console.error(chalk`{red ${err.stderr?.replace(/\n$/, "")}}`);
-		if (err.stdout) console.log(chalk`${err.stdout.replace(/\n$/, "")}`);
+		if (err.stdout) console.log(chalk`${err.stdout?.replace(/\n$/, "")}`);
 	} else if (err instanceof Error) {
 		console.error(chalk`{red ${err.stack}}`);
 	}
