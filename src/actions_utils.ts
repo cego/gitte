@@ -63,7 +63,6 @@ export class ActionOutputPrinter {
 					: ``,
 			);
 		}
-		process.stdout.write(ansiEscapes.cursorDown(this.maxLines + 1));
 	};
 
 	handleLogOutput = (str: string, projectName: string) => {
@@ -95,9 +94,7 @@ export class ActionOutputPrinter {
 	};
 
 	clearOutputLines = async () => {
-		process.stdout.write(ansiEscapes.cursorUp(this.maxLines));
-		process.stdout.write(ansiEscapes.eraseDown);
-		process.stdout.write(ansiEscapes.cursorDown(1)+ansiEscapes.cursorLeft);
+		process.stdout.write(ansiEscapes.cursorUp(this.maxLines)+ansiEscapes.eraseDown+ansiEscapes.cursorDown(1)+ansiEscapes.cursorLeft);
 	};
 	prepareOutputLines = () => {
 		const showCursor = () => {
@@ -105,12 +102,8 @@ export class ActionOutputPrinter {
 		};
 		process.on("exit", showCursor);
 		ON_DEATH(showCursor);
-		process.stdout.write(ansiEscapes.cursorHide);
-		
-		console.log();
-		for (let i = 0; i < this.maxLines; i++) {
-			console.log();
-		}
+		process.stdout.write(ansiEscapes.cursorHide+ansiEscapes.cursorDown(this.maxLines+1));
+
 	};
 
 	beganTask = (project: string) => {
