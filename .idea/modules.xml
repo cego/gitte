@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/firecow-git-local-devops.iml" filepath="$PROJECT_DIR$/.idea/firecow-git-local-devops.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/gitte.iml" filepath="$PROJECT_DIR$/.idea/gitte.iml" />
     </modules>
   </component>
 </project>

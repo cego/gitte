@@ -1,6 +1,6 @@
 # Config setup
 
-This document solely explains what configuration is available in the `.git-local-devops.yml` file.
+This document solely explains what configuration is available in the `.gitte.yml` file.
 
 ## Startup checks
 
@@ -85,7 +85,7 @@ A searchFor object consists of a regex and a hint. The regex main contain groups
 ```yaml
 searchFor:
   - regex: "Error: Timeout exceeded\\n.*Deployment to <[^|]*\\|([^>]*)> \\*FAILED\\* in \\d*s"
-    hint: "{bgYellow  WARN } {1} failed due to timeout. Did you remember to run build? {cyan git-local-devops run build <site>}"
+    hint: "{bgYellow  WARN } {1} failed due to timeout. Did you remember to run build? {cyan gitte run build <site>}"
   - regex: "\\n[^\"]*Visit https:\\/\\/registry\\.gitlab\\.com\\/ to find login information"
     hint: "{bgYellow  WARN } Login check to registry.gitlab.com failed"
 ```

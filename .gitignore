@@ -2,7 +2,7 @@ node_modules/
 coverage/
 pkg/
 example.yml
-.git-local-devops.yml
+.gitte.yml
 src/**/*.js
 bin/**/*.js
 tests/**/*.js

@@ -1,12 +1,12 @@
 {
-	"name": "git-local-devops",
+	"name": "gitte",
 	"version": "0.0.1",
 	"description": "Git automation and action execution across a list of projects",
 	"main": "bin/main.js",
 	"bin": "bin/main.js",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cego/git-local-devops.git"
+		"url": "git+https://github.com/cego/gitte.git"
 	},
 	"keywords": [
 		"git",
@@ -18,9 +18,9 @@
 	"author": "Mads Jon Nielsen <madsjon@gmail.com>",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/cego/git-local-devops/issues"
+		"url": "https://github.com/cego/gitte/issues"
 	},
-	"homepage": "https://github.com/cego/git-local-devops#readme",
+	"homepage": "https://github.com/cego/gitte#readme",
 	"dependencies": {
 		"ajv": "^8.11.0",
 		"ansi-escapes": "^4.3.2",

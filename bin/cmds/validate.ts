@@ -10,7 +10,7 @@ export const describe = "Validate the configuration";
 export async function handler(argv: any) {
 	try {
 		await loadConfig(argv.cwd);
-		console.log(chalk`{green .git-local-devops.yml is valid}`);
+		console.log(chalk`{green .gitte.yml is valid}`);
 	} catch (e) {
 		errorHandler(e);
 	}

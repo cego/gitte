@@ -4,35 +4,35 @@ set -eo pipefail
 npm install
 npx tsc
 
-npx pkg . --public -t node16-linux-x64 -o pkg/linux/git-local-devops && gzip -c pkg/linux/git-local-devops > pkg/linux.gz
-npx pkg . --public -t node16-macos-x64 -o pkg/macos/git-local-devops && gzip -c pkg/macos/git-local-devops > pkg/macos.gz
-npx pkg . --public -t node16-win-x64 -o pkg/win/git-local-devops && gzip -c pkg/win/git-local-devops.exe > pkg/win.gz
+npx pkg . --public -t node16-linux-x64 -o pkg/linux/gitte && gzip -c pkg/linux/gitte > pkg/linux.gz
+npx pkg . --public -t node16-macos-x64 -o pkg/macos/gitte && gzip -c pkg/macos/gitte > pkg/macos.gz
+npx pkg . --public -t node16-win-x64 -o pkg/win/gitte && gzip -c pkg/win/gitte.exe > pkg/win.gz
 
 VERSION=$(jq -r ".version" < package.json)
 DESCRIPTION=$(jq -r ".description" < package.json)
 
-rm -rf "pkg/git-local-devops_${VERSION}_amd64"
+rm -rf "pkg/gitte_${VERSION}_amd64"
 mkdir -p ppa
 
 # Generate package info file
-mkdir -p "pkg/git-local-devops_${VERSION}_amd64/DEBIAN/"
-cat << EOF > "pkg/git-local-devops_${VERSION}_amd64/DEBIAN/control"
-Name: git-local-devops
-Package: git-local-devops
+mkdir -p "pkg/gitte_${VERSION}_amd64/DEBIAN/"
+cat << EOF > "pkg/gitte_${VERSION}_amd64/DEBIAN/control"
+Name: gitte
+Package: gitte
 Version: ${VERSION}
 Architecture: amd64
 Author: Mads Jon Nielsen <madsjon@gmail.com>
 Maintainer: Mads Jon Nielsen <madsjon@gmail.com>
 Description: ${DESCRIPTION}
-Homepage: https://github.com/cego/git-local-devops
-Website: https://github.com/cego/git-local-devops
+Homepage: https://github.com/cego/gitte
+Website: https://github.com/cego/gitte
 EOF
 
-mkdir -p "pkg/git-local-devops_${VERSION}_amd64/usr/local/bin/"
-cp pkg/linux/git-local-devops "pkg/git-local-devops_${VERSION}_amd64/usr/local/bin/"
+mkdir -p "pkg/gitte_${VERSION}_amd64/usr/local/bin/"
+cp pkg/linux/gitte "pkg/gitte_${VERSION}_amd64/usr/local/bin/"
 
-(cd pkg/ && (dpkg-deb --root-owner-group --build "git-local-devops_${VERSION}_amd64" || rm "pkg/git-local-devops_${VERSION}_amd64.deb"))
-mv "pkg/git-local-devops_${VERSION}_amd64.deb" "ppa/"
+(cd pkg/ && (dpkg-deb --root-owner-group --build "gitte_${VERSION}_amd64" || rm "pkg/gitte_${VERSION}_amd64.deb"))
+mv "pkg/gitte_${VERSION}_amd64.deb" "ppa/"
 
 # Packages & Packages.gz
 (cd ppa && dpkg-scanpackages --multiversion . > Packages)

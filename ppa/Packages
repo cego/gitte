@@ -1,15 +1,15 @@
-Package: git-local-devops
+Package: gitte
 Version: 0.0.1
 Architecture: amd64
 Maintainer: Mads Jon Nielsen <madsjon@gmail.com>
-Filename: ./git-local-devops_0.0.1_amd64.deb
-Size: 13168192
-MD5sum: 41dfd5fdc404b3e6b6674a49460c3e8a
-SHA1: 285c052b508242bf12258638088330432be2c2a1
-SHA256: 5c3b3adadfd0a193ba9be1efef31b01229f0b7176ac9e26db1ae67a9a447d994
-Homepage: https://github.com/cego/git-local-devops
+Filename: ./gitte_0.0.1_amd64.deb
+Size: 13260872
+MD5sum: 9f42e3af8c5200cd6969fa4dde9c6605
+SHA1: 3a1503e9f8584fc88d03dc69cccec578c3a047b2
+SHA256: 4f2e1cbec2c4fe2738863850598f71998e7969caf3faa87f75317a96156ed1e6
+Homepage: https://github.com/cego/gitte
 Description: Git automation and action execution across a list of projects
 Author: Mads Jon Nielsen <madsjon@gmail.com>
-Name: git-local-devops
-Website: https://github.com/cego/git-local-devops
+Name: gitte
+Website: https://github.com/cego/gitte
 

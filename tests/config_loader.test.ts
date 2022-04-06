@@ -30,24 +30,24 @@ beforeEach(() => {
 });
 
 describe("Config loader", () => {
-	test(".git-local-devops.yml exists", async () => {
+	test(".gitte.yml exists", async () => {
 		const fileCnt = `---\n${JSON.stringify({
 			startup: startupStub,
 			projects: { example: projectStub },
 		})}`;
 		// @ts-ignore
-		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(false);
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
 		// @ts-ignore
-		when(fs.readFile).calledWith(`${cwdStub}/.git-local-devops.yml`, "utf8").mockResolvedValue(fileCnt);
+		when(fs.readFile).calledWith(`${cwdStub}/.gitte.yml`, "utf8").mockResolvedValue(fileCnt);
 		await expect(loadConfig(cwdStub));
 	});
 
-	test(".git-local-devops-env exists", async () => {
-		const envFileCnt = `REMOTE_GIT_FILE="git-local-devops.yml"\nREMOTE_GIT_REPO="git@gitlab.cego.dk:cego/local-helper-configs.git"\nREMOTE_GIT_REF="master"\n`;
+	test(".gitte-env exists", async () => {
+		const envFileCnt = `REMOTE_GIT_FILE="gitte.yml"\nREMOTE_GIT_REPO="git@gitlab.cego.dk:cego/local-helper-configs.git"\nREMOTE_GIT_REF="master"\n`;
 		// @ts-ignore
-		when(fs.pathExists).calledWith(`${cwdStub}/.git-local-devops-env`).mockResolvedValue(true);
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(true);
 		// @ts-ignore
-		when(fs.readFile).calledWith(`${cwdStub}/.git-local-devops-env`, "utf8").mockResolvedValue(envFileCnt);
+		when(fs.readFile).calledWith(`${cwdStub}/.gitte-env`, "utf8").mockResolvedValue(envFileCnt);
 
 		const gitArchiveCnt = `---\n${yaml.dump({
 			startup: startupStub,

@@ -59,7 +59,7 @@ describe("Git Operations", () => {
 		const res = await gitops(cwdStub, projectStub);
 
 		expect(res).toHaveLength(1);
-		const msg = chalk`{yellow git@gitlab.com:cego/example.git} {red failed} in {cyan /home/user/git-local-devops/cego/example} Error: WHAT`;
+		const msg = chalk`{yellow git@gitlab.com:cego/example.git} {red failed} in {cyan /home/user/gitte/cego/example} Error: WHAT`;
 		expect(res[0]).toBeInstanceOf(ErrorWithHint);
 		expect((res[0] as ErrorWithHint).message).toBe(msg);
 	});
@@ -75,7 +75,7 @@ describe("Git Operations", () => {
 		await gitops(cwdStub, projectStub);
 		expect(spawnSpy).toHaveBeenCalledWith(
 			"git",
-			["clone", "git@gitlab.com:cego/example.git", "/home/user/git-local-devops/cego/example"],
+			["clone", "git@gitlab.com:cego/example.git", "/home/user/gitte/cego/example"],
 			expect.objectContaining({}),
 		);
 	});
@@ -182,12 +182,12 @@ describe("Git Operations", () => {
 			const logs = await gitops(cwdStub, projectStub);
 			expect(spawnSpy).toBeCalledWith(
 				"git",
-				["clone", "git@gitlab.com:cego/example.git", "/home/user/git-local-devops/cego/example"],
+				["clone", "git@gitlab.com:cego/example.git", "/home/user/gitte/cego/example"],
 				{ cwd: cwdStub, encoding: "utf8" },
 			);
 			expect(logs).toHaveLength(1);
 			expect(logs).toContain(
-				chalk`{gray git@gitlab.com:cego/example.git} was cloned to {cyan /home/user/git-local-devops/cego/example}`,
+				chalk`{gray git@gitlab.com:cego/example.git} was cloned to {cyan /home/user/gitte/cego/example}`,
 			);
 		});
 
@@ -195,7 +195,7 @@ describe("Git Operations", () => {
 			// @ts-ignore
 			jest.spyOn(fs, "pathExists").mockResolvedValue(false);
 			when(spawnSpy)
-				.calledWith("git", ["clone", "git@gitlab.com:cego/example.git", "/home/user/git-local-devops/cego/example"], {
+				.calledWith("git", ["clone", "git@gitlab.com:cego/example.git", "/home/user/gitte/cego/example"], {
 					cwd: cwdStub,
 					encoding: "utf8",
 				})

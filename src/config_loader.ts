@@ -8,8 +8,8 @@ import fs from "fs-extra";
 import yaml from "js-yaml";
 
 export async function loadConfig(cwd: string): Promise<Config> {
-	const cnfPath = `${cwd}/.git-local-devops.yml`;
-	const dotenvPath = `${cwd}/.git-local-devops-env`;
+	const cnfPath = `${cwd}/.gitte.yml`;
+	const dotenvPath = `${cwd}/.gitte-env`;
 
 	let fileContent;
 
@@ -39,14 +39,14 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	} else if (await fs.pathExists(cnfPath)) {
 		fileContent = await fs.readFile(cnfPath, "utf8");
 	} else if (cwd === "/") {
-		const message = `No .git-local-devops.yml or .git-local-devops-env found in current or parent directories.`;
+		const message = `No .gitte.yml or .gitte-env found in current or parent directories.`;
 		throw new AssertionError({ message });
 	} else {
 		return loadConfig(path.resolve(cwd, ".."));
 	}
 
 	const yml: any = yaml.load(fileContent);
-	assert(validateYaml(yml), "Invalid .git-local-devops.yml file");
+	assert(validateYaml(yml), "Invalid .gitte.yml file");
 
 	return { ...yml, cwd };
 }
