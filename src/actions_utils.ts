@@ -49,16 +49,19 @@ export class ActionOutputPrinter {
 	printOutputLines = () => {
 		process.stdout.write(ansiEscapes.cursorUp(this.maxLines + 1));
 		process.stdout.write(this.termBuffer);
-		process.stdout.write(ansiEscapes.cursorNextLine);
+		process.stdout.write(ansiEscapes.cursorDown(1));
 		for (let i = 0; i < this.maxLines; i++) {
-			process.stdout.write(ansiEscapes.cursorNextLine);
+			process.stdout.write(ansiEscapes.cursorDown(1));
+			// move cursor all the way left
+			process.stdout.write(ansiEscapes.cursorLeft);
+			process.stdout.write(ansiEscapes.eraseLine);
+			
 
 			process.stdout.write(
 				this.lastFewLines[i]
 					? chalk`{inverse  ${this.lastFewLines[i].project} } {gray ${this.lastFewLines[i].out}}`
 					: ``,
 			);
-			process.stdout.write(ansiEscapes.eraseEndLine);
 		}
 		process.stdout.write(ansiEscapes.cursorDown(this.maxLines + 1));
 	};
@@ -94,7 +97,7 @@ export class ActionOutputPrinter {
 	clearOutputLines = async () => {
 		process.stdout.write(ansiEscapes.cursorUp(this.maxLines));
 		process.stdout.write(ansiEscapes.eraseDown);
-		process.stdout.write(ansiEscapes.cursorNextLine);
+		process.stdout.write(ansiEscapes.cursorDown(1)+ansiEscapes.cursorLeft);
 	};
 	prepareOutputLines = () => {
 		const showCursor = () => {
@@ -103,10 +106,10 @@ export class ActionOutputPrinter {
 		process.on("exit", showCursor);
 		ON_DEATH(showCursor);
 		process.stdout.write(ansiEscapes.cursorHide);
-
-		process.stdout.write("\n");
+		
+		console.log();
 		for (let i = 0; i < this.maxLines; i++) {
-			process.stdout.write("\n");
+			console.log();
 		}
 	};
 
