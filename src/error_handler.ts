@@ -4,7 +4,7 @@ import chalk from "chalk";
 export function errorHandler(err: any) {
 	if (err instanceof AssertionError) {
 		console.error(chalk`{red ${err.message}}`);
-	} else if (err.code && err.code !== 0 && err.stderr) {
+	} else if (err.code && err.code !== 0) {
 		if (err.stderr) console.error(chalk`{red ${err.stderr.replace(/\n$/, "")}}`);
 		if (err.stdout) console.log(chalk`${err.stdout.replace(/\n$/, "")}`);
 	} else if (err instanceof Error) {
