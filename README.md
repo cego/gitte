@@ -42,7 +42,7 @@ All startup checks will run. If they pass, all projects will be updated and the 
 
 `gitte gitops`
 
-All projects will pull the latest changes if there are no local changes. 
+All projects will pull the latest changes if there are no local changes.
 
 An optional option `--auto-merge` can be supplied, that will automatically merge origin/<default_branch> into each project. This can also be set by the env variable `GITTE_AUTO_MERGE=true`.
 
