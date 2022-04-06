@@ -224,7 +224,7 @@ describe("Action", () => {
 				...keys,
 				stdout: "Mocked Stdout",
 				stderr: "Mocked Stderr",
-				code: 0,
+				exitCode: 0,
 				cmd: ["docker-compose", "up"],
 			});
 
