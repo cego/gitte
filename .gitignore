@@ -6,3 +6,4 @@ example.yml
 src/**/*.js
 bin/**/*.js
 tests/**/*.js
+test

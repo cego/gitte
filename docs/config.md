@@ -66,7 +66,7 @@ projects:
 
 ### Actions
 
-An action on a project must specify the group property. The group property is a mapping from a group name, to a command.
+An action on a project must specify the group property. The group property is a mapping from a group name, to a command. If you want an action for a project to run on any group, you can use the wildcard `*`.
 
 Besides a group property, actions can contain a priority or a needs dependency. A higher priority (lower nummber) will always be executed before a lower priority. Like wise, if a needs b, then b will always be exucted before a.
 
