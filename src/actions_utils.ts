@@ -66,9 +66,8 @@ export class ActionOutputPrinter {
 	};
 
 	handleLogOutput = (str: string, projectName: string) => {
-		// Remove all ansi color and cursor codes
-		// eslint-disable-next-line no-control-regex
-		str = str.replace(/\u001b[^m]*?m/g, "").replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
+		// Only print "printable" characters
+		str = str.replace(/[\p{Cc}\p{Cf}\p{Cs}]+/gu, "");
 
 		const lines = str
 			.split("\n")
