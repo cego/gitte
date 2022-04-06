@@ -1,16 +1,19 @@
 import fs from "fs-extra";
 import { when } from "jest-when";
-import * as pcp from "promisify-child-process";
+import * as utils from "../src/utils";
 import { startup } from "../src/startup";
 import { Config } from "../src/types/config";
 import { cwdStub } from "./utils/stubs";
+import { ExecaReturnValue } from "execa";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
 	// @ts-ignore
-	pcp.spawn = jest.fn();
+	utils.spawn = jest.fn();
 	console.log = jest.fn();
-	spawnSpy = jest.spyOn(pcp, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" });
+	spawnSpy = jest
+		.spyOn(utils, "spawn")
+		.mockResolvedValue({ stdout: "Mocked Stdout" } as unknown as ExecaReturnValue<string>);
 	fs.pathExists = jest.fn();
 });
 

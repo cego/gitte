@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { ErrorWithHint } from "../src/types/utils";
-import { printLogs } from "../src/utils";
+import { handleGitopsResults } from "../src/gitops";
 
 beforeEach(() => {
 	console.log = jest.fn();
@@ -11,7 +11,7 @@ describe("Print logs", () => {
 		const projectNames = ["test1", "test2"];
 		const logs: (string | ErrorWithHint)[][] = [["log1", "log2"], ["log3"]];
 
-		printLogs(projectNames, logs);
+		handleGitopsResults(projectNames, logs);
 
 		expect(console.log).toHaveBeenCalledTimes(5);
 		expect(console.log).toHaveBeenCalledWith(chalk`┌─ {green {bold test1}}`);
@@ -28,7 +28,7 @@ describe("Print logs", () => {
 			[new ErrorWithHint("test error 2")],
 		];
 
-		expect(() => printLogs(projectNames, logs)).toThrowError("At least one git operation failed");
+		expect(() => handleGitopsResults(projectNames, logs)).toThrowError("At least one git operation failed");
 
 		expect(console.log).toHaveBeenCalledTimes(4);
 		expect(console.log).toHaveBeenCalledWith(chalk`┌─ {red {bold test1}}`);
@@ -41,7 +41,7 @@ describe("Print logs", () => {
 		const projectNames = ["test1", "test2"];
 		const logs: (string | ErrorWithHint)[][] = [[new ErrorWithHint("test error 1")], ["log3"]];
 
-		expect(() => printLogs(projectNames, logs)).toThrowError("At least one git operation failed");
+		expect(() => handleGitopsResults(projectNames, logs)).toThrowError("At least one git operation failed");
 
 		expect(console.log).toHaveBeenCalledTimes(4);
 		expect(console.log).toHaveBeenCalledWith(chalk`┌─ {red {bold test1}}`);

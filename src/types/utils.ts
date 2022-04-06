@@ -1,11 +1,18 @@
-import * as pcp from "promisify-child-process";
+import { ExecaReturnValue } from "execa";
 
-export type ToChildProcessOutput = [(Error & pcp.Output) | null, pcp.Output | undefined];
+export type ToChildProcessOutput = [(Error & ExecaReturnValue) | null, ExecaReturnValue | undefined];
 
 export type GroupKey = {
 	project: string;
 	action: string;
 	group: string;
+};
+
+export type ChildProcessOutput = {
+	stdout?: string;
+	stderr?: string;
+	exitCode?: number;
+	signal?: string;
 };
 
 export class ErrorWithHint extends Error {

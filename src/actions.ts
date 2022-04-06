@@ -1,13 +1,12 @@
 import { getProjectDirFromRemote } from "./project";
 import { Config, ProjectAction } from "./types/config";
-import * as pcp from "promisify-child-process";
-import { GroupKey } from "./types/utils";
+import { ChildProcessOutput, GroupKey } from "./types/utils";
 import { topologicalSortActionGraph } from "./graph";
 import * as utils from "./utils";
 import { ExecaError, ExecaReturnValue } from "execa";
 import { ActionOutputPrinter } from "./actions_utils";
 
-export type ActionOutput = GroupKey & pcp.Output & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
+export type ActionOutput = GroupKey & ChildProcessOutput & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
 export async function actions(
 	config: Config,
@@ -69,7 +68,7 @@ export async function runActionPromiseWrapper(
 		actionOutputPrinter.finishedTask(runActionOpts.keys.project);
 
 		// if exit code was not zero, remove all blocked actions that needs this action
-		const removedBlockedActions = res.code === 0 ? [] : findActionsToSkipAfterFailure(res.project, blockedActions);
+		const removedBlockedActions = res.exitCode === 0 ? [] : findActionsToSkipAfterFailure(res.project, blockedActions);
 
 		const actionsFreedtoRun = blockedActions.reduce((carry, action, i) => {
 			action.needs = action.needs?.filter((need) => need !== runActionOpts.keys.project);
@@ -125,7 +124,7 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 		...options.keys,
 		stdout: res.stdout?.toString() ?? "",
 		stderr: res.stderr?.toString() ?? "",
-		code: res.exitCode,
+		exitCode: res.exitCode,
 		signal: res.signal,
 		dir,
 		cmd: group,

@@ -19,7 +19,7 @@ export async function handler(argv: any) {
 	try {
 		const cnf = await loadConfig(argv.cwd);
 		await startup(cnf);
-		await gitOpsFromConfig(cnf);
+		await gitOpsFromConfig(cnf, argv.autoMerge);
 		await new ActionOutputPrinter(cnf, argv.action, argv.group).run();
 	} catch (e) {
 		errorHandler(e);

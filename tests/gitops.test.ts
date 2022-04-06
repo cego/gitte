@@ -2,19 +2,22 @@ import { when } from "jest-when";
 import { gitops } from "../src/gitops";
 import fs from "fs-extra";
 import chalk from "chalk";
-import * as pcp from "promisify-child-process";
+import * as utils from "../src/utils";
 import { projectStub, cwdStub } from "./utils/stubs";
 import { ErrorWithHint } from "../src/types/utils";
+import { ExecaReturnValue } from "execa";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
 	// @ts-ignore
-	pcp.spawn = jest.fn();
+	utils.spawn = jest.fn();
 	console.log = jest.fn();
 	console.error = jest.fn();
 	fs.pathExists = jest.fn();
 
-	spawnSpy = jest.spyOn(pcp, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" });
+	spawnSpy = jest
+		.spyOn(utils, "spawn")
+		.mockResolvedValue({ stdout: "Mocked Stdout" } as unknown as ExecaReturnValue<string>);
 
 	when(spawnSpy)
 		.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
@@ -56,7 +59,7 @@ describe("Git Operations", () => {
 			.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
 			.mockRejectedValue(new Error("WHAT"));
 
-		const res = await gitops(cwdStub, projectStub);
+		const res = await gitops(cwdStub, projectStub, true);
 
 		expect(res).toHaveLength(1);
 		const msg = chalk`{yellow git@gitlab.com:cego/example.git} {red failed} in {cyan /home/user/gitte/cego/example} Error: WHAT`;
@@ -65,14 +68,14 @@ describe("Git Operations", () => {
 	});
 
 	test("Changes found", async () => {
-		const logs = await gitops(cwdStub, projectStub);
+		const logs = await gitops(cwdStub, projectStub, true);
 		expect(logs).toContain(chalk`{yellow main} has local changes in {cyan ${cwdStub}/cego/example}`);
 	});
 
 	test("Cloning project", async () => {
 		// @ts-ignore
 		jest.spyOn(fs, "pathExists").mockResolvedValue(false);
-		await gitops(cwdStub, projectStub);
+		await gitops(cwdStub, projectStub, true);
 		expect(spawnSpy).toHaveBeenCalledWith(
 			"git",
 			["clone", "git@gitlab.com:cego/example.git", "/home/user/gitte/cego/example"],
@@ -87,7 +90,7 @@ describe("Git Operations", () => {
 				stderr: "There is no tracking information for the current branch",
 			});
 
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 
 			expect(logs).toContain(chalk`{cyan main} {red doesn't have a remote origin} in {cyan ${cwdStub}/cego/example}`);
 		});
@@ -97,7 +100,7 @@ describe("Git Operations", () => {
 			when(spawnSpy)
 				.calledWith("git", ["pull", "--ff-only"], expect.objectContaining({}))
 				.mockResolvedValue({ stdout: "Already up to date." });
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			const msg = chalk`{cyan main} is up to date with {magenta origin/main} in {cyan ${cwdStub}/cego/example}`;
 			expect(logs).toContain(msg);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["pull", "--ff-only"], expect.objectContaining({}));
@@ -105,7 +108,7 @@ describe("Git Operations", () => {
 
 		test("Pulling latest changes", async () => {
 			mockHasNoChanges();
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			const msg = chalk`{cyan main} pulled changes from {magenta origin/main} in {cyan ${cwdStub}/cego/example}`;
 			expect(logs).toContain(msg);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["pull", "--ff-only"], expect.objectContaining({}));
@@ -117,7 +120,7 @@ describe("Git Operations", () => {
 				.calledWith("git", ["pull", "--ff-only"], expect.objectContaining({}))
 				.mockRejectedValue({ stderr: "Your configuration specifies to merge with the ref" });
 
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			const msg = chalk`{cyan main} {red no such ref could be fetched} in {cyan ${cwdStub}/cego/example}`;
 			expect(logs).toContain(msg);
 			expect(spawnSpy).toHaveBeenCalledWith("git", ["pull", "--ff-only"], expect.objectContaining({}));
@@ -129,7 +132,7 @@ describe("Git Operations", () => {
 				.calledWith("git", ["pull", "--ff-only"], expect.objectContaining({}))
 				.mockRejectedValue({ stderr: "I'M IN CONFLICT" });
 
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			const msg = chalk`{cyan main} {red conflicts} with {magenta origin/main} in {cyan ${cwdStub}/cego/example}`;
 			expect(logs).toContain(msg);
 		});
@@ -139,7 +142,7 @@ describe("Git Operations", () => {
 		test("Merged successfully", async () => {
 			mockHasNoChanges();
 			mockCustomBranch();
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			const msg = chalk`{yellow {cyan custom} was merged with {magenta origin/main} in {cyan ${cwdStub}/cego/example}}`;
 			expect(logs).toContain(msg);
 		});
@@ -150,7 +153,7 @@ describe("Git Operations", () => {
 			when(spawnSpy)
 				.calledWith("git", ["merge", `origin/main`], expect.objectContaining({}))
 				.mockResolvedValue({ stdout: "Already up to date." });
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			const msg = chalk`{cyan custom} is up to date with {magenta origin/main} in {cyan ${cwdStub}/cego/example}`;
 			expect(logs).toContain(msg);
 		});
@@ -159,7 +162,7 @@ describe("Git Operations", () => {
 			mockHasNoChanges();
 			mockCustomBranch();
 			mockMergeFailed();
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			const msg = chalk`{yellow custom} merge with {magenta origin/main} {red failed} in {cyan ${cwdStub}/cego/example}`;
 			expect(logs).toContain(msg);
 		});
@@ -169,9 +172,61 @@ describe("Git Operations", () => {
 			mockCustomBranch();
 			mockMergeFailed();
 			mockMergeAbortFailed();
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			const msg = chalk`{yellow custom} merge --abort also {red failed} in {cyan ${cwdStub}/cego/example}`;
+			expect(logs).toHaveLength(3);
 			expect(logs).toContain(msg);
+		});
+
+		test("Merge only if autoMerge", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+			const logs = await gitops(cwdStub, projectStub, false);
+			expect(logs).toHaveLength(1);
+		});
+
+		test("Print if behind", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+			when(spawnSpy)
+				.calledWith("git", ["rev-list", "--count", "--left-right", "custom..origin/main"], {
+					cwd: "/home/user/gitte/cego/example",
+					encoding: "utf8",
+				})
+				.mockResolvedValue({ stdout: "0\t1" } as unknown as ExecaReturnValue);
+			const logs = await gitops(cwdStub, projectStub, false);
+			// expect(spawnSpy).toHaveBeenLastCalledWith({});
+			expect(logs).toHaveLength(2);
+			expect(logs[1]).toContain("commits behind");
+		});
+
+		test("Print if ahead", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+			when(spawnSpy)
+				.calledWith("git", ["rev-list", "--count", "--left-right", "custom..origin/main"], {
+					cwd: "/home/user/gitte/cego/example",
+					encoding: "utf8",
+				})
+				.mockResolvedValue({ stdout: "1\t0" } as unknown as ExecaReturnValue);
+			const logs = await gitops(cwdStub, projectStub, false);
+			expect(logs).toHaveLength(2);
+			expect(logs[1]).toContain("commits ahead");
+		});
+
+		test("Print if ahead and behind", async () => {
+			mockHasNoChanges();
+			mockCustomBranch();
+			when(spawnSpy)
+				.calledWith("git", ["rev-list", "--count", "--left-right", "custom..origin/main"], {
+					cwd: "/home/user/gitte/cego/example",
+					encoding: "utf8",
+				})
+				.mockResolvedValue({ stdout: "1\t1" } as unknown as ExecaReturnValue);
+			const logs = await gitops(cwdStub, projectStub, false);
+			expect(logs).toHaveLength(3);
+			expect(logs[1]).toContain("commits behind");
+			expect(logs[2]).toContain("commits ahead");
 		});
 	});
 
@@ -179,7 +234,7 @@ describe("Git Operations", () => {
 		test("Cloning project", async () => {
 			// @ts-ignore
 			jest.spyOn(fs, "pathExists").mockResolvedValue(false);
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			expect(spawnSpy).toBeCalledWith(
 				"git",
 				["clone", "git@gitlab.com:cego/example.git", "/home/user/gitte/cego/example"],
@@ -200,7 +255,7 @@ describe("Git Operations", () => {
 					encoding: "utf8",
 				})
 				.mockRejectedValue({ stderr: "Permission denied" });
-			const logs = await gitops(cwdStub, projectStub);
+			const logs = await gitops(cwdStub, projectStub, true);
 			expect(logs).toHaveLength(1);
 			expect(logs[0]).toBeInstanceOf(ErrorWithHint);
 
