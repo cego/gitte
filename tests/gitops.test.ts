@@ -89,7 +89,7 @@ describe("Git Operations", () => {
 
 			const logs = await gitops(cwdStub, projectStub);
 
-			expect(logs).toContain(chalk`{cyan main} {red doesn't have a remote origin} {cyan ${cwdStub}/cego/example}`);
+			expect(logs).toContain(chalk`{cyan main} {red doesn't have a remote origin} in {cyan ${cwdStub}/cego/example}`);
 		});
 
 		test("Already up to date", async () => {
@@ -118,7 +118,7 @@ describe("Git Operations", () => {
 				.mockRejectedValue({ stderr: "I'M IN CONFLICT" });
 
 			const logs = await gitops(cwdStub, projectStub);
-			const msg = chalk`{cyan main} {red conflicts} with {magenta origin/main} {cyan ${cwdStub}/cego/example}`;
+			const msg = chalk`{cyan main} {red conflicts} with {magenta origin/main} in {cyan ${cwdStub}/cego/example}`;
 			expect(logs).toContain(msg);
 		});
 	});

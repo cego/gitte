@@ -149,7 +149,7 @@ export async function fromConfig(cnf: Config, actionToRun: string, groupToRun: s
 	const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(cnf, actionToRun, groupToRun);
 	if (cnf.searchFor) searchOutputForHints(cnf, stdoutBuffer);
 	if (stdoutBuffer.length === 0) {
-		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group {cyan ${groupToRun}}}`);
+		console.log(chalk`{yellow No groups found for action {cyan ${actionToRun}} and group in {cyan ${groupToRun}}}`);
 	}
 	fs.writeFileSync(path.join(cnf.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 }

@@ -126,7 +126,7 @@ describe("Action", () => {
 			fs.writeFileSync = jest.fn();
 			await fromConfig(cnf, "nonaction", "nongroup");
 			expect(console.log).toHaveBeenCalledWith(
-				chalk`{yellow No groups found for action {cyan nonaction} and group {cyan nongroup}}`,
+				chalk`{yellow No groups found for action {cyan nonaction} and group in {cyan nongroup}}`,
 			);
 		});
 	});
