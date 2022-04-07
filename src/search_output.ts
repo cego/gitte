@@ -1,7 +1,6 @@
 import chalk from "chalk";
 import { Config, SearchFor } from "./types/config";
-import { GroupKey } from "./types/utils";
-import { Output } from "promisify-child-process";
+import { ChildProcessOutput, GroupKey } from "./types/utils";
 import { ActionOutput } from "./actions";
 // @ts-ignore - does not have types
 import template from "chalk/source/templates";
@@ -13,7 +12,7 @@ export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 			console.log(
 				chalk`{bgYellow  WARN } Skipped: {bold ${entry.project}} because it needed ${entry.wasSkippedBy}, which failed.`,
 			);
-		} else if (entry.code === 0) {
+		} else if (entry.exitCode === 0) {
 			console.log(
 				chalk`{bgGreen  PASS } {bold ${entry.project}} {blue ${entry.cmd?.join(" ")}} ran in {cyan ${entry.dir}}`,
 			);
@@ -26,7 +25,7 @@ export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 	}
 }
 
-export function searchOutputForHints(cfg: Config, stdoutHistory: (GroupKey & Output)[], firstHint = true) {
+export function searchOutputForHints(cfg: Config, stdoutHistory: (GroupKey & ChildProcessOutput)[], firstHint = true) {
 	cfg.searchFor.forEach((search) => (firstHint = searchForRegex(search, stdoutHistory, firstHint)));
 	stdoutHistory.forEach((entry) => {
 		const searchFor = cfg.projects[entry.project]?.actions[entry.action]?.searchFor;
@@ -36,7 +35,11 @@ export function searchOutputForHints(cfg: Config, stdoutHistory: (GroupKey & Out
 	});
 }
 
-function searchForRegex(searchFor: SearchFor, stdoutHistory: (GroupKey & Output)[], firstHint: boolean): boolean {
+function searchForRegex(
+	searchFor: SearchFor,
+	stdoutHistory: (GroupKey & ChildProcessOutput)[],
+	firstHint: boolean,
+): boolean {
 	for (const entry of stdoutHistory) {
 		if (
 			(entry.stdout && new RegExp(searchFor.regex, "g").test(entry.stdout.toString())) ||

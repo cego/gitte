@@ -1,9 +1,10 @@
 import fs from "fs-extra";
 import { when } from "jest-when";
 import yaml from "js-yaml";
-import * as pcp from "promisify-child-process";
+import * as utils from "../src/utils";
 import { cwdStub, projectStub, startupStub } from "./utils/stubs";
 import { loadConfig } from "../src/config_loader";
+import { ExecaReturnValue } from "execa";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 beforeEach(() => {
@@ -17,12 +18,14 @@ beforeEach(() => {
 	);
 
 	// @ts-ignore
-	pcp.spawn = jest.fn();
+	utils.spawn = jest.fn();
 	fs.pathExists = jest.fn().mockImplementation(() => Promise.resolve(true));
 	console.log = jest.fn();
 	console.error = jest.fn();
 
-	spawnSpy = jest.spyOn(pcp, "spawn").mockResolvedValue({ stdout: "Mocked Stdout" });
+	spawnSpy = jest
+		.spyOn(utils, "spawn")
+		.mockResolvedValue({ stdout: "Mocked Stdout" } as unknown as ExecaReturnValue<string>);
 
 	when(spawnSpy)
 		.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
@@ -53,10 +56,10 @@ describe("Config loader", () => {
 			startup: startupStub,
 			projects: { example: projectStub },
 		})}`;
-		when(pcp.spawn)
+		when(utils.spawn)
 			// @ts-ignore
 			.calledWith("git", expect.arrayContaining(["archive"]), expect.objectContaining({}))
-			.mockResolvedValue({ stdout: gitArchiveCnt });
+			.mockResolvedValue({ stdout: gitArchiveCnt } as unknown as ExecaReturnValue<string>);
 
 		await expect(loadConfig(cwdStub));
 	});

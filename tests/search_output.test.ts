@@ -1,8 +1,7 @@
 import chalk from "chalk";
-import { Output } from "promisify-child-process";
 import { searchOutputForHints } from "../src/search_output";
 import { Config, SearchFor } from "../src/types/config";
-import { GroupKey } from "../src/types/utils";
+import { ChildProcessOutput, GroupKey } from "../src/types/utils";
 import { cnfStub } from "./utils/stubs";
 
 beforeEach(() => {
@@ -18,7 +17,7 @@ describe("Search action output", () => {
 				hint: "This string contains a digit",
 			},
 		];
-		const stdoutHistory: (GroupKey & Output)[] = [
+		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
 			{
 				project: "project1",
 				action: "action1",
@@ -42,7 +41,7 @@ describe("Search action output", () => {
 				hint: "This string contains a digit",
 			},
 		];
-		const stdoutHistory: (GroupKey & Output)[] = [
+		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
 			{
 				project: "project1",
 				action: "action1",
@@ -66,7 +65,7 @@ describe("Search action output", () => {
 				hint: "This string contains a digit",
 			},
 		];
-		const stdoutHistory: (GroupKey & Output)[] = [
+		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
 			{
 				project: "project1",
 				action: "action1",
@@ -95,7 +94,7 @@ describe("Search action output", () => {
 				hint: "This string contains a letter",
 			},
 		];
-		const stdoutHistory: (GroupKey & Output)[] = [
+		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
 			{
 				project: "project1",
 				action: "action1",
@@ -143,7 +142,7 @@ describe("Search action output", () => {
 				hint: "This string contains a digit",
 			},
 		];
-		const stdoutHistory: (GroupKey & Output)[] = [
+		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
 			{
 				project: "projecta",
 				action: "start",
@@ -170,7 +169,7 @@ describe("Search action output", () => {
 				hint: "{green This string contains a digit}",
 			},
 		];
-		const stdoutHistory: (GroupKey & Output)[] = [
+		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
 			{
 				project: "projecta",
 				action: "start",

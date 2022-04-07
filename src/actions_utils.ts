@@ -1,7 +1,6 @@
 import chalk from "chalk";
 import { Config, ProjectAction } from "./types/config";
-import * as pcp from "promisify-child-process";
-import { GroupKey } from "./types/utils";
+import { ChildProcessOutput, GroupKey } from "./types/utils";
 import { logActionOutput, searchOutputForHints } from "./search_output";
 import { printHeader } from "./utils";
 import { getProgressBar, waitingOnToString } from "./progress";
@@ -133,7 +132,12 @@ export class ActionOutputPrinter {
 		const interval = setInterval(() => {
 			this.printOutputLines();
 		}, 100);
-		const stdoutBuffer: (GroupKey & pcp.Output)[] = await actions(this.config, this.actionToRun, this.groupToRun, this);
+		const stdoutBuffer: (GroupKey & ChildProcessOutput)[] = await actions(
+			this.config,
+			this.actionToRun,
+			this.groupToRun,
+			this,
+		);
 		clearInterval(interval);
 		this.progressBar.update({ status: waitingOnToString([]) });
 		this.progressBar.stop();

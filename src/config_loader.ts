@@ -1,5 +1,5 @@
 import { Config } from "./types/config";
-import * as pcp from "promisify-child-process";
+import * as utils from "./utils";
 import path from "path";
 import assert, { AssertionError } from "assert";
 import dotenv from "dotenv";
@@ -21,7 +21,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
 		const remoteGitProjectUrl = envCnf["REMOTE_GIT_REPO"];
 		const remoteGitProjectFile = envCnf["REMOTE_GIT_FILE"];
 		const remoteGitProjectRef = envCnf["REMOTE_GIT_REF"];
-		const res = await pcp.spawn(
+		const res = await utils.spawn(
 			"git",
 			[
 				"archive",

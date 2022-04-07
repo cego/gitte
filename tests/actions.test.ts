@@ -58,7 +58,7 @@ describe("Action", () => {
 				keys: { project: "projecta", action: "start", group: "cego.dk" },
 				actionOutputPrinter: mockedActionOutputPrinter,
 			});
-			expect(res.code !== 0);
+			expect(res.exitCode !== 0);
 		});
 	});
 
@@ -224,7 +224,7 @@ describe("Action", () => {
 				...keys,
 				stdout: "Mocked Stdout",
 				stderr: "Mocked Stderr",
-				code: 0,
+				exitCode: 0,
 				cmd: ["docker-compose", "up"],
 			});
 
