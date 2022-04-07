@@ -3,7 +3,9 @@
 	"version": "0.0.1",
 	"description": "Git automation and action execution across a list of projects",
 	"main": "bin/main.js",
-	"bin": "bin/main.js",
+	"bin": {
+		"gitte": "bin/main.js"
+	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/cego/gitte.git"
