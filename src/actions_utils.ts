@@ -181,13 +181,13 @@ export class ActionOutputPrinter {
 
 		for (const log of logs) {
 			const logsFilePath = path.join(logsFolderPath, `${log.action}-${log.group}-${log.project}.log`);
-			const logs = [];
-			logs.push(...(log.stdout?.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
-			logs.push(...(log.stderr?.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
-			logs.push(
+			const output = [];
+			output.push(...(log.stdout?.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
+			output.push(...(log.stderr?.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
+			output.push(
 				`[exitCode] ${log.cmd?.join(" ")} exited with ${log.exitCode} in ${log.dir} at ${new Date().toISOString()}`,
 			);
-			await fs.writeFile(logsFilePath, logs.join("\n"));
+			await fs.writeFile(logsFilePath, output.join("\n"));
 		}
 	};
 
