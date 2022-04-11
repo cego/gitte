@@ -13,6 +13,8 @@ export type ChildProcessOutput = {
 	stderr?: string;
 	exitCode?: number;
 	signal?: string;
+	cmd?: string[];
+	dir?: string;
 };
 
 export class ErrorWithHint extends Error {

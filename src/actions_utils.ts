@@ -191,6 +191,25 @@ export class ActionOutputPrinter {
 			console.log(chalk`{yellow No actions was found for the provided action, group and project.}`);
 		}
 		this.termBuffer = "";
+
+		this.stashLogsToFile(stdoutBuffer);
 		fs.writeFileSync(path.join(this.config.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 	};
+
+	stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
+
+		const logsFolderPath = path.join(this.config.cwd, "logs");
+		if (!await fs.pathExists(logsFolderPath)) {
+			await fs.mkdir(logsFolderPath);
+		}
+
+		for(const log of logs) {
+			const logsFilePath = path.join(logsFolderPath, `${log.action}-${log.group}-${log.project}.log`);
+			const logs = [];
+			logs.push(...log.stdout?.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []);
+			logs.push(...log.stderr?.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []);
+			logs.push(`[exitCode] ${log.cmd?.join(" ")} exited with ${log.exitCode} in ${log.dir} at ${new Date().toISOString()}`);
+			await fs.writeFile(logsFilePath, logs.join("\n"));
+		}
+	}
 }
