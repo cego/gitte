@@ -62,7 +62,7 @@ describe("ActionOutputPrinter", () => {
 			const actionOutputPrinter = new ActionOutputPrinter(cnfStub, "start", "cego.dk", "projecta");
 			const keys = actionOutputPrinter.parseRunKeys("up+down", "cego.dk+example.dk", "projecta+projectb");
 			expect(keys).toEqual([
-				["down", "up"],
+				["up", "down"],
 				["cego.dk", "example.dk"],
 				["projecta", "projectb"],
 			]);

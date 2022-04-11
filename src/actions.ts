@@ -162,20 +162,7 @@ export function getProjectsToRunActionIn(
 	/* Resolve dependencies
 	 * If we want to run project A, but A needs B, we need to run B as well.
 	 */
-	actionsToRun = [
-		...actionsToRun.reduce((carry, action) => {
-			return new Set([...carry, ...resolveProjectDependencies(config, action)]);
-		}, new Set<GroupKey & ProjectAction>()),
-	]
-		.filter((action) => action.groups[groupToRun] ?? action.groups["*"])
-		.map((action) => {
-			return {
-				...action,
-				group: config.projects[action.project].actions[actionToRun]?.groups[groupToRun] ? groupToRun : "*",
-			};
-		});
-
-	actionsToRun = _.uniqBy(actionsToRun, (action) => action.project);
+	actionsToRun = resolveDependenciesForActions(actionsToRun, config, groupToRun, actionToRun);
 
 	/**
 	 * Sometime an action will not have the specific group it needs to run.
@@ -226,6 +213,28 @@ export function findActionsToSkipAfterFailure(
 		});
 	});
 	return blockedActionsSkipped;
+}
+
+export function resolveDependenciesForActions(
+	actionsToRun: (GroupKey & ProjectAction)[],
+	config: Config,
+	groupToRun: string,
+	actionToRun: string,
+) {
+	actionsToRun = [
+		...actionsToRun.reduce((carry, action) => {
+			return new Set([...carry, ...resolveProjectDependencies(config, action)]);
+		}, new Set<GroupKey & ProjectAction>()),
+	]
+		.filter((action) => action.groups[groupToRun] ?? action.groups["*"])
+		.map((action) => {
+			return {
+				...action,
+				group: config.projects[action.project].actions[actionToRun]?.groups[groupToRun] ? groupToRun : "*",
+			};
+		});
+
+	return _.uniqBy(actionsToRun, (action) => action.project);
 }
 
 /*

@@ -8,11 +8,14 @@ import {
 	runActionPromiseWrapper,
 	getProjectsToRunActionIn,
 	findActionsToSkipAfterFailure,
+	resolveDependenciesForActions,
+	resolveProjectDependencies,
 } from "../src/actions";
 import { ProjectAction } from "../src/types/config";
 import { GroupKey } from "../src/types/utils";
 import { ActionOutputPrinter } from "../src/actions_utils";
 import { ExecaReturnValue } from "execa";
+import _ from "lodash";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 const mockedActionOutputPrinter = {
@@ -315,6 +318,47 @@ describe("Action", () => {
 			expect(res).toHaveLength(2);
 			expect(res).toContainEqual(expect.objectContaining({ project: "projecta" }));
 			expect(res).toContainEqual(expect.objectContaining({ project: "projectc", needs: ["projecta"] }));
+		});
+		describe("It resolved dependencies", () => {
+			test("It resolves a project dependency", () => {
+				const config = _.cloneDeep(cnf);
+				const action = {
+					action: "up",
+					group: "cego.dk",
+					project: "projectd",
+					searchFor: [],
+					priority: null,
+					needs: ["projecte"],
+					groups: {},
+				};
+				const res = resolveProjectDependencies(config, action);
+
+				expect([...res]).toHaveLength(2);
+				expect([...res]).toContainEqual(action);
+				expect([...res]).toContainEqual(expect.objectContaining({ project: "projecte" }));
+			});
+			test("It resolves dependencies for multiple", () => {
+				const actionsToRun: (GroupKey & ProjectAction)[] = [
+					{
+						action: "up",
+						group: "cego.dk",
+						project: "projectd",
+						searchFor: [],
+						priority: null,
+						needs: ["projecte"],
+						groups: { "cego.dk": ["docker-compose", "up"] },
+					},
+				];
+				const config = _.cloneDeep(cnf);
+				const groupToRun = "cego.dk";
+				const actionToRun = "up";
+
+				const res = resolveDependenciesForActions(actionsToRun, config, groupToRun, actionToRun);
+
+				expect(res).toHaveLength(2);
+				expect([...res]).toContainEqual(actionsToRun[0]);
+				expect([...res]).toContainEqual(expect.objectContaining({ project: "projecte" }));
+			});
 		});
 	});
 	describe("findActionsToSkipAfterFailure", () => {
