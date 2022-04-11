@@ -20,16 +20,41 @@ export class ActionOutputPrinter {
 	maxLines = 10;
 	lastFewLines: { out: string; project: string }[] = [];
 	progressBar: SingleBar;
-	actionToRun: string;
-	groupToRun: string;
+	actionsToRun: string[];
+	groupsToRun: string[];
+	projectsToRun: string[];
 	config: Config;
 	waitingOn = [] as string[];
 	termBuffer = "";
 	bufferStream: BufferStreamWithTty;
 
-	constructor(cfg: Config, actionToRun: string, groupToRun: string) {
-		this.actionToRun = actionToRun;
-		this.groupToRun = groupToRun;
+	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
+		// First parse actionToRun, groupToRun and projectToRun
+		const delimiter = '|';
+		this.actionsToRun = actionToRun.split(delimiter);
+		// If '*' is in actionsToRun, then we run all actions
+		if (this.actionsToRun.includes("*")) {
+			this.actionsToRun = Object.values(cfg.projects).reduce((carry, project) => {
+				carry.push(...Object.keys(project.actions));
+				return carry;
+			}, [] as string[]);
+		}
+		this.groupsToRun = groupToRun.split(delimiter);
+		// If '*' is in groupsToRun, then we run all groups
+		if (this.groupsToRun.includes("*")) {
+			this.groupsToRun = Object.values(cfg.projects).reduce((carry, project) => {
+				for(const action of this.actionsToRun) {
+					const groups = project.actions[action].groups ?? {};
+					carry.push(...Object.keys(groups));
+				}
+				return carry;
+			}, [] as string[]);
+		}
+		this.projectsToRun = projectToRun ? projectToRun.split(delimiter) : ['*'];
+		if(this.projectsToRun.includes("*")) {
+			this.projectsToRun = Object.keys(cfg.projects);
+		}
+
 		this.config = cfg;
 		const addToBufferStream = this.addToBufferStream;
 		this.bufferStream = new BufferStreamWithTty({
@@ -126,7 +151,15 @@ export class ActionOutputPrinter {
 	};
 
 	run = async (): Promise<void> => {
-		printHeader("Running actions");
+		for(const action of this.actionsToRun) {
+			for(const group of this.groupsToRun) {
+				await this.runActionUtils(action, group);
+			}
+		}
+	};
+
+	runActionUtils = async (actionToRun: string, groupToRun: string): Promise<void> => {
+		printHeader(`Running action ${actionToRun} on group ${groupToRun}`);
 		this.prepareOutputLines();
 		// every 100ms, print output
 		const interval = setInterval(() => {
@@ -134,8 +167,9 @@ export class ActionOutputPrinter {
 		}, 100);
 		const stdoutBuffer: (GroupKey & ChildProcessOutput)[] = await actions(
 			this.config,
-			this.actionToRun,
-			this.groupToRun,
+			actionToRun,
+			groupToRun,
+			this.projectsToRun,
 			this,
 		);
 		clearInterval(interval);
@@ -148,7 +182,7 @@ export class ActionOutputPrinter {
 		if (this.config.searchFor) searchOutputForHints(this.config, stdoutBuffer);
 		if (stdoutBuffer.length === 0) {
 			console.log(
-				chalk`{yellow No groups found for action {cyan ${this.actionToRun}} and group in {cyan ${this.groupToRun}}}`,
+				chalk`{yellow No actions was found for the provided action, group and project.}`,
 			);
 		}
 		fs.writeFileSync(path.join(this.config.cwd, ".output.json"), JSON.stringify(stdoutBuffer));

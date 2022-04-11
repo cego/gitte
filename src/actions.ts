@@ -12,21 +12,22 @@ export async function actions(
 	config: Config,
 	actionToRun: string,
 	groupToRun: string,
+	projectsToRun: string[],
 	actionOutputPrinter: ActionOutputPrinter,
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput> = runAction,
 ): Promise<ActionOutput[]> {
-	const actionsToRun = getActions(config, actionToRun, groupToRun);
-	const uniquePriorities = getUniquePriorities(actionsToRun);
-	const blockedActions = actionsToRun.filter((action) => (action.needs?.length ?? 0) > 0);
+	const projectsToRunActionIn = getProjectsToRunActionIn(config, actionToRun, groupToRun, projectsToRun);
+	const uniquePriorities = getUniquePriorities(projectsToRunActionIn);
+	const blockedProjects = projectsToRunActionIn.filter((action) => (action.needs?.length ?? 0) > 0);
 	const waitingOn = [] as string[];
 
-	actionOutputPrinter.init(actionsToRun);
+	actionOutputPrinter.init(projectsToRunActionIn);
 
 	// Go through the sorted priority groups, and run the actions
 	// After an action is run, the runActionPromiseWrapper will handle calling any actions that needs the completed action.
 	const stdoutBuffer: ActionOutput[] = [];
 	for (const priority of uniquePriorities) {
-		const runActionPromises = actionsToRun
+		const runActionPromises = projectsToRunActionIn
 			.filter((action) => (action.priority ?? 0) === priority && (action.needs?.length ?? 0) === 0)
 			.map((action) => {
 				return runActionPromiseWrapper(
@@ -37,7 +38,7 @@ export async function actions(
 					},
 					runActionFn,
 					actionOutputPrinter,
-					blockedActions,
+					blockedProjects,
 					waitingOn,
 				);
 			});
@@ -131,11 +132,14 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	};
 }
 
-export function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
+export function getProjectsToRunActionIn(config: Config, actionToRun: string, groupToRun: string, projectsToRun: string[]): (GroupKey & ProjectAction)[] {
 	// get all actions from all projects with actionToRun key
 	const actionsToRun = Object.entries(config.projects)
 		.filter(
 			([, project]) => project.actions[actionToRun]?.groups[groupToRun] || project.actions[actionToRun]?.groups["*"],
+		)
+		.filter(
+			([projectName,]) => projectsToRun.includes(projectName),
 		)
 		.reduce((carry, [projectName, project]) => {
 			carry.push({
