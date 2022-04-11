@@ -5,6 +5,7 @@ import { topologicalSortActionGraph } from "./graph";
 import * as utils from "./utils";
 import { ExecaError, ExecaReturnValue } from "execa";
 import { ActionOutputPrinter } from "./actions_utils";
+import _ from "lodash";
 
 export type ActionOutput = GroupKey & ChildProcessOutput & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
@@ -165,7 +166,16 @@ export function getProjectsToRunActionIn(
 		...actionsToRun.reduce((carry, action) => {
 			return new Set([...carry, ...resolveProjectDependencies(config, action)]);
 		}, new Set<GroupKey & ProjectAction>()),
-	].filter((action) => action.groups[groupToRun]);
+	]
+		.filter((action) => action.groups[groupToRun] ?? action.groups["*"])
+		.map((action) => {
+			return {
+				...action,
+				group: config.projects[action.project].actions[actionToRun]?.groups[groupToRun] ? groupToRun : "*",
+			};
+		});
+
+	actionsToRun = _.uniqBy(actionsToRun, (action) => action.project);
 
 	/**
 	 * Sometime an action will not have the specific group it needs to run.

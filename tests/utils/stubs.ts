@@ -1,12 +1,11 @@
-import { CmdAction, Config, Project, ShellAction } from "../../src/types/config";
+import { CmdAction, ShellAction } from "../../src/types/config";
 
-export const projectStub: Project = {
+export const projectStub: any = {
 	default_branch: "main",
 	remote: "git@gitlab.com:cego/example.git",
 	actions: {
 		start: {
-			priority: null,
-			searchFor: null,
+			searchFor: [],
 			needs: [],
 			groups: {
 				"cego.dk": ["docker-compose", "up"],
@@ -14,8 +13,7 @@ export const projectStub: Project = {
 			},
 		},
 		down: {
-			priority: null,
-			searchFor: null,
+			searchFor: [],
 			needs: [],
 			groups: {
 				"cego.dk": ["docker-compose", "down"],
@@ -28,7 +26,7 @@ export const startupStub: { [key: string]: CmdAction | ShellAction } = {
 	world: { cmd: ["echo", "world"] },
 	bashWorld: { shell: "bash", script: "echo world" },
 };
-export const cnfStub: Config = {
+export const cnfStub: any = {
 	cwd: "/home/user/gitte",
 	startup: startupStub,
 	projects: {
@@ -38,8 +36,7 @@ export const cnfStub: Config = {
 			remote: "git@gitlab.com:cego/exampled.git",
 			actions: {
 				up: {
-					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projecte"],
 					groups: {
 						"cego.dk": ["docker-compose", "up"],
@@ -52,8 +49,7 @@ export const cnfStub: Config = {
 			remote: "git@gitlab.com:cego/exampled.git",
 			actions: {
 				up: {
-					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: [],
 					groups: {
 						"cego.dk": ["docker-compose", "up"],
