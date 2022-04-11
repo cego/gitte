@@ -2,6 +2,7 @@ import { default as to } from "await-to-js";
 import { CmdAction, Config, ShellAction } from "./types/config";
 import { applyPromiseToEntriesWithProgressBarSync } from "./progress";
 import * as utils from "./utils";
+import { ErrorWithHint } from "./types/utils";
 
 function isCmdAction(action: CmdAction | ShellAction): action is CmdAction {
 	return "cmd" in action;
@@ -23,8 +24,7 @@ export async function startup(cnf: Config) {
 				}),
 			);
 			if (err) {
-				err = err as any;
-				err.hint = action.hint;
+				if (action.hint) throw new ErrorWithHint(action.hint, err);
 				throw err;
 			}
 		} else {
@@ -37,8 +37,7 @@ export async function startup(cnf: Config) {
 				}),
 			);
 			if (err) {
-				err = err as any;
-				err.hint = action.hint;
+				if (action.hint) throw new ErrorWithHint(action.hint, err);
 				throw err;
 			}
 		}

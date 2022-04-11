@@ -34,7 +34,7 @@ beforeEach(() => {
 
 describe("Config loader", () => {
 	test(".gitte.yml exists", async () => {
-		const fileCnt = `---\n${JSON.stringify({
+		const fileCnt = `---\n${yaml.dump({
 			startup: startupStub,
 			projects: { example: projectStub },
 		})}`;
@@ -62,5 +62,29 @@ describe("Config loader", () => {
 			.mockResolvedValue({ stdout: gitArchiveCnt } as unknown as ExecaReturnValue<string>);
 
 		await expect(loadConfig(cwdStub));
+	});
+
+	test("It merged override config", async () => {
+		const fileCnt = `---\n${yaml.dump({
+			startup: startupStub,
+			projects: { example: projectStub },
+		})}`;
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.readFile).calledWith(`${cwdStub}/.gitte.yml`, "utf8").mockResolvedValue(fileCnt);
+
+		const overrideFileCnt = `---\n${yaml.dump({
+			startup: { ...startupStub, world: { cmd: ["echo", "world2"] } },
+			projects: { example: projectStub },
+		})}`;
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-override.yml`).mockResolvedValue(true);
+		// @ts-ignore
+		when(fs.readFile).calledWith(`${cwdStub}/.gitte-override.yml`, "utf8").mockResolvedValue(overrideFileCnt);
+
+		const config = await loadConfig(cwdStub);
+
+		expect(config.startup.world).toEqual({ cmd: ["echo", "world2"] });
 	});
 });
