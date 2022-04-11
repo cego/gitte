@@ -5,12 +5,18 @@ export const projectStub: Project = {
 	remote: "git@gitlab.com:cego/example.git",
 	actions: {
 		start: {
+			priority: null,
+			searchFor: null,
+			needs: [],
 			groups: {
 				"cego.dk": ["docker-compose", "up"],
 				"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "start"],
 			},
 		},
 		down: {
+			priority: null,
+			searchFor: null,
+			needs: [],
 			groups: {
 				"cego.dk": ["docker-compose", "down"],
 				"example.com": ["scp", "user@example.com", "sh", "-c", "service", "webserver", "stop"],
@@ -32,6 +38,8 @@ export const cnfStub: Config = {
 			remote: "git@gitlab.com:cego/exampled.git",
 			actions: {
 				up: {
+					priority: null,
+					searchFor: null,
 					needs: ["projecte"],
 					groups: {
 						"cego.dk": ["docker-compose", "up"],
@@ -44,6 +52,8 @@ export const cnfStub: Config = {
 			remote: "git@gitlab.com:cego/exampled.git",
 			actions: {
 				up: {
+					priority: null,
+					searchFor: null,
 					needs: [],
 					groups: {
 						"cego.dk": ["docker-compose", "up"],

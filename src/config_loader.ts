@@ -57,5 +57,14 @@ export async function loadConfig(cwd: string): Promise<Config> {
 
 	assert(validateYaml(yml), "Invalid .gitte.yml file");
 
+	// For any action, replace needs with an empty array if undefined.
+	Object.entries(yml.projects).forEach(([, project]) => {
+		Object.entries(project.actions).forEach(([, action]) => {
+			if (action.needs === undefined) {
+				action.needs = [];
+			}
+		});
+	});
+
 	return { ...yml, cwd };
 }

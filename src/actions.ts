@@ -132,15 +132,21 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	};
 }
 
-export function getProjectsToRunActionIn(config: Config, actionToRun: string, groupToRun: string, projectsToRun: string[]): (GroupKey & ProjectAction)[] {
+export function getProjectsToRunActionIn(
+	config: Config,
+	actionToRun: string,
+	groupToRun: string,
+	projectsToRun: string[],
+): (GroupKey & ProjectAction)[] {
 	// get all actions from all projects with actionToRun key
-	const actionsToRun = Object.entries(config.projects)
+
+	let actionsToRun = Object.entries(config.projects)
 		.filter(
 			([, project]) => project.actions[actionToRun]?.groups[groupToRun] || project.actions[actionToRun]?.groups["*"],
 		)
-		.filter(
-			([projectName,]) => projectsToRun.includes(projectName),
-		)
+		.filter(([projectName]) => {
+			return projectsToRun.includes(projectName);
+		})
 		.reduce((carry, [projectName, project]) => {
 			carry.push({
 				project: projectName,
@@ -151,6 +157,15 @@ export function getProjectsToRunActionIn(config: Config, actionToRun: string, gr
 
 			return carry;
 		}, [] as (GroupKey & ProjectAction)[]);
+
+	/* Resolve dependencies
+	 * If we want to run project A, but A needs B, we need to run B as well.
+	 */
+	actionsToRun = [
+		...actionsToRun.reduce((carry, action) => {
+			return new Set([...carry, ...resolveProjectDependencies(config, action)]);
+		}, new Set<GroupKey & ProjectAction>()),
+	].filter((action) => action.groups[groupToRun]);
 
 	/**
 	 * Sometime an action will not have the specific group it needs to run.
@@ -172,9 +187,9 @@ export function getProjectsToRunActionIn(config: Config, actionToRun: string, gr
 		.forEach((actionNoGroup) => {
 			// Find all actions that needs this action, remove this action from the needs list, and replace it with the needs of this action
 			actionsToRun
-				.filter((action) => action.needs?.includes(actionNoGroup))
+				.filter((action) => action.needs.includes(actionNoGroup))
 				.forEach((action) => {
-					action.needs = action.needs?.filter((need) => need !== actionNoGroup);
+					action.needs = action.needs.filter((need) => need !== actionNoGroup);
 					action.needs = [
 						...(action.needs ?? []),
 						...(config.projects[actionNoGroup]?.actions[actionToRun]?.needs ?? []),
@@ -201,4 +216,28 @@ export function findActionsToSkipAfterFailure(
 		});
 	});
 	return blockedActionsSkipped;
+}
+
+/*
+ * Resolve dependencies for a key combination
+ */
+export function resolveProjectDependencies(
+	config: Config,
+	action: GroupKey & ProjectAction,
+): Set<GroupKey & ProjectAction> {
+	if (action.needs && action.needs.length > 0) {
+		return action.needs.reduce((carry, need) => {
+			const neededAction = config.projects[need].actions[action.action];
+			return new Set([
+				action,
+				...resolveProjectDependencies(config, {
+					...action,
+					project: need,
+					...neededAction,
+				}),
+				...carry,
+			]);
+		}, new Set<GroupKey & ProjectAction>());
+	}
+	return new Set<GroupKey & ProjectAction>([action]);
 }

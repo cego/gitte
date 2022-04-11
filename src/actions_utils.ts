@@ -30,7 +30,7 @@ export class ActionOutputPrinter {
 
 	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
 		// First parse actionToRun, groupToRun and projectToRun
-		const delimiter = '|';
+		const delimiter = "|";
 		this.actionsToRun = actionToRun.split(delimiter);
 		// If '*' is in actionsToRun, then we run all actions
 		if (this.actionsToRun.includes("*")) {
@@ -43,15 +43,15 @@ export class ActionOutputPrinter {
 		// If '*' is in groupsToRun, then we run all groups
 		if (this.groupsToRun.includes("*")) {
 			this.groupsToRun = Object.values(cfg.projects).reduce((carry, project) => {
-				for(const action of this.actionsToRun) {
+				for (const action of this.actionsToRun) {
 					const groups = project.actions[action].groups ?? {};
 					carry.push(...Object.keys(groups));
 				}
 				return carry;
 			}, [] as string[]);
 		}
-		this.projectsToRun = projectToRun ? projectToRun.split(delimiter) : ['*'];
-		if(this.projectsToRun.includes("*")) {
+		this.projectsToRun = projectToRun ? projectToRun.split(delimiter) : ["*"];
+		if (this.projectsToRun.includes("*")) {
 			this.projectsToRun = Object.keys(cfg.projects);
 		}
 
@@ -150,13 +150,12 @@ export class ActionOutputPrinter {
 	 * @param actionsToRun
 	 */
 	init = (actionsToRun: (GroupKey & ProjectAction)[]): void => {
-		this.bufferStream.write("awdawd");
 		this.progressBar.start(actionsToRun.length, 0, { status: waitingOnToString([]) });
 	};
 
 	run = async (): Promise<void> => {
-		for(const action of this.actionsToRun) {
-			for(const group of this.groupsToRun) {
+		for (const action of this.actionsToRun) {
+			for (const group of this.groupsToRun) {
 				await this.runActionUtils(action, group);
 			}
 		}
@@ -185,9 +184,7 @@ export class ActionOutputPrinter {
 		logActionOutput(stdoutBuffer);
 		if (this.config.searchFor) searchOutputForHints(this.config, stdoutBuffer);
 		if (stdoutBuffer.length === 0) {
-			console.log(
-				chalk`{yellow No actions was found for the provided action, group and project.}`,
-			);
+			console.log(chalk`{yellow No actions was found for the provided action, group and project.}`);
 		}
 		fs.writeFileSync(path.join(this.config.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 	};

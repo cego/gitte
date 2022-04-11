@@ -15,7 +15,7 @@ export const describe = "Run actions on selected projects for <actions> and <gro
 export async function handler(argv: any) {
 	try {
 		const cnf = await loadConfig(argv.cwd);
-		await new ActionOutputPrinter(cnf, argv.action, argv.group, argv.projects).run();
+		await new ActionOutputPrinter(cnf, argv.actions, argv.groups, argv.projects).run();
 	} catch (e) {
 		errorHandler(e);
 	}
@@ -23,16 +23,16 @@ export async function handler(argv: any) {
 
 export function actionsBuilder(y: Argv): Argv {
 	return y
-		.positional("action", {
+		.positional("actions", {
 			required: true,
 			describe: "actions to run for each project in config",
 		})
-		.positional("group", {
+		.positional("groups", {
 			required: true,
 			describe: "groups entry to run for specified action",
 		})
 		.positional("projects", {
 			describe: "projects to run action on",
-			default: "*"
+			default: "*",
 		});
 }
