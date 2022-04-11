@@ -19,36 +19,39 @@ class BufferStreamWithTty extends Writable {
 export class ActionOutputPrinter {
 	maxLines = 10;
 	lastFewLines: { out: string; project: string }[] = [];
-	progressBar: SingleBar;
+	progressBar?: SingleBar;
 	actionsToRun: string[];
 	groupsToRun: string[];
 	projectsToRun: string[];
 	config: Config;
 	waitingOn = [] as string[];
 	termBuffer = "";
-	bufferStream: BufferStreamWithTty;
+	bufferStream?: BufferStreamWithTty;
 
 	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
 		// First parse actionToRun, groupToRun and projectToRun
-		const delimiter = "|";
+		const delimiter = "+";
 		this.actionsToRun = actionToRun.split(delimiter);
 		// If '*' is in actionsToRun, then we run all actions
 		if (this.actionsToRun.includes("*")) {
-			this.actionsToRun = Object.values(cfg.projects).reduce((carry, project) => {
-				carry.push(...Object.keys(project.actions));
-				return carry;
-			}, [] as string[]);
+			this.actionsToRun = [
+				...Object.values(cfg.projects).reduce((carry, project) => {
+					return new Set([...carry, ...Object.keys(project.actions)]);
+				}, new Set<string>()),
+			];
 		}
 		this.groupsToRun = groupToRun.split(delimiter);
 		// If '*' is in groupsToRun, then we run all groups
 		if (this.groupsToRun.includes("*")) {
-			this.groupsToRun = Object.values(cfg.projects).reduce((carry, project) => {
-				for (const action of this.actionsToRun) {
-					const groups = project.actions[action].groups ?? {};
-					carry.push(...Object.keys(groups));
-				}
-				return carry;
-			}, [] as string[]);
+			this.groupsToRun = [
+				...Object.values(cfg.projects).reduce((carry, project) => {
+					for (const action of this.actionsToRun) {
+						const groups = project.actions[action]?.groups ?? {};
+						return new Set([...carry, ...Object.keys(groups)]);
+					}
+					return carry;
+				}, new Set<string>()),
+			];
 		}
 		this.projectsToRun = projectToRun ? projectToRun.split(delimiter) : ["*"];
 		if (this.projectsToRun.includes("*")) {
@@ -56,14 +59,6 @@ export class ActionOutputPrinter {
 		}
 
 		this.config = cfg;
-		const addToBufferStream = this.addToBufferStream;
-		this.bufferStream = new BufferStreamWithTty({
-			write(chunk, _, callback) {
-				addToBufferStream(chunk.toString());
-				callback();
-			},
-		});
-		this.progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`, this.bufferStream);
 	}
 
 	addToBufferStream = (chunk: string) => {
@@ -137,12 +132,12 @@ export class ActionOutputPrinter {
 
 	beganTask = (project: string) => {
 		this.waitingOn.push(project);
-		this.progressBar.update({ status: waitingOnToString(this.waitingOn) });
+		this.progressBar?.update({ status: waitingOnToString(this.waitingOn) });
 	};
 
 	finishedTask = (project: string) => {
 		this.waitingOn = this.waitingOn.filter((p) => p !== project);
-		this.progressBar.increment({ status: waitingOnToString(this.waitingOn) });
+		this.progressBar?.increment({ status: waitingOnToString(this.waitingOn) });
 	};
 
 	/**
@@ -150,7 +145,7 @@ export class ActionOutputPrinter {
 	 * @param actionsToRun
 	 */
 	init = (actionsToRun: (GroupKey & ProjectAction)[]): void => {
-		this.progressBar.start(actionsToRun.length, 0, { status: waitingOnToString([]) });
+		this.progressBar?.start(actionsToRun.length, 0, { status: waitingOnToString([]) });
 	};
 
 	run = async (): Promise<void> => {
@@ -162,6 +157,15 @@ export class ActionOutputPrinter {
 	};
 
 	runActionUtils = async (actionToRun: string, groupToRun: string): Promise<void> => {
+		const addToBufferStream = this.addToBufferStream;
+		this.bufferStream = new BufferStreamWithTty({
+			write(chunk, _, callback) {
+				addToBufferStream(chunk.toString());
+				callback();
+			},
+		});
+		this.progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`, this.bufferStream);
+
 		printHeader(`Running action ${actionToRun} on group ${groupToRun}`);
 		this.prepareOutputLines();
 		// every 100ms, print output
@@ -186,6 +190,7 @@ export class ActionOutputPrinter {
 		if (stdoutBuffer.length === 0) {
 			console.log(chalk`{yellow No actions was found for the provided action, group and project.}`);
 		}
+		this.termBuffer = "";
 		fs.writeFileSync(path.join(this.config.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
 	};
 }
