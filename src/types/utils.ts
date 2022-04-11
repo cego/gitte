@@ -17,8 +17,9 @@ export type ChildProcessOutput = {
 
 export class ErrorWithHint extends Error {
 	hint: string;
-	constructor(hint: string, message = hint) {
-		super(message);
+	constructor(hint: string, error = new Error()) {
+		super(error.message);
+		Object.assign(this, error);
 		this.hint = hint;
 	}
 }
