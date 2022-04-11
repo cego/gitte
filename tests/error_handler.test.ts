@@ -1,6 +1,7 @@
 import { errorHandler } from "../src/error_handler";
 import { AssertionError } from "assert";
 import chalk from "chalk";
+import { ErrorWithHint } from "../src/types/utils";
 
 beforeEach(() => {
 	// @ts-ignore
@@ -18,9 +19,7 @@ describe("Error Handler", () => {
 	});
 
 	test("Error with hint", async () => {
-		const err = new Error("uncaught error");
-		// @ts-ignore
-		err.hint = `Have you tried turning it on and off again`;
+		const err = new ErrorWithHint(`Have you tried turning it on and off again`, new Error("uncaught error"));
 		errorHandler(err);
 		expect(console.log).toHaveBeenCalledWith(chalk`Have you tried turning it on and off again`);
 		expect(process.exit).toHaveBeenCalledWith(1);
@@ -29,7 +28,7 @@ describe("Error Handler", () => {
 	test("Child process error with exit code", async () => {
 		const err = new Error("child process exited");
 		// @ts-ignore
-		err.code = 29;
+		err.exitCode = 29;
 		// @ts-ignore
 		err.stderr = "im depressed\n";
 		errorHandler(err);

@@ -64,7 +64,7 @@ describe("Git Operations", () => {
 		expect(res).toHaveLength(1);
 		const msg = chalk`{yellow git@gitlab.com:cego/example.git} {red failed} in {cyan /home/user/gitte/cego/example} Error: WHAT`;
 		expect(res[0]).toBeInstanceOf(ErrorWithHint);
-		expect((res[0] as ErrorWithHint).message).toBe(msg);
+		expect((res[0] as ErrorWithHint).hint).toBe(msg);
 	});
 
 	test("Changes found", async () => {
@@ -259,9 +259,7 @@ describe("Git Operations", () => {
 			expect(logs).toHaveLength(1);
 			expect(logs[0]).toBeInstanceOf(ErrorWithHint);
 
-			expect((logs[0] as ErrorWithHint).message).toBe(
-				chalk`Permission denied to clone git@gitlab.com:cego/example.git`,
-			);
+			expect((logs[0] as ErrorWithHint).hint).toBe(chalk`Permission denied to clone git@gitlab.com:cego/example.git`);
 		});
 	});
 });

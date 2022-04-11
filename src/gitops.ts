@@ -76,7 +76,7 @@ async function clone(cwd: string, remote: string, dir: string, log: LogFn) {
 	if (err || !res) {
 		if (err?.stderr?.includes("Permission denied")) {
 			const errorMessage = `Permission denied to clone ${remote}`;
-			log(new ErrorWithHint(errorMessage, errorMessage));
+			log(new ErrorWithHint(errorMessage));
 			return;
 		}
 		log(new ErrorWithHint(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} \n${err?.stderr}`));
@@ -186,7 +186,7 @@ export function handleGitopsResults(projectNames: string[], logs: (string | Erro
 		for (const [j, log] of logs[i].entries()) {
 			let formattedLog = "";
 			if (log instanceof ErrorWithHint) {
-				formattedLog = chalk`{red ${log.message}}`;
+				formattedLog = chalk`{red ${log.hint}}`;
 			} else {
 				formattedLog = log;
 			}

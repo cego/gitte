@@ -94,7 +94,11 @@ export class ActionOutputPrinter {
 
 	clearOutputLines = async () => {
 		process.stdout.write(
-			ansiEscapes.cursorShow + ansiEscapes.cursorUp(this.maxLines) + ansiEscapes.cursorLeft + ansiEscapes.eraseDown,
+			ansiEscapes.cursorShow +
+				ansiEscapes.cursorUp(this.maxLines) +
+				ansiEscapes.cursorLeft +
+				ansiEscapes.eraseDown +
+				ansiEscapes.cursorDown(1),
 		);
 	};
 	prepareOutputLines = () => {
