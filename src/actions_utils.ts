@@ -30,35 +30,13 @@ export class ActionOutputPrinter {
 
 	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
 		// First parse actionToRun, groupToRun and projectToRun
-		const delimiter = "+";
-		this.actionsToRun = actionToRun.split(delimiter);
-		// If '*' is in actionsToRun, then we run all actions
-		if (this.actionsToRun.includes("*")) {
-			this.actionsToRun = [
-				...Object.values(cfg.projects).reduce((carry, project) => {
-					return new Set([...carry, ...Object.keys(project.actions)]);
-				}, new Set<string>()),
-			];
-		}
-		this.groupsToRun = groupToRun.split(delimiter);
-		// If '*' is in groupsToRun, then we run all groups
-		if (this.groupsToRun.includes("*")) {
-			this.groupsToRun = [
-				...Object.values(cfg.projects).reduce((carry, project) => {
-					for (const action of this.actionsToRun) {
-						const groups = project.actions[action]?.groups ?? {};
-						return new Set([...carry, ...Object.keys(groups)]);
-					}
-					return carry;
-				}, new Set<string>()),
-			];
-		}
-		this.projectsToRun = projectToRun ? projectToRun.split(delimiter) : ["*"];
-		if (this.projectsToRun.includes("*")) {
-			this.projectsToRun = Object.keys(cfg.projects);
-		}
 
 		this.config = cfg;
+
+		const [actionsToRun, groupsToRun, projectsToRun] = this.parseRunKeys(actionToRun, groupToRun, projectToRun);
+		this.actionsToRun = actionsToRun;
+		this.groupsToRun = groupsToRun;
+		this.projectsToRun = projectsToRun;
 	}
 
 	addToBufferStream = (chunk: string) => {
@@ -192,7 +170,7 @@ export class ActionOutputPrinter {
 		}
 		this.termBuffer = "";
 
-		this.stashLogsToFile(stdoutBuffer);
+		await this.stashLogsToFile(stdoutBuffer);
 	};
 
 	stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
@@ -211,5 +189,37 @@ export class ActionOutputPrinter {
 			);
 			await fs.writeFile(logsFilePath, logs.join("\n"));
 		}
+	};
+
+	parseRunKeys = (actionToRun: string, groupToRun: string, projectToRun: string): [string[], string[], string[]] => {
+		const delimiter = "+";
+		let actionsToRun = actionToRun.split(delimiter);
+		// If '*' is in actionsToRun, then we run all actions
+		if (actionsToRun.includes("*")) {
+			actionsToRun = [
+				...Object.values(this.config.projects).reduce((carry, project) => {
+					return new Set([...carry, ...Object.keys(project.actions)]);
+				}, new Set<string>()),
+			];
+		}
+		let groupsToRun = groupToRun.split(delimiter);
+		// If '*' is in groupsToRun, then we run all groups
+		if (groupsToRun.includes("*")) {
+			groupsToRun = [
+				...Object.values(this.config.projects).reduce((carry, project) => {
+					for (const action of this.actionsToRun) {
+						const groups = project.actions[action]?.groups ?? {};
+						return new Set([...carry, ...Object.keys(groups)]);
+					}
+					return carry;
+				}, new Set<string>()),
+			];
+		}
+		let projectsToRun = projectToRun ? projectToRun.split(delimiter) : ["*"];
+		if (projectsToRun.includes("*")) {
+			projectsToRun = Object.keys(this.config.projects);
+		}
+
+		return [actionsToRun, groupsToRun, projectsToRun];
 	};
 }

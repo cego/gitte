@@ -239,7 +239,7 @@ describe("Action", () => {
 			const blockedActions = [
 				{
 					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					...keys,
@@ -322,7 +322,7 @@ describe("Action", () => {
 			const blockedActions: (GroupKey & ProjectAction)[] = [
 				{
 					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectb",
@@ -335,7 +335,7 @@ describe("Action", () => {
 			expect(res).toEqual([
 				{
 					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] },
 					project: "projectb",
@@ -350,7 +350,7 @@ describe("Action", () => {
 			const blockedActions: (GroupKey & ProjectAction)[] = [
 				{
 					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectb",
@@ -359,7 +359,7 @@ describe("Action", () => {
 				},
 				{
 					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projectb"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectc",
@@ -368,7 +368,7 @@ describe("Action", () => {
 				},
 				{
 					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projectd"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projecte",
@@ -381,7 +381,7 @@ describe("Action", () => {
 			expect(res).toEqual([
 				{
 					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectb",
@@ -391,7 +391,7 @@ describe("Action", () => {
 				},
 				{
 					priority: null,
-					searchFor: null,
+					searchFor: [],
 					needs: ["projectb"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectc",

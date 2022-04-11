@@ -5,7 +5,7 @@ export type CmdAction = Action & { cmd: [string, ...string[]] };
 export type ShellAction = Action & { shell: string; script: string };
 
 export type ProjectAction = {
-	searchFor: SearchFor[] | null;
+	searchFor: SearchFor[];
 	priority: number | null;
 	needs: string[];
 	groups: { [key: string]: [string, ...string[]] };

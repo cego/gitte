@@ -62,7 +62,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
 		Object.entries(project.actions).forEach(([, action]) => {
 			action.needs = action.needs || [];
 			action.priority = action.priority || null;
-			action.searchFor = action.searchFor || null;
+			action.searchFor = action.searchFor || [];
 		});
 	});
 
