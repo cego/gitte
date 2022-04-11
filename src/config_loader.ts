@@ -9,8 +9,8 @@ import yaml from "js-yaml";
 import * as _ from "lodash";
 
 export async function loadConfig(cwd: string): Promise<Config> {
-	const cnfPath = path.join(cwd,`.gitte.yml`);
-	const dotenvPath = path.join(cwd,`.gitte-env`);
+	const cnfPath = path.join(cwd, `.gitte.yml`);
+	const dotenvPath = path.join(cwd, `.gitte-env`);
 	const overridePath = path.join(cwd, ".gitte-override.yml");
 
 	let fileContent;
@@ -48,14 +48,11 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	}
 
 	// Load .gitte-override.yml
-	
 	let yml: any = yaml.load(fileContent);
-	if (fs.existsSync(overridePath)) {
+	if (await fs.pathExists(overridePath)) {
 		const overrideContent = await fs.readFile(overridePath, "utf8");
 		const overrideYml: any = yaml.load(overrideContent);
-		// Merge overrideYml into yml
 		yml = _.merge(yml, overrideYml);
-		// yml = {...yml, ...overrideYml};
 	}
 
 	assert(validateYaml(yml), "Invalid .gitte.yml file");
