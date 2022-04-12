@@ -5,6 +5,7 @@ import { topologicalSortActionGraph } from "./graph";
 import * as utils from "./utils";
 import { ExecaError, ExecaReturnValue } from "execa";
 import { ActionOutputPrinter } from "./actions_utils";
+import _ from "lodash";
 
 export type ActionOutput = GroupKey & ChildProcessOutput & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
 
@@ -12,21 +13,22 @@ export async function actions(
 	config: Config,
 	actionToRun: string,
 	groupToRun: string,
+	projectsToRun: string[],
 	actionOutputPrinter: ActionOutputPrinter,
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput> = runAction,
 ): Promise<ActionOutput[]> {
-	const actionsToRun = getActions(config, actionToRun, groupToRun);
-	const uniquePriorities = getUniquePriorities(actionsToRun);
-	const blockedActions = actionsToRun.filter((action) => (action.needs?.length ?? 0) > 0);
+	const projectsToRunActionIn = getProjectsToRunActionIn(config, actionToRun, groupToRun, projectsToRun);
+	const uniquePriorities = getUniquePriorities(projectsToRunActionIn);
+	const blockedProjects = projectsToRunActionIn.filter((action) => (action.needs?.length ?? 0) > 0);
 	const waitingOn = [] as string[];
 
-	actionOutputPrinter.init(actionsToRun);
+	actionOutputPrinter.init(projectsToRunActionIn);
 
 	// Go through the sorted priority groups, and run the actions
 	// After an action is run, the runActionPromiseWrapper will handle calling any actions that needs the completed action.
 	const stdoutBuffer: ActionOutput[] = [];
 	for (const priority of uniquePriorities) {
-		const runActionPromises = actionsToRun
+		const runActionPromises = projectsToRunActionIn
 			.filter((action) => (action.priority ?? 0) === priority && (action.needs?.length ?? 0) === 0)
 			.map((action) => {
 				return runActionPromiseWrapper(
@@ -37,7 +39,7 @@ export async function actions(
 					},
 					runActionFn,
 					actionOutputPrinter,
-					blockedActions,
+					blockedProjects,
 					waitingOn,
 				);
 			});
@@ -104,7 +106,8 @@ interface RunActionOpts {
 
 export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	const project = options.config.projects[options.keys.project];
-	const group = project.actions[options.keys.action].groups[options.keys.group];
+	const action = project.actions[options.keys.action];
+	const group = action.groups[options.keys.group] ?? action.groups["*"];
 	const dir = getProjectDirFromRemote(options.config.cwd, project.remote);
 
 	const promise = utils.spawn(group[0], group.slice(1), {
@@ -131,12 +134,21 @@ export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	};
 }
 
-export function getActions(config: Config, actionToRun: string, groupToRun: string): (GroupKey & ProjectAction)[] {
+export function getProjectsToRunActionIn(
+	config: Config,
+	actionToRun: string,
+	groupToRun: string,
+	projectsToRun: string[],
+): (GroupKey & ProjectAction)[] {
 	// get all actions from all projects with actionToRun key
-	const actionsToRun = Object.entries(config.projects)
+
+	let actionsToRun = Object.entries(config.projects)
 		.filter(
 			([, project]) => project.actions[actionToRun]?.groups[groupToRun] || project.actions[actionToRun]?.groups["*"],
 		)
+		.filter(([projectName]) => {
+			return projectsToRun.includes(projectName);
+		})
 		.reduce((carry, [projectName, project]) => {
 			carry.push({
 				project: projectName,
@@ -147,6 +159,11 @@ export function getActions(config: Config, actionToRun: string, groupToRun: stri
 
 			return carry;
 		}, [] as (GroupKey & ProjectAction)[]);
+
+	/* Resolve dependencies
+	 * If we want to run project A, but A needs B, we need to run B as well.
+	 */
+	actionsToRun = resolveDependenciesForActions(actionsToRun, config, groupToRun, actionToRun);
 
 	/**
 	 * Sometime an action will not have the specific group it needs to run.
@@ -168,9 +185,9 @@ export function getActions(config: Config, actionToRun: string, groupToRun: stri
 		.forEach((actionNoGroup) => {
 			// Find all actions that needs this action, remove this action from the needs list, and replace it with the needs of this action
 			actionsToRun
-				.filter((action) => action.needs?.includes(actionNoGroup))
+				.filter((action) => action.needs.includes(actionNoGroup))
 				.forEach((action) => {
-					action.needs = action.needs?.filter((need) => need !== actionNoGroup);
+					action.needs = action.needs.filter((need) => need !== actionNoGroup);
 					action.needs = [
 						...(action.needs ?? []),
 						...(config.projects[actionNoGroup]?.actions[actionToRun]?.needs ?? []),
@@ -197,4 +214,50 @@ export function findActionsToSkipAfterFailure(
 		});
 	});
 	return blockedActionsSkipped;
+}
+
+export function resolveDependenciesForActions(
+	actionsToRun: (GroupKey & ProjectAction)[],
+	config: Config,
+	groupToRun: string,
+	actionToRun: string,
+) {
+	actionsToRun = [
+		...actionsToRun.reduce((carry, action) => {
+			return new Set([...carry, ...resolveProjectDependencies(config, action)]);
+		}, new Set<GroupKey & ProjectAction>()),
+	]
+		.filter((action) => action.groups[groupToRun] ?? action.groups["*"])
+		.map((action) => {
+			return {
+				...action,
+				group: config.projects[action.project].actions[actionToRun]?.groups[groupToRun] ? groupToRun : "*",
+			};
+		});
+
+	return _.uniqBy(actionsToRun, (action) => action.project);
+}
+
+/*
+ * Resolve dependencies for a key combination
+ */
+export function resolveProjectDependencies(
+	config: Config,
+	action: GroupKey & ProjectAction,
+): Set<GroupKey & ProjectAction> {
+	if (action.needs && action.needs.length > 0) {
+		return action.needs.reduce((carry, need) => {
+			const neededAction = config.projects[need].actions[action.action];
+			return new Set([
+				action,
+				...resolveProjectDependencies(config, {
+					...action,
+					project: need,
+					...neededAction,
+				}),
+				...carry,
+			]);
+		}, new Set<GroupKey & ProjectAction>());
+	}
+	return new Set<GroupKey & ProjectAction>([action]);
 }

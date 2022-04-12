@@ -87,4 +87,31 @@ describe("Config loader", () => {
 
 		expect(config.startup.world).toEqual({ cmd: ["echo", "world2"] });
 	});
+
+	test("It sets needs priority and searchfor if undefined", async () => {
+		const fileCnt = `---\n${yaml.dump({
+			startup: startupStub,
+			projects: {
+				example: {
+					remote: "git@gitlab.com:cego/example.git",
+					default_branch: "main",
+					actions: {
+						up: { groups: { default: ["echo", "up"] } },
+					},
+				},
+			},
+		})}`;
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-override.yml`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.readFile).calledWith(`${cwdStub}/.gitte.yml`, "utf8").mockResolvedValue(fileCnt);
+
+		const config = await loadConfig(cwdStub);
+
+		expect(config.projects.example.actions.up.needs).toEqual([]);
+		expect(config.projects.example.actions.up.searchFor).toEqual([]);
+		expect(config.projects.example.actions.up.priority).toEqual(null);
+	});
 });

@@ -19,26 +19,24 @@ class BufferStreamWithTty extends Writable {
 export class ActionOutputPrinter {
 	maxLines = 10;
 	lastFewLines: { out: string; project: string }[] = [];
-	progressBar: SingleBar;
-	actionToRun: string;
-	groupToRun: string;
+	progressBar?: SingleBar;
+	actionsToRun: string[];
+	groupsToRun: string[];
+	projectsToRun: string[];
 	config: Config;
 	waitingOn = [] as string[];
 	termBuffer = "";
-	bufferStream: BufferStreamWithTty;
+	bufferStream?: BufferStreamWithTty;
 
-	constructor(cfg: Config, actionToRun: string, groupToRun: string) {
-		this.actionToRun = actionToRun;
-		this.groupToRun = groupToRun;
+	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
+		// First parse actionToRun, groupToRun and projectToRun
+
 		this.config = cfg;
-		const addToBufferStream = this.addToBufferStream;
-		this.bufferStream = new BufferStreamWithTty({
-			write(chunk, _, callback) {
-				addToBufferStream(chunk.toString());
-				callback();
-			},
-		});
-		this.progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`, this.bufferStream);
+
+		const [actionsToRun, groupsToRun, projectsToRun] = this.parseRunKeys(actionToRun, groupToRun, projectToRun);
+		this.actionsToRun = actionsToRun;
+		this.groupsToRun = groupsToRun;
+		this.projectsToRun = projectsToRun;
 	}
 
 	addToBufferStream = (chunk: string) => {
@@ -112,12 +110,12 @@ export class ActionOutputPrinter {
 
 	beganTask = (project: string) => {
 		this.waitingOn.push(project);
-		this.progressBar.update({ status: waitingOnToString(this.waitingOn) });
+		this.progressBar?.update({ status: waitingOnToString(this.waitingOn) });
 	};
 
 	finishedTask = (project: string) => {
 		this.waitingOn = this.waitingOn.filter((p) => p !== project);
-		this.progressBar.increment({ status: waitingOnToString(this.waitingOn) });
+		this.progressBar?.increment({ status: waitingOnToString(this.waitingOn) });
 	};
 
 	/**
@@ -125,12 +123,28 @@ export class ActionOutputPrinter {
 	 * @param actionsToRun
 	 */
 	init = (actionsToRun: (GroupKey & ProjectAction)[]): void => {
-		this.bufferStream.write("awdawd");
-		this.progressBar.start(actionsToRun.length, 0, { status: waitingOnToString([]) });
+		this.progressBar?.start(actionsToRun.length, 0, { status: waitingOnToString([]) });
 	};
 
 	run = async (): Promise<void> => {
-		printHeader("Running actions");
+		for (const action of this.actionsToRun) {
+			for (const group of this.groupsToRun) {
+				await this.runActionUtils(action, group);
+			}
+		}
+	};
+
+	runActionUtils = async (actionToRun: string, groupToRun: string): Promise<void> => {
+		const addToBufferStream = this.addToBufferStream;
+		this.bufferStream = new BufferStreamWithTty({
+			write(chunk, _, callback) {
+				addToBufferStream(chunk.toString());
+				callback();
+			},
+		});
+		this.progressBar = getProgressBar(`Running ${actionToRun} ${groupToRun}`, this.bufferStream);
+
+		printHeader(`Running action ${actionToRun} on group ${groupToRun}`);
 		this.prepareOutputLines();
 		// every 100ms, print output
 		const interval = setInterval(() => {
@@ -138,8 +152,9 @@ export class ActionOutputPrinter {
 		}, 100);
 		const stdoutBuffer: (GroupKey & ChildProcessOutput)[] = await actions(
 			this.config,
-			this.actionToRun,
-			this.groupToRun,
+			actionToRun,
+			groupToRun,
+			this.projectsToRun,
 			this,
 		);
 		clearInterval(interval);
@@ -151,10 +166,60 @@ export class ActionOutputPrinter {
 		logActionOutput(stdoutBuffer);
 		if (this.config.searchFor) searchOutputForHints(this.config, stdoutBuffer);
 		if (stdoutBuffer.length === 0) {
-			console.log(
-				chalk`{yellow No groups found for action {cyan ${this.actionToRun}} and group in {cyan ${this.groupToRun}}}`,
-			);
+			console.log(chalk`{yellow No actions was found for the provided action, group and project.}`);
 		}
-		fs.writeFileSync(path.join(this.config.cwd, ".output.json"), JSON.stringify(stdoutBuffer));
+		this.termBuffer = "";
+
+		await this.stashLogsToFile(stdoutBuffer);
+	};
+
+	stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
+		const logsFolderPath = path.join(this.config.cwd, "logs");
+		if (!(await fs.pathExists(logsFolderPath))) {
+			await fs.mkdir(logsFolderPath);
+		}
+
+		for (const log of logs) {
+			const logsFilePath = path.join(logsFolderPath, `${log.action}-${log.group}-${log.project}.log`);
+			const output = [];
+			output.push(...(log.stdout?.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
+			output.push(...(log.stderr?.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
+			output.push(
+				`[exitCode] ${log.cmd?.join(" ")} exited with ${log.exitCode} in ${log.dir} at ${new Date().toISOString()}`,
+			);
+			await fs.writeFile(logsFilePath, output.join("\n"));
+		}
+	};
+
+	parseRunKeys = (actionToRun: string, groupToRun: string, projectToRun: string): [string[], string[], string[]] => {
+		const delimiter = "+";
+		let actionsToRun = actionToRun.split(delimiter);
+		// If '*' is in actionsToRun, then we run all actions
+		if (actionsToRun.includes("*")) {
+			actionsToRun = [
+				...Object.values(this.config.projects).reduce((carry, project) => {
+					return new Set([...carry, ...Object.keys(project.actions)]);
+				}, new Set<string>()),
+			];
+		}
+		let groupsToRun = groupToRun.split(delimiter);
+		// If '*' is in groupsToRun, then we run all groups
+		if (groupsToRun.includes("*")) {
+			groupsToRun = [
+				...Object.values(this.config.projects).reduce((carry, project) => {
+					for (const action of actionsToRun) {
+						const groups = project.actions[action]?.groups ?? {};
+						return new Set([...carry, ...Object.keys(groups)]);
+					}
+					return carry;
+				}, new Set<string>()),
+			];
+		}
+		let projectsToRun = projectToRun ? projectToRun.split(delimiter) : ["*"];
+		if (projectsToRun.includes("*")) {
+			projectsToRun = Object.keys(this.config.projects);
+		}
+
+		return [actionsToRun, groupsToRun, projectsToRun];
 	};
 }

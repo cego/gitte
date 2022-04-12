@@ -5,9 +5,9 @@ export type CmdAction = Action & { cmd: [string, ...string[]] };
 export type ShellAction = Action & { shell: string; script: string };
 
 export type ProjectAction = {
-	searchFor?: SearchFor[];
-	priority?: number;
-	needs?: string[];
+	searchFor: SearchFor[];
+	priority: number | null;
+	needs: string[];
 	groups: { [key: string]: [string, ...string[]] };
 };
 

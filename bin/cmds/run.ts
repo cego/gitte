@@ -11,7 +11,7 @@ export function builder(y: Argv) {
 	return actionsBuilder(y);
 }
 // noinspection JSUnusedGlobalSymbols
-export const command = "run <action> <group>";
+export const command = "run <action> <group> [projects]";
 // noinspection JSUnusedGlobalSymbols
 export const describe = "Run startup, git operations and actions on all projects";
 // noinspection JSUnusedGlobalSymbols
@@ -20,7 +20,7 @@ export async function handler(argv: any) {
 		const cnf = await loadConfig(argv.cwd);
 		await startup(cnf);
 		await gitOpsFromConfig(cnf, argv.autoMerge);
-		await new ActionOutputPrinter(cnf, argv.action, argv.group).run();
+		await new ActionOutputPrinter(cnf, argv.action, argv.group, argv.projects).run();
 	} catch (e) {
 		errorHandler(e);
 	}

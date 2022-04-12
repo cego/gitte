@@ -25,8 +25,9 @@ export function topologicalSortActionGraph(obj: Config, actionName: string, sort
 	Object.entries(obj.projects)
 		.filter(([, project]) => project.actions[actionName])
 		.forEach(([projectKey, project]) => {
-			const needs = [...(project.actions[actionName]?.needs ?? [])];
-			if (project.actions[actionName]?.priority !== undefined) {
+			const action = project.actions[actionName];
+			const needs = [...(action?.needs ?? [])];
+			if (action.priority !== undefined && action.priority !== null) {
 				assert(needs.length === 0, `Priority actions cannot have needs: ${projectKey}/${actionName}`);
 			}
 			edges.set(projectKey, needs);

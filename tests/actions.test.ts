@@ -6,13 +6,16 @@ import {
 	actions,
 	getUniquePriorities,
 	runActionPromiseWrapper,
-	getActions,
+	getProjectsToRunActionIn,
 	findActionsToSkipAfterFailure,
+	resolveDependenciesForActions,
+	resolveProjectDependencies,
 } from "../src/actions";
-import { Config, ProjectAction } from "../src/types/config";
+import { ProjectAction } from "../src/types/config";
 import { GroupKey } from "../src/types/utils";
 import { ActionOutputPrinter } from "../src/actions_utils";
 import { ExecaReturnValue } from "execa";
+import _ from "lodash";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 const mockedActionOutputPrinter = {
@@ -20,7 +23,7 @@ const mockedActionOutputPrinter = {
 	finishedTask: jest.fn(),
 	init: jest.fn(),
 } as unknown as ActionOutputPrinter;
-let cnf: Config;
+let cnf: any;
 beforeEach(() => {
 	// deep copy cnf
 	cnf = JSON.parse(JSON.stringify(cnfStub));
@@ -73,7 +76,7 @@ describe("Action", () => {
 				cmd: ["docker-compose", "up"],
 			});
 
-			const res = await actions(cnf, "start", "cego.dk", mockedActionOutputPrinter, runActionFn);
+			const res = await actions(cnf, "start", "cego.dk", ["projecta"], mockedActionOutputPrinter, runActionFn);
 			expect(runActionFn).toHaveBeenCalledTimes(1);
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
@@ -104,7 +107,14 @@ describe("Action", () => {
 			cnf.projects["projectc"] = { ...cnf.projects["projecta"] };
 			cnf.projects["projectc"].actions["start"].priority = 2;
 
-			const res = await actions(cnf, "start", "cego.dk", mockedActionOutputPrinter, runActionFn);
+			const res = await actions(
+				cnf,
+				"start",
+				"cego.dk",
+				["projecta", "projectb", "projectc"],
+				mockedActionOutputPrinter,
+				runActionFn,
+			);
 			expect(runActionFn).toHaveBeenCalledTimes(3);
 			expect(runActionFn).toHaveBeenCalledWith({
 				config: cnf,
@@ -138,6 +148,7 @@ describe("Action", () => {
 						...cnf.projects.projecta,
 						actions: {
 							start: {
+								needs: [],
 								groups: {
 									"*": ["docker-compose", "up"],
 									"not-this": ["docker-compose", "down"],
@@ -149,7 +160,7 @@ describe("Action", () => {
 
 				const runActionFn = jest.fn().mockResolvedValue({ ...keys, stdout: "Mocked Stdout" });
 
-				const res = await actions(cnf, "start", "cego.dk", mockedActionOutputPrinter, runActionFn);
+				const res = await actions(cnf, "start", "cego.dk", ["projecta"], mockedActionOutputPrinter, runActionFn);
 
 				expect(runActionFn).toHaveBeenCalledWith({
 					config: cnf,
@@ -181,7 +192,7 @@ describe("Action", () => {
 
 				const runActionFn = jest.fn().mockResolvedValue({ ...keys, stdout: "Mocked Stdout" });
 
-				const res = await actions(cnf, "start", "not-this", mockedActionOutputPrinter, runActionFn);
+				const res = await actions(cnf, "start", "not-this", ["projecta"], mockedActionOutputPrinter, runActionFn);
 
 				expect(runActionFn).toHaveBeenCalledWith({
 					config: cnf,
@@ -210,7 +221,7 @@ describe("Action", () => {
 			// deep copy project a
 			cnf.projects["projectd"] = JSON.parse(JSON.stringify(cnf.projects["projecta"]));
 			cnf.projects["projectd"].actions["start"].priority = 2;
-			const actionsToRun = getActions(cnf, "start", "cego.dk");
+			const actionsToRun = getProjectsToRunActionIn(cnf, "start", "cego.dk", ["projecta", "projectb", "projectc"]);
 			const res = getUniquePriorities(actionsToRun);
 			expect(res).toEqual(new Set([1, 2]));
 		});
@@ -230,6 +241,8 @@ describe("Action", () => {
 
 			const blockedActions = [
 				{
+					priority: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					...keys,
@@ -263,7 +276,7 @@ describe("Action", () => {
 
 	describe("getActions", () => {
 		test("It finds actions", () => {
-			const res = getActions(cnf, "start", "cego.dk");
+			const res = getProjectsToRunActionIn(cnf, "start", "cego.dk", ["projecta"]);
 			expect(res).toHaveLength(1);
 		});
 		test("It solves dependency jumps", () => {
@@ -273,6 +286,7 @@ describe("Action", () => {
 					default_branch: cnf.projects["projecta"].default_branch,
 					actions: {
 						start: {
+							needs: [],
 							groups: { "cego.dk": ["start"] },
 						},
 					},
@@ -299,17 +313,60 @@ describe("Action", () => {
 				},
 			};
 
-			const res = getActions(cnf, "start", "cego.dk");
+			const res = getProjectsToRunActionIn(cnf, "start", "cego.dk", ["projecta", "projectb", "projectc"]);
 
 			expect(res).toHaveLength(2);
 			expect(res).toContainEqual(expect.objectContaining({ project: "projecta" }));
 			expect(res).toContainEqual(expect.objectContaining({ project: "projectc", needs: ["projecta"] }));
+		});
+		describe("It resolved dependencies", () => {
+			test("It resolves a project dependency", () => {
+				const config = _.cloneDeep(cnf);
+				const action = {
+					action: "up",
+					group: "cego.dk",
+					project: "projectd",
+					searchFor: [],
+					priority: null,
+					needs: ["projecte"],
+					groups: {},
+				};
+				const res = resolveProjectDependencies(config, action);
+
+				expect([...res]).toHaveLength(2);
+				expect([...res]).toContainEqual(action);
+				expect([...res]).toContainEqual(expect.objectContaining({ project: "projecte" }));
+			});
+			test("It resolves dependencies for multiple", () => {
+				const actionsToRun: (GroupKey & ProjectAction)[] = [
+					{
+						action: "up",
+						group: "cego.dk",
+						project: "projectd",
+						searchFor: [],
+						priority: null,
+						needs: ["projecte"],
+						groups: { "cego.dk": ["docker-compose", "up"] },
+					},
+				];
+				const config = _.cloneDeep(cnf);
+				const groupToRun = "cego.dk";
+				const actionToRun = "up";
+
+				const res = resolveDependenciesForActions(actionsToRun, config, groupToRun, actionToRun);
+
+				expect(res).toHaveLength(2);
+				expect([...res]).toContainEqual(actionsToRun[0]);
+				expect([...res]).toContainEqual(expect.objectContaining({ project: "projecte" }));
+			});
 		});
 	});
 	describe("findActionsToSkipAfterFailure", () => {
 		test("It finds actions to skip", () => {
 			const blockedActions: (GroupKey & ProjectAction)[] = [
 				{
+					priority: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectb",
@@ -321,6 +378,8 @@ describe("Action", () => {
 
 			expect(res).toEqual([
 				{
+					priority: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] },
 					project: "projectb",
@@ -334,6 +393,8 @@ describe("Action", () => {
 		test("It finds chained actions to skip", () => {
 			const blockedActions: (GroupKey & ProjectAction)[] = [
 				{
+					priority: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectb",
@@ -341,6 +402,8 @@ describe("Action", () => {
 					group: "cego.dk",
 				},
 				{
+					priority: null,
+					searchFor: [],
 					needs: ["projectb"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectc",
@@ -348,6 +411,8 @@ describe("Action", () => {
 					group: "cego.dk",
 				},
 				{
+					priority: null,
+					searchFor: [],
 					needs: ["projectd"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projecte",
@@ -359,6 +424,8 @@ describe("Action", () => {
 
 			expect(res).toEqual([
 				{
+					priority: null,
+					searchFor: [],
 					needs: ["projecta"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectb",
@@ -367,6 +434,8 @@ describe("Action", () => {
 					wasSkippedBy: "projecta",
 				},
 				{
+					priority: null,
+					searchFor: [],
 					needs: ["projectb"],
 					groups: { "cego.dk": ["start"] as [string, ...string[]] },
 					project: "projectc",
