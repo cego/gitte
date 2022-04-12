@@ -106,7 +106,8 @@ interface RunActionOpts {
 
 export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
 	const project = options.config.projects[options.keys.project];
-	const group = project.actions[options.keys.action].groups[options.keys.group];
+	const action = project.actions[options.keys.action];
+	const group = action.groups[options.keys.group] ?? action.groups['*'];
 	const dir = getProjectDirFromRemote(options.config.cwd, project.remote);
 
 	const promise = utils.spawn(group[0], group.slice(1), {
