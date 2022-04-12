@@ -207,7 +207,7 @@ export class ActionOutputPrinter {
 		if (groupsToRun.includes("*")) {
 			groupsToRun = [
 				...Object.values(this.config.projects).reduce((carry, project) => {
-					for (const action of this.actionsToRun) {
+					for (const action of actionsToRun) {
 						const groups = project.actions[action]?.groups ?? {};
 						return new Set([...carry, ...Object.keys(groups)]);
 					}
