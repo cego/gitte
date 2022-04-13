@@ -11,6 +11,7 @@ import { Writable } from "stream";
 import ansiEscapes from "ansi-escapes";
 import ON_DEATH from "death";
 import { actions } from "./actions";
+import { AssertionError } from "assert";
 
 class BufferStreamWithTty extends Writable {
 	isTTY = true;
@@ -134,8 +135,21 @@ export class ActionOutputPrinter {
 
 	run = async (): Promise<void> => {
 		for (const action of this.actionsToRun) {
+			let catched: AssertionError | undefined;
 			for (const group of this.groupsToRun) {
-				await this.runActionUtils(action, group);
+				try {
+					await this.runActionUtils(action, group);
+				} catch (e) {
+					if (e instanceof AssertionError) {
+						// catch it but finish other groups..
+						catched = e;
+					} else {
+						throw e;
+					}
+				}
+			}
+			if (catched) {
+				throw catched;
 			}
 		}
 	};
