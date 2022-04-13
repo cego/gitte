@@ -29,7 +29,7 @@ export class ActionOutputPrinter {
 	termBuffer = "";
 	bufferStream?: BufferStreamWithTty;
 	// Holds information on what commands have been run in which paths. Used to deduplicate.
-	alreadyRanGroupDirPairs = new Map<string, Set<string>>();
+	alreadyRunDirCmdPairs = new Map<string, Set<string>>();
 
 	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
 		// First parse actionToRun, groupToRun and projectToRun
@@ -123,16 +123,16 @@ export class ActionOutputPrinter {
 		const group = action.groups[keys.group] ?? action.groups["*"];
 		const cmd = group.join(" ");
 		const dir = getProjectDirFromRemote(this.config.cwd, this.config.projects[keys.project].remote);
-		if (this.alreadyRanGroupDirPairs.get(dir)?.has(cmd)) {
+		if (this.alreadyRunDirCmdPairs.get(dir)?.has(cmd)) {
 			this.progressBar?.increment();
 			return false;
 		}
 
-		if (this.alreadyRanGroupDirPairs.has(dir)) {
+		if (this.alreadyRunDirCmdPairs.has(dir)) {
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			this.alreadyRanGroupDirPairs.get(dir)!.add(cmd);
+			this.alreadyRunDirCmdPairs.get(dir)!.add(cmd);
 		} else {
-			this.alreadyRanGroupDirPairs.set(dir, new Set([cmd]));
+			this.alreadyRunDirCmdPairs.set(dir, new Set([cmd]));
 		}
 
 		this.waitingOn.push(keys.project);
