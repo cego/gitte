@@ -8,7 +8,9 @@ import { printHeader } from "./utils";
 
 export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 	for (const entry of stdoutHistory) {
-		if (entry.wasSkippedBy) {
+		if (entry.wasSkippedDuplicated) {
+			console.log(chalk`{inverse  INFO } Skipped {bold ${entry.project}} because it was already run.`);
+		} else if (entry.wasSkippedBy) {
 			console.log(
 				chalk`{bgYellow  WARN } Skipped: {bold ${entry.project}} because it needed ${entry.wasSkippedBy}, which failed.`,
 			);
@@ -19,7 +21,7 @@ export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 		} else {
 			console.error(
 				chalk`{bgRed  FAIL } {bold ${entry.project}} failed running ${entry.action} ${entry.group},` +
-					chalk`goto {cyan ${entry.dir}} and run {blue ${entry.cmd?.join(" ")}} manually`,
+					chalk` go to {cyan ${entry.dir}} and run {blue ${entry.cmd?.join(" ")}} manually`,
 			);
 		}
 	}
