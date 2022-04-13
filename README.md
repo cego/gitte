@@ -7,65 +7,46 @@
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cego_gitte&metric=coverage)](https://sonarcloud.io/dashboard?id=cego_gitte)
 [![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=cego_gitte&metric=code_smells)](https://sonarcloud.io/dashboard?id=cego_gitte)
 
+Tool to help keep a range of projects up to date with git version control, and also help execute commands and scripts across projects. For configuration options please refer to [config documentation](./docs/config.md).
+
 ## Installation
 
-### Linux
-
-```bash
-curl -s "https://cego.github.io/gitte/ppa/pubkey.gpg" | sudo apt-key add -
-sudo curl -s -o /etc/apt/sources.list.d/gitte.list "https://cego.github.io/gitte/ppa/gitte.list"
-sudo apt-get update
-sudo apt-get install gitte
-```
-
-## Config setup
-
-Put `.gitte.yml` in a designated folder. For reference on what should be in this config, see [config documentation](./docs/config.md)
-
-You can also use a remote config file if a file exists named `.gitte-env`.
+Requires npm and node version 16 or higher.
 
 ```
-REMOTE_GIT_REPO="git@gitlab.com:cego/example.git"
-REMOTE_GIT_FILE=".gitte.yml"
-REMOTE_GIT_REF="master"
+npm install -g @cego/gitte
 ```
 
-gitte will search your current folder for a config. A env file will have higher priority than `.yml`. If gitte fail to find a configuration in your current folder, it will try parent folders.
+# Basic usage
 
-## Usage
+In a terminal in a folder with a gitte configuration, or a subfolder thereof, run:
 
-`gitte run <action> <group>`
+```
+$ gitte run <actions> <groups> [projects]`
+```
 
-All startup checks will run. If they pass, all projects will be updated and the desired action and group will be run for each project.
+Gitte will then do the following
 
-### Git operations
+1. Run all specified startup checks. If any fail, exit.
+2. Try to update all projects with git pull. Will inform the user if update is not possible. Gitte should never overwrite local changes.
+3. Execute the desired action with the given group. The optional project parameter can be used to limit the projects the action and group will run in.
 
-`gitte gitops`
+> An optional option `--auto-merge` can be supplied, that will automatically merge origin/<default_branch> into each project, if you are on a non-default branch without local changes or conflicts. This can also be set by the env variable `GITTE_AUTO_MERGE=true`.
 
-All projects will pull the latest changes if there are no local changes.
+## Wildcards and lists
 
-An optional option `--auto-merge` can be supplied, that will automatically merge origin/<default_branch> into each project. This can also be set by the env variable `GITTE_AUTO_MERGE=true`.
+All three parameters support the wildcard '\*' which will run all action, groups or projects. For example one might want to run all actions in all groups, which can be accomplished with
 
-### Running actions without startup checks and gitops
+```
+gitte run '*' '*'
+```
 
-`gitte actions up cego.dk`
+If you want to specify multiple actions, groups or project, please use the `+` operator.
 
-All projects will run the action `up` with the group `cego.dk` in this case.
+```
+gitte run build+deploy example.com
+```
 
-### Running startup checks alone
+## Other commands
 
-`gitte startup`
-
-### Listing all projects and their actions
-
-`gitte list`
-
-### Validate the config and dependency graph
-
-`gitte validate`
-
-### Other
-
-For more information on other options, try running
-
-`gitte --help`
+For other usage, such as running startup, git operations or actions seperately, please refer to [commands documentation](./docs/commands.md), or see `gitte --help`.
