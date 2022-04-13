@@ -44,14 +44,6 @@ export class ActionOutputPrinter {
 	};
 
 	printOutputLines = () => {
-		// append termBuffer to test file
-		fs.writeJSONSync("./test.json", this.termBuffer, {
-			// no line breaks
-			spaces: 0,
-			// append
-			flag: "a",
-		});
-
 		let toWrite = "";
 		toWrite += ansiEscapes.cursorUp(this.maxLines + 1);
 
