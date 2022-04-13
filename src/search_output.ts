@@ -5,8 +5,10 @@ import { ActionOutput } from "./actions";
 // @ts-ignore - does not have types
 import template from "chalk/source/templates";
 import { printHeader } from "./utils";
+import assert from "assert";
 
 export function logActionOutput(stdoutHistory: ActionOutput[]): void {
+	let isError = false;
 	for (const entry of stdoutHistory) {
 		if (entry.wasSkippedBy) {
 			console.log(
@@ -21,8 +23,10 @@ export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 				chalk`{bgRed  FAIL } {bold ${entry.project}} failed running ${entry.action} ${entry.group},` +
 					chalk`goto {cyan ${entry.dir}} and run {blue ${entry.cmd?.join(" ")}} manually`,
 			);
+			isError = true;
 		}
 	}
+	assert(!isError, "At least one action failed");
 }
 
 export function searchOutputForHints(cfg: Config, stdoutHistory: (GroupKey & ChildProcessOutput)[], firstHint = true) {
