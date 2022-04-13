@@ -1,9 +1,12 @@
 import { ActionOutputPrinter } from "../src/actions_utils";
 import * as utils from "../src/utils";
 import { ExecaReturnValue } from "execa";
-import { cnfStub } from "./utils/stubs";
+import { cnfStub, projectStub } from "./utils/stubs";
 import fs from "fs-extra";
 import { ChildProcessOutput, GroupKey } from "../src/types/utils";
+import _ from "lodash";
+import { Config } from "../src/types/config";
+import { AssertionError } from "assert";
 
 describe("ActionOutputPrinter", () => {
 	test("It runs actions and prints output", async () => {
@@ -55,6 +58,43 @@ describe("ActionOutputPrinter", () => {
 
 		await actionOutputPrinter.stashLogsToFile(logs);
 		expect(fs.writeFile).toHaveBeenCalledTimes(2);
+	});
+
+	test("It stops after all groups have finished with error", async () => {
+		const config: Config = _.cloneDeep(cnfStub);
+		config.projects = {
+			projecta: {
+				remote: projectStub.remote,
+				default_branch: projectStub.default_branch,
+				actions: {
+					a: {
+						searchFor: [],
+						priority: null,
+						needs: [],
+						groups: {
+							"1": ["echo", "1"],
+							"2": ["echo", "2"],
+						},
+					},
+					b: {
+						searchFor: [],
+						priority: null,
+						needs: [],
+						groups: {
+							"1": ["echo", "1"],
+							"2": ["echo", "2"],
+						},
+					},
+				},
+			},
+		};
+
+		const actionOutputPrinter = new ActionOutputPrinter(config, "*", "*", "*");
+		jest.spyOn(actionOutputPrinter, "runActionUtils").mockRejectedValue(new AssertionError({ message: "Error" }));
+
+		await expect(actionOutputPrinter.run()).rejects.toEqual(new AssertionError({ message: "Error" }));
+
+		expect(actionOutputPrinter.runActionUtils).toHaveBeenCalledTimes(2);
 	});
 
 	describe("Parse run keys", () => {
