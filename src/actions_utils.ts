@@ -46,6 +46,12 @@ export class ActionOutputPrinter {
 	printOutputLines = () => {
 		let toWrite = "";
 		toWrite += ansiEscapes.cursorUp(this.maxLines + 1);
+
+		// Avoid printing multiple iterations of progress bar..
+		const splitString = "\u001b[0K\u001b[1G";
+		const splittedTermbuffer = this.termBuffer.split(splitString);
+		this.termBuffer = splitString + splittedTermbuffer[splittedTermbuffer.length - 1];
+
 		toWrite += this.termBuffer;
 		toWrite += ansiEscapes.cursorDown(1);
 		const width = process.stdout.columns;
