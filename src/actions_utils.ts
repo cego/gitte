@@ -44,8 +44,19 @@ export class ActionOutputPrinter {
 	};
 
 	printOutputLines = () => {
+		// append termBuffer to test file
+		fs.writeJSONSync("./test.json", this.termBuffer, {
+			// no line breaks
+			spaces: 0,
+			// append
+			flag: "a",
+		})
+
 		let toWrite = "";
 		toWrite += ansiEscapes.cursorUp(this.maxLines + 1);
+		// split by erase and take last bit
+		const splittedTermbuffer = this.termBuffer.split("\u001b[0K\u001b[1G")
+		this.termBuffer = "\u001b[0K\u001b[1G" + splittedTermbuffer[splittedTermbuffer.length - 1];
 		toWrite += this.termBuffer;
 		toWrite += ansiEscapes.cursorDown(1);
 		const width = process.stdout.columns;
