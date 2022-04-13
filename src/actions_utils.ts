@@ -50,13 +50,16 @@ export class ActionOutputPrinter {
 			spaces: 0,
 			// append
 			flag: "a",
-		})
+		});
 
 		let toWrite = "";
 		toWrite += ansiEscapes.cursorUp(this.maxLines + 1);
-		// split by erase and take last bit
-		const splittedTermbuffer = this.termBuffer.split("\u001b[0K\u001b[1G")
-		this.termBuffer = "\u001b[0K\u001b[1G" + splittedTermbuffer[splittedTermbuffer.length - 1];
+
+		// Avoid printing multiple iterations of progress bar..
+		const splitString = "\u001b[0K\u001b[1G";
+		const splittedTermbuffer = this.termBuffer.split(splitString);
+		this.termBuffer = splitString + splittedTermbuffer[splittedTermbuffer.length - 1];
+
 		toWrite += this.termBuffer;
 		toWrite += ansiEscapes.cursorDown(1);
 		const width = process.stdout.columns;
