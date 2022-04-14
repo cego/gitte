@@ -4,6 +4,8 @@ import { ExecaReturnValue } from "execa";
 import { cnfStub } from "./utils/stubs";
 import fs from "fs-extra";
 import { ChildProcessOutput, GroupKey } from "../src/types/utils";
+import _ from "lodash";
+import { Config } from "../src/types/config";
 
 describe("ActionOutputPrinter", () => {
 	test("It runs actions and prints output", async () => {
@@ -25,6 +27,27 @@ describe("ActionOutputPrinter", () => {
 		expect(spawnSpy).toBeCalledTimes(1);
 		expect(fs.writeFile).toBeCalledTimes(1);
 		expect(process.stdout.write).toBeCalledTimes(3);
+	});
+
+	test("It deduplicates duplicated actions", () => {
+		// @ts-ignore
+		utils.spawn = jest.fn();
+		fs.writeFile = jest.fn();
+		fs.mkdir = jest.fn();
+		fs.pathExists = jest.fn().mockImplementation(() => Promise.resolve(true));
+		console.error = jest.fn();
+		console.log = jest.fn();
+		process.stdout.write = jest.fn();
+		const spawnSpy = jest
+			.spyOn(utils, "spawn")
+			.mockResolvedValue({ stdout: "Mocked Stdout" } as unknown as ExecaReturnValue<string>);
+
+		const config: Config = _.cloneDeep(cnfStub);
+		config.projects["projectb"] = _.cloneDeep(config.projects["projecta"]);
+		const actionOutputPrinter = new ActionOutputPrinter(config, "start", "cego.dk", "*");
+
+		actionOutputPrinter.run();
+		expect(spawnSpy).toBeCalledTimes(1);
 	});
 
 	test("It stashes logs to files", async () => {

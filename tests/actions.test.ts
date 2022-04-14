@@ -19,7 +19,7 @@ import _ from "lodash";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 const mockedActionOutputPrinter = {
-	beganTask: jest.fn(),
+	beganTask: jest.fn().mockImplementation(() => true),
 	finishedTask: jest.fn(),
 	init: jest.fn(),
 } as unknown as ActionOutputPrinter;
