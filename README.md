@@ -9,12 +9,23 @@
 
 Tool to help keep a range of projects up to date with git version control, and also help execute commands and scripts across projects. For configuration options please refer to [config documentation](./docs/config.md).
 
-## Installation
+# Installation
+
+## Install using npm
 
 Requires npm and node version 16 or higher.
 
 ```
 npm install -g @cego/gitte
+```
+
+## Linux binaries
+
+```bash
+curl -s "https://cego.github.io/gitte/ppa/pubkey.gpg" | sudo apt-key add -
+sudo curl -s -o /etc/apt/sources.list.d/gitte.list "https://cego.github.io/gitte/ppa/gitte.list"
+sudo apt-get update
+sudo apt-get install gitte
 ```
 
 # Basic usage
