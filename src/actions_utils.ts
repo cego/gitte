@@ -12,6 +12,7 @@ import ansiEscapes from "ansi-escapes";
 import ON_DEATH from "death";
 import { actions } from "./actions";
 import { AssertionError } from "assert";
+import { getProjectDirFromRemote } from "./project";
 
 class BufferStreamWithTty extends Writable {
 	isTTY = true;
@@ -28,6 +29,8 @@ export class ActionOutputPrinter {
 	waitingOn = [] as string[];
 	termBuffer = "";
 	bufferStream?: BufferStreamWithTty;
+	// Holds information on what commands have been run in which paths. Used to deduplicate.
+	alreadyRunDirCmdPairs = new Map<string, Set<string>>();
 
 	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
 		// First parse actionToRun, groupToRun and projectToRun
@@ -115,9 +118,28 @@ export class ActionOutputPrinter {
 		process.stdout.write(ansiEscapes.cursorHide + Array(this.maxLines + 2).join("\n"));
 	};
 
-	beganTask = (project: string) => {
-		this.waitingOn.push(project);
+	beganTask = (keys: GroupKey): boolean => {
+		const project = this.config.projects[keys.project];
+		const action = project.actions[keys.action];
+		const group = action.groups[keys.group] ?? action.groups["*"];
+		const cmd = group.join(" ");
+		const dir = getProjectDirFromRemote(this.config.cwd, this.config.projects[keys.project].remote);
+		if (this.alreadyRunDirCmdPairs.get(dir)?.has(cmd)) {
+			this.progressBar?.increment();
+			return false;
+		}
+
+		if (this.alreadyRunDirCmdPairs.has(dir)) {
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			this.alreadyRunDirCmdPairs.get(dir)!.add(cmd);
+		} else {
+			this.alreadyRunDirCmdPairs.set(dir, new Set([cmd]));
+		}
+
+		this.waitingOn.push(keys.project);
 		this.progressBar?.update({ status: waitingOnToString(this.waitingOn) });
+
+		return true;
 	};
 
 	finishedTask = (project: string) => {
@@ -178,7 +200,7 @@ export class ActionOutputPrinter {
 			this,
 		);
 		clearInterval(interval);
-		this.progressBar.update({ status: waitingOnToString([]) });
+		this.progressBar.update({ status: waitingOnToString(null) });
 		this.progressBar.stop();
 		// final flush
 		this.printOutputLines();

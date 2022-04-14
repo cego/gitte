@@ -10,8 +10,8 @@ export async function wrapEntryPromiseWithKey<TArg, TReturn>(
 	return { key: arg[0], res };
 }
 
-export function waitingOnToString(waitingOn: string[]): string {
-	if (waitingOn.length === 0) return "Finished all tasks";
+export function waitingOnToString(waitingOn: string[] | null): string {
+	if (waitingOn === null) return "Finished all tasks";
 	let str = "";
 	for (const [i, waitingOnStr] of waitingOn.entries()) {
 		if (i !== 0 && str.length + waitingOnStr.length > 80) {

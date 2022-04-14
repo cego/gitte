@@ -7,7 +7,8 @@ import { ExecaError, ExecaReturnValue } from "execa";
 import { ActionOutputPrinter } from "./actions_utils";
 import _ from "lodash";
 
-export type ActionOutput = GroupKey & ChildProcessOutput & { dir?: string; cmd?: string[]; wasSkippedBy?: string };
+export type ActionOutput = GroupKey &
+	ChildProcessOutput & { dir?: string; cmd?: string[]; wasSkippedBy?: string; wasSkippedDuplicated?: boolean };
 
 export async function actions(
 	config: Config,
@@ -65,7 +66,10 @@ export async function runActionPromiseWrapper(
 	blockedActions: (GroupKey & ProjectAction)[],
 	waitingOn: string[],
 ): Promise<ActionOutput[]> {
-	actionOutputPrinter.beganTask(runActionOpts.keys.project);
+	if (!actionOutputPrinter.beganTask(runActionOpts.keys)) {
+		return [{ wasSkippedDuplicated: true, ...runActionOpts.keys }];
+	}
+
 	return runActionFn(runActionOpts).then(async (res) => {
 		actionOutputPrinter.finishedTask(runActionOpts.keys.project);
 

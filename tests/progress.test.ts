@@ -7,7 +7,10 @@ import {
 describe("Progress helper", () => {
 	describe("WaitingOnToString", () => {
 		test("Finished all tasks", () => {
-			expect(waitingOnToString([])).toBe("Finished all tasks");
+			expect(waitingOnToString(null)).toBe("Finished all tasks");
+		});
+		test("No tasks", () => {
+			expect(waitingOnToString([])).toBe("");
 		});
 		test("One task", () => {
 			expect(waitingOnToString(["test"])).toBe("test");
