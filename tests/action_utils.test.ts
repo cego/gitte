@@ -41,7 +41,7 @@ describe("ActionOutputPrinter", () => {
 		process.stdout.write = jest.fn();
 		const spawnSpy = jest
 			.spyOn(utils, "spawn")
-			.mockResolvedValue({ stdout: "Mocked Stdout" } as unknown as ExecaReturnValue<string>);
+			.mockResolvedValue({ stdout: "Mocked Stdout", exitCode: 0 } as unknown as ExecaReturnValue<string>);
 
 		const config: Config = _.cloneDeep(cnfStub);
 		config.projects["projectb"] = _.cloneDeep(config.projects["projecta"]);
