@@ -89,3 +89,15 @@ searchFor:
   - regex: "\\n[^\"]*Visit https:\\/\\/registry\\.gitlab\\.com\\/ to find login information"
     hint: "{bgYellow  WARN } Login check to registry.gitlab.com failed"
 ```
+
+# Remote configuration
+
+Gitte also supports remote configuration.
+
+If a file exists named `.gitte-env` with the following contents, gitte will prefer to load remote configuration. The remote configuration must follow the rules mentioned above.
+
+```
+REMOTE_GIT_REPO="git@gitlab.com:cego/example.git"
+REMOTE_GIT_FILE=".gitte.yml"
+REMOTE_GIT_REF="master"
+```
