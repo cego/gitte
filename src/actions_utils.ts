@@ -11,7 +11,7 @@ import { Writable } from "stream";
 import ansiEscapes from "ansi-escapes";
 import ON_DEATH from "death";
 import { actions } from "./actions";
-import { AssertionError } from "assert";
+import assert, { AssertionError } from "assert";
 import { getProjectDirFromRemote } from "./project";
 
 class BufferStreamWithTty extends Writable {
@@ -205,7 +205,7 @@ export class ActionOutputPrinter {
 		// final flush
 		this.printOutputLines();
 		await this.clearOutputLines();
-		logActionOutput(stdoutBuffer);
+		const isError = logActionOutput(stdoutBuffer);
 		if (this.config.searchFor) searchOutputForHints(this.config, stdoutBuffer);
 		if (stdoutBuffer.length === 0) {
 			console.log(chalk`{yellow No actions was found for the provided action, group and project.}`);
@@ -213,6 +213,8 @@ export class ActionOutputPrinter {
 		this.termBuffer = "";
 
 		await this.stashLogsToFile(stdoutBuffer);
+
+		assert(!isError, "At least one action failed");
 	};
 
 	stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {

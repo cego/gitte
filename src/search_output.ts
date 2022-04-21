@@ -5,9 +5,8 @@ import { ActionOutput } from "./actions";
 // @ts-ignore - does not have types
 import template from "chalk/source/templates";
 import { printHeader } from "./utils";
-import assert from "assert";
 
-export function logActionOutput(stdoutHistory: ActionOutput[]): void {
+export function logActionOutput(stdoutHistory: ActionOutput[]): boolean {
 	let isError = false;
 	for (const entry of stdoutHistory) {
 		if (entry.wasSkippedDuplicated) {
@@ -28,7 +27,7 @@ export function logActionOutput(stdoutHistory: ActionOutput[]): void {
 			isError = true;
 		}
 	}
-	assert(!isError, "At least one action failed");
+	return isError;
 }
 
 export function searchOutputForHints(cfg: Config, stdoutHistory: (GroupKey & ChildProcessOutput)[], firstHint = true) {
