@@ -36,6 +36,7 @@
 		"js-yaml": "^4.1.0",
 		"lodash": "^4.17.21",
 		"source-map-support": "^0.5.21",
+		"tildify": "^2.0.0",
 		"yargs": "^17.4.0"
 	},
 	"devDependencies": {
