@@ -7,6 +7,7 @@ import { ErrorWithHint, ToChildProcessOutput } from "./types/utils";
 import { applyPromiseToEntriesWithProgressBar } from "./progress";
 import * as utils from "./utils";
 import { AssertionError } from "assert";
+import tildify from "tildify";
 
 type LogFn = (arg: string | ErrorWithHint) => void;
 
@@ -15,7 +16,7 @@ async function hasLocalChanges(dir: string): Promise<boolean> {
 		utils.spawn("git", ["status", "--porcelain"], { cwd: dir, encoding: "utf8" }),
 	);
 	if (err || !res) {
-		throw new ErrorWithHint(chalk`{yellow ${dir}} {red failed} to check for local changes ${err?.stderr}`);
+		throw new ErrorWithHint(chalk`{yellow ${tildify(dir)}} {red failed} to check for local changes ${err?.stderr}`);
 	}
 	return `${res.stdout}`.trim().length !== 0;
 }
@@ -26,31 +27,33 @@ async function pull(dir: string, currentBranch: string, log: LogFn) {
 
 	if (err || !res) {
 		if (`${err?.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
-			log(chalk`{cyan ${currentBranch}} {red doesn't have a remote origin} in {cyan ${dir}}`);
+			log(chalk`{cyan ${currentBranch}} {red doesn't have a remote origin} in {cyan ${tildify(dir)}}`);
 		} else if (`${err?.stderr}`.trim().startsWith(`Your configuration specifies to merge with the ref`)) {
-			log(chalk`{cyan ${currentBranch}} {red no such ref could be fetched} in {cyan ${dir}}`);
+			log(chalk`{cyan ${currentBranch}} {red no such ref could be fetched} in {cyan ${tildify(dir)}}`);
 		} else {
-			log(chalk`{cyan ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} in {cyan ${dir}}`);
+			log(
+				chalk`{cyan ${currentBranch}} {red conflicts} with {magenta origin/${currentBranch}} in {cyan ${tildify(dir)}}`,
+			);
 		}
 		return false;
 	}
 
 	const msg = `${res.stdout}`.trim();
 	if (msg === "Already up to date.") {
-		log(chalk`{cyan ${currentBranch}} is up to date with {magenta origin/${currentBranch}} in {cyan ${dir}}`);
+		log(chalk`{cyan ${currentBranch}} is up to date with {magenta origin/${currentBranch}} in {cyan ${tildify(dir)}}`);
 	} else {
-		log(chalk`{cyan ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${dir}}`);
+		log(chalk`{cyan ${currentBranch}} pulled changes from {magenta origin/${currentBranch}} in {cyan ${tildify(dir)}}`);
 	}
 	return true;
 }
 
 async function mergeError(dir: string, currentB: string, defaultB: string, log: LogFn) {
-	log(chalk`{yellow ${currentB}} merge with {magenta origin/${defaultB}} {red failed} in {cyan ${dir}}`);
+	log(chalk`{yellow ${currentB}} merge with {magenta origin/${defaultB}} {red failed} in {cyan ${tildify(dir)}}`);
 
 	const pcpPromise = utils.spawn("git", ["merge", "--abort"], { cwd: dir, encoding: "utf8" });
 	const [err] = await to(pcpPromise);
 	if (err) {
-		log(chalk`{yellow ${currentB}} merge --abort also {red failed} in {cyan ${dir}}`);
+		log(chalk`{yellow ${currentB}} merge --abort also {red failed} in {cyan ${tildify(dir)}}`);
 	}
 }
 
@@ -64,9 +67,9 @@ async function merge(dir: string, currentB: string, defaultBranch: string, log: 
 
 	const msg = `${res.stdout}`.trim();
 	if (msg === "Already up to date.") {
-		log(chalk`{cyan ${currentB}} is up to date with {magenta origin/${defaultBranch}} in {cyan ${dir}}`);
+		log(chalk`{cyan ${currentB}} is up to date with {magenta origin/${defaultBranch}} in {cyan ${tildify(dir)}}`);
 	} else {
-		log(chalk`{yellow {cyan ${currentB}} was merged with {magenta origin/${defaultBranch}} in {cyan ${dir}}}`);
+		log(chalk`{yellow {cyan ${currentB}} was merged with {magenta origin/${defaultBranch}} in {cyan ${tildify(dir)}}}`);
 	}
 }
 
@@ -79,10 +82,10 @@ async function clone(cwd: string, remote: string, dir: string, log: LogFn) {
 			log(new ErrorWithHint(errorMessage));
 			return;
 		}
-		log(new ErrorWithHint(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} \n${err?.stderr}`));
+		log(new ErrorWithHint(chalk`{yellow ${remote}} {red failed} in {cyan ${tildify(dir)}} \n${err?.stderr}`));
 		return;
 	}
-	log(chalk`{gray ${remote}} was cloned to {cyan ${dir}}`);
+	log(chalk`{gray ${remote}} was cloned to {cyan ${tildify(dir)}}`);
 }
 
 export async function logHowFarBehindDefaultBranch(
@@ -107,12 +110,16 @@ export async function logHowFarBehindDefaultBranch(
 
 	if (splitted[1] !== "0") {
 		log(
-			chalk`{yellow ${currentBranch}} is {red ${splitted[1]}} commits behind {cyan ${defaultBranch}} in {cyan ${cwd}}`,
+			chalk`{yellow ${currentBranch}} is {red ${splitted[1]}} commits behind {cyan ${defaultBranch}} in {cyan ${tildify(
+				cwd,
+			)}}`,
 		);
 	}
 	if (splitted[0] !== "0") {
 		log(
-			chalk`{yellow ${currentBranch}} is {green ${splitted[0]}} commits ahead of {cyan ${defaultBranch}} in {cyan ${cwd}}`,
+			chalk`{yellow ${currentBranch}} is {green ${
+				splitted[0]
+			}} commits ahead of {cyan ${defaultBranch}} in {cyan ${tildify(cwd)}}`,
 		);
 	}
 }
@@ -139,7 +146,7 @@ export async function gitops(
 	const [err, res]: ToChildProcessOutput = await to(pcpPromise);
 
 	if (err || !res) {
-		log(new ErrorWithHint(chalk`{yellow ${remote}} {red failed} in {cyan ${dir}} ${err}`));
+		log(new ErrorWithHint(chalk`{yellow ${remote}} {red failed} in {cyan ${tildify(dir)}} ${err}`));
 		return logs;
 	}
 

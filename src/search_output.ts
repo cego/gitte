@@ -5,6 +5,7 @@ import { ActionOutput } from "./actions";
 // @ts-ignore - does not have types
 import template from "chalk/source/templates";
 import { printHeader } from "./utils";
+import tildify from "tildify";
 
 export function logActionOutput(stdoutHistory: ActionOutput[]): boolean {
 	let isError = false;
@@ -17,12 +18,14 @@ export function logActionOutput(stdoutHistory: ActionOutput[]): boolean {
 			);
 		} else if (entry.exitCode === 0) {
 			console.log(
-				chalk`{bgGreen  PASS } {bold ${entry.project}} {blue ${entry.cmd?.join(" ")}} ran in {cyan ${entry.dir}}`,
+				chalk`{bgGreen  PASS } {bold ${entry.project}} {blue ${entry.cmd?.join(" ")}} ran in {cyan ${tildify(
+					entry.dir ?? "",
+				)}}`,
 			);
 		} else {
 			console.error(
 				chalk`{bgRed  FAIL } {bold ${entry.project}} failed running ${entry.action} ${entry.group},` +
-					chalk` go to {cyan ${entry.dir}} and run {blue ${entry.cmd?.join(" ")}} manually`,
+					chalk` go to {cyan ${tildify(entry.dir ?? "")}} and run {blue ${entry.cmd?.join(" ")}} manually`,
 			);
 			isError = true;
 		}
