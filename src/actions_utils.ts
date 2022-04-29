@@ -207,7 +207,7 @@ export class ActionOutputPrinter {
 		this.progressBar.update({ status: waitingOnToString(null) });
 		this.progressBar.stop();
 		// final flush
-		await this.printOutputLines();
+		this.printOutputLines();
 		await this.clearOutputLines();
 		const isError = await logActionOutput(stdoutBuffer, this.config.cwd);
 		if (this.config.searchFor) searchOutputForHints(this.config, stdoutBuffer);

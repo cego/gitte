@@ -26,7 +26,7 @@ export async function logActionOutput(stdoutHistory: ActionOutput[], cwd: string
 		} else {
 			console.error(
 				chalk`{bgRed  FAIL } {bold ${entry.project}} failed running ${entry.action} ${entry.group}.` +
-					chalk` Output logs can be found in ${tildify(await ActionOutputPrinter.getLogFilePath(cwd, entry))}`,
+					chalk` Output logs can be found in {cyan ${tildify(await ActionOutputPrinter.getLogFilePath(cwd, entry))}}`,
 			);
 			isError = true;
 		}
