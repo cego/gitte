@@ -159,6 +159,6 @@ describe("ActionOutputPrinter", () => {
 
 			expect(logFilePath).toEqual("/home/user/gitte/logs/start-group1-projecta.log");
 			expect(fs.mkdir).toHaveBeenCalledTimes(1);
-		})
+		});
 	});
 });

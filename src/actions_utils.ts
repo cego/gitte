@@ -57,7 +57,7 @@ export class ActionOutputPrinter {
 		this.termBuffer = splitString + splittedTermbuffer[splittedTermbuffer.length - 1];
 
 		// Remove cursor restore
-		this.termBuffer = this.termBuffer.replace("\u001b8", "")
+		this.termBuffer = this.termBuffer.replace("\u001b8", "");
 
 		toWrite += this.termBuffer;
 		toWrite += ansiEscapes.cursorDown(1);
@@ -221,15 +221,15 @@ export class ActionOutputPrinter {
 		assert(!isError, "At least one action failed");
 	};
 
-	static getLogFilePath = async (cwd: string, log: (GroupKey & ChildProcessOutput)): Promise<string> => {
+	static getLogFilePath = async (cwd: string, log: GroupKey & ChildProcessOutput): Promise<string> => {
 		const logsFolderPath = path.join(cwd, "logs");
 
 		if (!(await fs.pathExists(logsFolderPath))) {
 			await fs.mkdir(logsFolderPath);
 		}
-		
+
 		return path.join(logsFolderPath, `${log.action}-${log.group}-${log.project}.log`);
-	}
+	};
 
 	stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
 		for (const log of logs) {
