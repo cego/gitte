@@ -14,11 +14,6 @@ yargs(process.argv.slice(2))
 	.wrap(terminalWidth)
 	.showHelpOnFail(false)
 	.strict(true)
-	.middleware((args: any) => {
-		if (args.cwd && args.cwd.startsWith(process.env.HOME)) {
-			args.cwd = args.cwd.replace(process.env.HOME, "~");
-		}
-	})
 	.option("cwd", {
 		alias: "c",
 		describe: "Custom current working directory",

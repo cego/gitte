@@ -6,8 +6,9 @@ import { ActionOutput } from "./actions";
 import template from "chalk/source/templates";
 import { printHeader } from "./utils";
 import tildify from "tildify";
+import { ActionOutputPrinter } from "./actions_utils";
 
-export function logActionOutput(stdoutHistory: ActionOutput[]): boolean {
+export async function logActionOutput(stdoutHistory: ActionOutput[], cwd: string): Promise<boolean> {
 	let isError = false;
 	for (const entry of stdoutHistory) {
 		if (entry.wasSkippedDuplicated) {
@@ -24,8 +25,8 @@ export function logActionOutput(stdoutHistory: ActionOutput[]): boolean {
 			);
 		} else {
 			console.error(
-				chalk`{bgRed  FAIL } {bold ${entry.project}} failed running ${entry.action} ${entry.group},` +
-					chalk` go to {cyan ${tildify(entry.dir ?? "")}} and run {blue ${entry.cmd?.join(" ")}} manually`,
+				chalk`{bgRed  FAIL } {bold ${entry.project}} failed running ${entry.action} ${entry.group}.` +
+					chalk` Output logs can be found in {cyan ${tildify(await ActionOutputPrinter.getLogFilePath(cwd, entry))}}`,
 			);
 			isError = true;
 		}

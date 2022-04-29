@@ -145,4 +145,20 @@ describe("ActionOutputPrinter", () => {
 			expect(keys).toEqual([["action"], ["group"], ["projecta"]]);
 		});
 	});
+
+	describe("getLogFilePath", () => {
+		test("It creates the log folder if it does not exist", async () => {
+			fs.mkdir = jest.fn();
+			fs.pathExists = jest.fn().mockImplementation(() => Promise.resolve(false));
+
+			const logFilePath = await ActionOutputPrinter.getLogFilePath(cnfStub.cwd, {
+				action: "start",
+				group: "group1",
+				project: "projecta",
+			});
+
+			expect(logFilePath).toEqual("/home/user/gitte/logs/start-group1-projecta.log");
+			expect(fs.mkdir).toHaveBeenCalledTimes(1);
+		});
+	});
 });
