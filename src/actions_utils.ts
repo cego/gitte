@@ -203,9 +203,9 @@ export class ActionOutputPrinter {
 		this.progressBar.update({ status: waitingOnToString(null) });
 		this.progressBar.stop();
 		// final flush
-		this.printOutputLines();
+		await this.printOutputLines();
 		await this.clearOutputLines();
-		const isError = logActionOutput(stdoutBuffer);
+		const isError = logActionOutput(stdoutBuffer, this.config.cwd);
 		if (this.config.searchFor) searchOutputForHints(this.config, stdoutBuffer);
 		if (stdoutBuffer.length === 0) {
 			console.log(chalk`{yellow No actions was found for the provided action, group and project.}`);
@@ -217,14 +217,19 @@ export class ActionOutputPrinter {
 		assert(!isError, "At least one action failed");
 	};
 
-	stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
-		const logsFolderPath = path.join(this.config.cwd, "logs");
+	static getLogFilePath = async (cwd: string, log: (GroupKey & ChildProcessOutput)): Promise<string> => {
+		const logsFolderPath = path.join(cwd, "logs");
+
 		if (!(await fs.pathExists(logsFolderPath))) {
 			await fs.mkdir(logsFolderPath);
 		}
+		
+		return path.join(logsFolderPath, `${log.action}-${log.group}-${log.project}.log`);
+	}
 
+	stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
 		for (const log of logs) {
-			const logsFilePath = path.join(logsFolderPath, `${log.action}-${log.group}-${log.project}.log`);
+			const logsFilePath = await ActionOutputPrinter.getLogFilePath(this.config.cwd, log);
 			const output = [];
 			output.push(...(log.stdout?.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
 			output.push(...(log.stderr?.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
