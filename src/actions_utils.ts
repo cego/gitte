@@ -56,6 +56,9 @@ export class ActionOutputPrinter {
 		const splittedTermbuffer = this.termBuffer.split(splitString);
 		this.termBuffer = splitString + splittedTermbuffer[splittedTermbuffer.length - 1];
 
+		// Remove cursor restore
+		this.termBuffer = this.termBuffer.replace("\u001b8", "")
+
 		toWrite += this.termBuffer;
 		toWrite += ansiEscapes.cursorDown(1);
 		const width = process.stdout.columns;
@@ -177,6 +180,7 @@ export class ActionOutputPrinter {
 	};
 
 	runActionUtils = async (actionToRun: string, groupToRun: string): Promise<void> => {
+		this.lastFewLines = [];
 		const addToBufferStream = this.addToBufferStream;
 		this.bufferStream = new BufferStreamWithTty({
 			write(chunk, _, callback) {
@@ -205,7 +209,7 @@ export class ActionOutputPrinter {
 		// final flush
 		await this.printOutputLines();
 		await this.clearOutputLines();
-		const isError = logActionOutput(stdoutBuffer, this.config.cwd);
+		const isError = await logActionOutput(stdoutBuffer, this.config.cwd);
 		if (this.config.searchFor) searchOutputForHints(this.config, stdoutBuffer);
 		if (stdoutBuffer.length === 0) {
 			console.log(chalk`{yellow No actions was found for the provided action, group and project.}`);
