@@ -12,6 +12,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	const cnfPath = path.join(cwd, `.gitte.yml`);
 	const dotenvPath = path.join(cwd, `.gitte-env`);
 	const overridePath = path.join(cwd, ".gitte-override.yml");
+	const projectsDisablePath = path.join(cwd, ".gitte-projects-disable");
 
 	let fileContent;
 
@@ -55,6 +56,15 @@ export async function loadConfig(cwd: string): Promise<Config> {
 		yml = _.merge(yml, overrideYml);
 	}
 
+	// Load .gitte-projects-disable
+	if (!await fs.pathExists(projectsDisablePath)) {
+		await fs.writeFile(projectsDisablePath, "", "utf8");
+	}
+	const projectsDisabled: string = (await fs.readFile(projectsDisablePath, "utf8")).toString();
+	projectsDisabled.split("\n").forEach(projectName => {
+		_.unset(yml.projects, projectName);
+	})
+	
 	assert(validateYaml(yml), "Invalid .gitte.yml file");
 
 	// For any action, replace needs with an empty array if undefined.
