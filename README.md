@@ -65,4 +65,4 @@ For other usage, such as running startup, git operations or actions seperately, 
 ## Override and exclude projects
 If the file `.gitte-override.yml` exist in the same folder as `.gitte.yml` or `.gitte-env` it will automatically be merged.
 
-If the file `.gitte-projects-exclude` exist, projects, seperated by a newline, will be excluded from gitte.
+If the file `.gitte-projects-disable` exist, projects, seperated by a newline, will be excluded from gitte.
