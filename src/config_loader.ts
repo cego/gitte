@@ -57,14 +57,14 @@ export async function loadConfig(cwd: string): Promise<Config> {
 	}
 
 	// Load .gitte-projects-disable
-	if (!await fs.pathExists(projectsDisablePath)) {
+	if (!(await fs.pathExists(projectsDisablePath))) {
 		await fs.writeFile(projectsDisablePath, "", "utf8");
 	}
 	const projectsDisabled: string = (await fs.readFile(projectsDisablePath, "utf8")).toString();
-	projectsDisabled.split("\n").forEach(projectName => {
+	projectsDisabled.split("\n").forEach((projectName) => {
 		_.unset(yml.projects, projectName);
-	})
-	
+	});
+
 	assert(validateYaml(yml), "Invalid .gitte.yml file");
 
 	// For any action, replace needs with an empty array if undefined.

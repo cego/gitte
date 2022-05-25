@@ -2,7 +2,7 @@ import fs from "fs-extra";
 import { when } from "jest-when";
 import yaml from "js-yaml";
 import * as utils from "../src/utils";
-import { cnfStub, cwdStub, projectStub, startupStub } from "./utils/stubs";
+import { cwdStub, projectStub, startupStub } from "./utils/stubs";
 import { loadConfig } from "../src/config_loader";
 import { ExecaReturnValue } from "execa";
 
@@ -10,9 +10,12 @@ let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 let readSpy: jest.MockInstance<any, any[]>;
 beforeEach(() => {
 	readSpy = jest.spyOn(fs, "readFile");
-	
+
 	// @ts-ignore
-	when(readSpy).calledWith(`${cwdStub}/.gitte.yml`, "utf8").mockResolvedValue(`---\n${yaml.dump({
+	when(readSpy)
+		.calledWith(`${cwdStub}/.gitte.yml`, "utf8")
+		.mockResolvedValue(
+			`---\n${yaml.dump({
 				projects: { example: projectStub },
 				startup: startupStub,
 			})}`,
@@ -166,7 +169,7 @@ describe("Config loader", () => {
 		const config = await loadConfig(cwdStub);
 
 		expect(Object.keys(config.projects)).toEqual(["example2"]);
-	})
+	});
 	test("It creates empty .gitte-projects-disable if not exists", async () => {
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
@@ -175,13 +178,12 @@ describe("Config loader", () => {
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(false);
 
-
 		const writeSpy = jest.spyOn(fs, "writeFile").mockImplementation(() => Promise.resolve());
 
 		await loadConfig(cwdStub);
 
 		expect(writeSpy).toHaveBeenCalledWith(`${cwdStub}/.gitte-projects-disable`, "", "utf8");
-	})
+	});
 	test("It does not remove any projects if .gitte-projects-disable is empty", async () => {
 		const fileCnt = `---\n${yaml.dump({
 			startup: startupStub,
@@ -219,5 +221,5 @@ describe("Config loader", () => {
 		const config = await loadConfig(cwdStub);
 
 		expect(Object.keys(config.projects)).toEqual(["example1", "example2", "example3"]);
-	})
+	});
 });
