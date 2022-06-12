@@ -13,6 +13,7 @@ import ON_DEATH from "death";
 import { actions } from "./actions";
 import assert, { AssertionError } from "assert";
 import { getProjectDirFromRemote } from "./project";
+import { Task } from "./task_running/task";
 
 class BufferStreamWithTty extends Writable {
 	isTTY = true;
@@ -26,7 +27,7 @@ export class ActionOutputPrinter {
 	groupsToRun: string[];
 	projectsToRun: string[];
 	config: Config;
-	waitingOn = [] as string[];
+	waitingOn = [] as GroupKey[];
 	termBuffer = "";
 	bufferStream?: BufferStreamWithTty;
 	// Holds information on what commands have been run in which paths. Used to deduplicate.
@@ -145,8 +146,8 @@ export class ActionOutputPrinter {
 		return true;
 	};
 
-	finishedTask = (project: string) => {
-		this.waitingOn = this.waitingOn.filter((p) => p !== project);
+	finishedTask = (task: Task) => {
+		this.waitingOn = this.waitingOn.filter((key) => key !== task.key);
 		this.progressBar?.increment({ status: waitingOnToString(this.waitingOn) });
 	};
 

@@ -19,7 +19,6 @@ export async function actions(
 	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput> = runAction,
 ): Promise<ActionOutput[]> {
 	const projectsToRunActionIn = getProjectsToRunActionIn(config, actionToRun, groupToRun, projectsToRun);
-	const uniquePriorities = getUniquePriorities(projectsToRunActionIn);
 	const blockedProjects = projectsToRunActionIn.filter((action) => (action.needs?.length ?? 0) > 0);
 	const waitingOn = [] as string[];
 
@@ -52,55 +51,6 @@ export async function actions(
 
 	return stdoutBuffer;
 }
-export function getUniquePriorities(actionsToRun: (GroupKey & ProjectAction)[]): Set<number> {
-	return actionsToRun.reduce((carry, action) => {
-		carry.add(action.priority ?? 0);
-		return carry;
-	}, new Set<number>());
-}
-
-export async function runActionPromiseWrapper(
-	runActionOpts: RunActionOpts,
-	runActionFn: (opts: RunActionOpts) => Promise<ActionOutput>,
-	actionOutputPrinter: ActionOutputPrinter,
-	blockedActions: (GroupKey & ProjectAction)[],
-	waitingOn: string[],
-): Promise<ActionOutput[]> {
-	if (!actionOutputPrinter.beganTask(runActionOpts.keys)) {
-		return [{ wasSkippedDuplicated: true, ...runActionOpts.keys }];
-	}
-
-	return runActionFn(runActionOpts).then(async (res) => {
-		actionOutputPrinter.finishedTask(runActionOpts.keys.project);
-
-		// if exit code was not zero, remove all blocked actions that needs this action
-		const removedBlockedActions = res.exitCode === 0 ? [] : findActionsToSkipAfterFailure(res.project, blockedActions);
-
-		const actionsFreedtoRun = blockedActions.reduce((carry, action, i) => {
-			action.needs = action.needs?.filter((need) => need !== runActionOpts.keys.project);
-			if (action.needs?.length === 0) {
-				delete blockedActions[i];
-				carry.push(action);
-			}
-			return carry;
-		}, [] as (GroupKey & ProjectAction)[]);
-
-		const runBlockedActionPromises = actionsFreedtoRun.map((action) => {
-			return runActionPromiseWrapper(
-				{ ...runActionOpts, keys: { ...runActionOpts.keys, project: action.project } },
-				runActionFn,
-				actionOutputPrinter,
-				blockedActions,
-				waitingOn,
-			);
-		});
-
-		const blockedActionsResult = (await Promise.all(runBlockedActionPromises)).reduce((carry, blockedActionResult) => {
-			return [...carry, ...blockedActionResult];
-		}, [] as ActionOutput[]);
-		return [res, ...blockedActionsResult, ...removedBlockedActions];
-	});
-}
 
 interface RunActionOpts {
 	config: Config;
@@ -108,35 +58,6 @@ interface RunActionOpts {
 	actionOutputPrinter: ActionOutputPrinter;
 }
 
-export async function runAction(options: RunActionOpts): Promise<ActionOutput> {
-	const project = options.config.projects[options.keys.project];
-	const action = project.actions[options.keys.action];
-	const group = action.groups[options.keys.group] ?? action.groups["*"];
-	const dir = getProjectDirFromRemote(options.config.cwd, project.remote);
-
-	const promise = utils.spawn(group[0], group.slice(1), {
-		cwd: dir,
-		env: process.env,
-		encoding: "utf8",
-		// increase max buffer from 200KB to 2MB
-		maxBuffer: 1024 * 2048,
-	});
-
-	promise.stdout?.pipe(options.actionOutputPrinter.getWritableStream(options.keys.project));
-	promise.stderr?.pipe(options.actionOutputPrinter.getWritableStream(options.keys.project));
-
-	const res: ExecaReturnValue<string> | ExecaError<string> = await promise.catch((err) => err);
-
-	return {
-		...options.keys,
-		stdout: res.stdout?.toString() ?? "",
-		stderr: res.stderr?.toString() ?? "",
-		exitCode: res.exitCode,
-		signal: res.signal,
-		dir,
-		cmd: group,
-	};
-}
 
 export function getProjectsToRunActionIn(
 	config: Config,
@@ -200,24 +121,6 @@ export function getProjectsToRunActionIn(
 		});
 
 	return actionsToRun;
-}
-export function findActionsToSkipAfterFailure(
-	failedProject: string,
-	blockedActions: (GroupKey & ProjectAction)[],
-): ActionOutput[] {
-	const blockedActionsSkipped = [] as ActionOutput[];
-	const actionsToSkip = blockedActions.filter((actionToSkip) => actionToSkip.needs?.includes(failedProject));
-	actionsToSkip.forEach((actionToSkip) => {
-		blockedActionsSkipped.push({
-			...actionToSkip,
-			wasSkippedBy: failedProject,
-		});
-		delete blockedActions[blockedActions.indexOf(actionToSkip)];
-		findActionsToSkipAfterFailure(actionToSkip.project, blockedActions).forEach((skippedActionResult) => {
-			blockedActionsSkipped.push(skippedActionResult);
-		});
-	});
-	return blockedActionsSkipped;
 }
 
 export function resolveDependenciesForActions(
