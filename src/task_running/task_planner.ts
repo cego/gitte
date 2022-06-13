@@ -70,7 +70,10 @@ class TaskPlanner {
         }
         // Resolve any unrunnable dependencies
         keySets = this.removeUnrunnable(keySets);
-        
+
+        // Remove duplicates
+        keySets = [...new Set(keySets)];
+
         return keySets;
     }
 
@@ -173,3 +176,5 @@ class TaskPlanner {
             }, [] as GroupKeyWithDependencies[]);
     }
 }
+
+export { TaskPlanner };

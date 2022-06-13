@@ -1,12 +1,10 @@
 import chalk from "chalk";
 import { Config, SearchFor } from "./types/config";
 import { ChildProcessOutput, GroupKey } from "./types/utils";
-import { ActionOutput } from "./actions";
 // @ts-ignore - does not have types
 import template from "chalk/source/templates";
 import { printHeader } from "./utils";
 import tildify from "tildify";
-import { ActionOutputPrinter } from "./actions_utils";
 
 export async function logActionOutput(stdoutHistory: ActionOutput[], cwd: string): Promise<boolean> {
 	let isError = false;

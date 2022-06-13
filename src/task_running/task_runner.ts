@@ -1,6 +1,6 @@
 import { Task, TaskState } from "./task";
-import { ActionOutputPrinter } from "../actions_utils";
 import assert from "assert";
+import { TaskHandler } from "./task_handler";
 
 /**
  * Class that, given a list of tasks, will run them.
@@ -15,7 +15,7 @@ class TaskRunner {
 
     constructor(
         private tasks: Task[],
-        private actionOutputPrinter: ActionOutputPrinter
+        private actionOutputPrinter: TaskHandler
     ) { }
 
     public async run(): Promise<void> {
@@ -73,3 +73,5 @@ class TaskRunner {
         return [...new Set(priorities)];
     }
 }
+
+export { TaskRunner }
