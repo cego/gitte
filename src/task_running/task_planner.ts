@@ -8,6 +8,8 @@ type ProjectAction = {
     action: string;
 }
 
+type GroupKeyWithDependencies = GroupKey & { needs: GroupKey[] };
+
 /**
  * Given an input of 
  * - Actions
@@ -50,47 +52,93 @@ class TaskPlanner {
         return keySets.map(keySet => {
             const project = this.config.projects[keySet.project];
             const action = project.actions[keySet.action];
-            const needs = action.needs.map((need: string) => ({ ...keySet, action: need}));
+            const needs = this.config.needs ? action.needs.map((need: string) => ({ ...keySet, action: need })) : [];
             const cwd = getProjectDirFromRemote(this.config.cwd, project.remote);
 
-            return new Task(keySet, { cwd, cmd: action.groups[keySet.group], priority: action.priority ?? 0}, needs)
+            return new Task(keySet, { cwd, cmd: action.groups[keySet.group], priority: action.priority ?? 0 }, needs)
         });
     }
 
     findKeySets(actionsStr: string[], groupsStr: string[], projectsStr: string[]): GroupKey[] {
         const projects = this.findProjects(projectsStr);
         const actions = this.findActions(projects, actionsStr);
-        const keySets = this.findGroups(actions, groupsStr);
+        let keySets = this.findGroups(actions, groupsStr);
 
-        if(this.config.needs) {
+        if (this.config.needs) {
             // Resolve dependencies between projects of same action and group.
-            return this.addProjectDependencies(keySets);
+            keySets = this.addProjectDependencies(keySets);
         }
-        // todo i think we need to remove dependencies from needs, even if we dont intend to run them.
+        // Resolve any unrunnable dependencies
+        keySets = this.removeUnrunnable(keySets);
+        
         return keySets;
     }
 
-    addProjectDependencies(keySets: GroupKey[]): GroupKey[] {
-        // go through each key set, and verify that all dependencies are met.
-        for(const keySet of keySets) {
-            const project = this.config.projects[keySet.project];
-            const action = project.actions[keySet.action];
-            const needs = action.needs.map((need: string) => ({ ...keySet, action: need}));
-            const missing = needs.filter(need => !keySets.includes(need));
-            
-            for(const missingKeySet of missing) {
-                const missingAction = project.actions[missingKeySet.action];
-                // if the group 
-                if(this.config.projects[missingKeySet.project].actions[missingKeySet.action].groups[missingKeySet.group]) {
-                    keySets.push(missingKeySet);
+    /**
+     * Remove keySets with group "!", and replace involved dependencies.
+     * @param keySets 
+     */
+    removeUnrunnable(keySets: GroupKeyWithDependencies[]): GroupKeyWithDependencies[] {
+        let keySetsCopy = [...keySets];
+        for (const keySet of keySets) {
+            if (keySet.group == "!") {
+                keySetsCopy = keySetsCopy.filter(keySetFilter => keySet != keySetFilter);
+                // find all keySets that depend on this keySet
+                const dependentKeySets = keySetsCopy.filter(keySetFilter => keySetFilter.needs.includes(keySet));
+                // replace the dependency with the dependencies of the unrunnable keyset.
+                for (const dependentKeySet of dependentKeySets) {
+                    dependentKeySet.needs = [...dependentKeySet.needs.filter(keySetFilter => keySetFilter != keySet), ...keySet.needs];
                 }
-                else {
-
-                }
-
-            
+            }
         }
-        throw new Error("Method not implemented.");
+
+        return keySetsCopy;
+    }
+
+    /**
+     * This function should handle the "needs" property of the action.
+     * It should rewrite the "needs" string array to an array of GroupKey, and also add the dependencies
+     */
+    addProjectDependencies(keySets: GroupKeyWithDependencies[]): GroupKeyWithDependencies[] {
+        // go through each key set, and verify that all dependencies are met.
+
+        const foundKeySets = [...keySets];
+
+        for (const keySet of keySets) {
+            foundKeySets.push(...this.addProjectDependenciesHelper(keySet, foundKeySets))
+        }
+
+        return foundKeySets;
+    }
+
+
+
+    addProjectDependenciesHelper(keySet: GroupKeyWithDependencies, keySets: GroupKeyWithDependencies[]): GroupKeyWithDependencies[] {
+        const project = this.config.projects[keySet.project];
+        const action = project.actions[keySet.action];
+        const needs = this.findNeedGroupKeys(keySet, action.needs);
+
+        return [
+            ...needs,
+            ...needs.reduce((carry, need) => {
+                return [...carry, ...this.addProjectDependenciesHelper(need, keySets)];
+            }, [] as GroupKeyWithDependencies[])
+        ];
+    }
+
+    findNeedGroupKeys(keySet: GroupKeyWithDependencies, needsStr: string[]): GroupKeyWithDependencies[] {
+        return needsStr.map(needStr => {
+            const project = this.config.projects[needStr];
+            const action = project.actions[keySet.action];
+            if (action.groups[keySet.group]) {
+                return { ...keySet, project: needStr }
+            }
+            if (action.groups['*']) {
+                return { ...keySet, project: needStr, group: '*' }
+            }
+            // not able to be solved.. mark it as so
+            return { ...keySet, project: needStr, group: '!' }
+        })
     }
 
     findProjects(projectsStr: string[]): string[] {
@@ -114,14 +162,14 @@ class TaskPlanner {
             }, [] as ProjectAction[]);
     }
 
-    findGroups(projectActions: ProjectAction[], groupsStr: string[]): GroupKey[] {
+    findGroups(projectActions: ProjectAction[], groupsStr: string[]): GroupKeyWithDependencies[] {
         return projectActions.reduce(
             (carry, projectAction) => {
                 const action = this.config.projects[projectAction.project].actions[projectAction.action];
                 const groups = Object.keys(action.groups).filter(
                     (groupName) => groupsStr.includes(groupName) || groupsStr.includes("*")
-                ).map((groupName) => ({ ...projectAction, group: groupName }));
+                ).map((groupName) => ({ ...projectAction, group: groupName, needs: [] }));
                 return [...carry, ...groups];
-            }, [] as GroupKey[]);
+            }, [] as GroupKeyWithDependencies[]);
     }
 }
