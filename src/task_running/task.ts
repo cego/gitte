@@ -35,6 +35,11 @@ class Task {
         public needs: GroupKey[]
     ) { }
 
+    // tostring method
+    public toString(): string {
+        return `${this.key.project}/${this.key.action}/${this.key.group}`;
+    }
+
     public state: TaskState = TaskState.PENDING;
 
     public result: ActionResult | null = null;
@@ -58,6 +63,7 @@ class Task {
             exitCode: res.exitCode,
             signal: res.signal,
         };
+        this.state = TaskState.COMPLETED;
     }
 }
 

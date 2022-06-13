@@ -15,6 +15,7 @@ import { getProjectDirFromRemote } from "../project";
 import { Task } from "../task_running/task";
 import { TaskPlanner } from "./task_planner";
 import { TaskRunner } from "./task_runner";
+import { logTaskOutput } from "../search_output";
 
 /** The progress bar does not like to output stuff is isTTY is not set to true. */
 class BufferStreamWithTty extends Writable {
@@ -132,14 +133,6 @@ class TaskHandler {
 		this.progressBar?.increment({ status: waitingOnToString(this.waitingOn.map(key => `${key.action}/${key.project}/${key.group}`)) });
 	};
 
-	/**
-	 * Called by action runner, should not be called anywhere else.
-	 * @param actionsToRun
-	 */
-	init = (actionsToRun: (GroupKey & ProjectAction)[]): void => {
-		this.progressBar?.start(actionsToRun.length, 0, { status: waitingOnToString([]) });
-	};
-
 	run = async (): Promise<void> => {
         const taskRunner = new TaskRunner(this.plan, this)
 		
@@ -159,6 +152,7 @@ class TaskHandler {
 		const interval = setInterval(() => {
 			this.printOutputLines();
 		}, 100);
+		this.progressBar?.start(this.plan.length, 0, { status: waitingOnToString([]) });
 		
         // 2. Run
         await taskRunner.run();
@@ -171,34 +165,36 @@ class TaskHandler {
 		await this.clearOutputLines();
 
         // 4. Print summary
+		logTaskOutput(this.plan, this.config.cwd)
         printHeader(`TODO Summary`);
 
 		// assert(!isError, "At least one action failed");
 	
 	};
 
-	static getLogFilePath = async (cwd: string, log: GroupKey & ChildProcessOutput): Promise<string> => {
+	static getLogFilePath = async (cwd: string, task: Task): Promise<string> => {
 		const logsFolderPath = path.join(cwd, "logs");
 
 		if (!(await fs.pathExists(logsFolderPath))) {
 			await fs.mkdir(logsFolderPath);
 		}
 
-		return path.join(logsFolderPath, `${log.action}-${log.group}-${log.project}.log`);
+		return path.join(logsFolderPath, `${task.key.action}-${task.key.group}-${task.key.project}.log`);
+		// Todo verify order of action group project in all places.
 	};
 
-	stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
-		for (const log of logs) {
-			const logsFilePath = await TaskHandler.getLogFilePath(this.config.cwd, log);
-			const output = [];
-			output.push(...(log.stdout?.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
-			output.push(...(log.stderr?.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
-			output.push(
-				`[exitCode] ${log.cmd?.join(" ")} exited with ${log.exitCode} in ${log.dir} at ${new Date().toISOString()}`,
-			);
-			await fs.writeFile(logsFilePath, output.join("\n"));
-		}
-	};
+	// stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
+	// 	for (const log of logs) {
+	// 		const logsFilePath = await TaskHandler.getLogFilePath(this.config.cwd, log);
+	// 		const output = [];
+	// 		output.push(...(log.stdout?.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
+	// 		output.push(...(log.stderr?.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
+	// 		output.push(
+	// 			`[exitCode] ${log.cmd?.join(" ")} exited with ${log.exitCode} in ${log.dir} at ${new Date().toISOString()}`,
+	// 		);
+	// 		await fs.writeFile(logsFilePath, output.join("\n"));
+	// 	}
+	// };
 }
 
 export { TaskHandler }
