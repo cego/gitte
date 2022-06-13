@@ -1,11 +1,8 @@
-import { getProjectDirFromRemote } from "../project";
-import { Config, ProjectAction } from "../types/config";
-import { ChildProcessOutput, GroupKey } from "../types/utils";
-import { topologicalSortActionGraph } from "../graph";
+import { GroupKey } from "../types/utils";
 import * as utils from "../utils";
 import { ExecaError, ExecaReturnValue } from "execa";
-import { ActionOutputPrinter } from "../actions_utils";
 import _ from "lodash";
+import { TaskHandler } from "./task_handler";
 
 type ActionResult = {
     stdout: string;
@@ -42,7 +39,7 @@ class Task {
 
     public result: ActionResult | null = null;
 
-    public async run(printer: ActionOutputPrinter): Promise<void> {
+    public async run(printer: TaskHandler): Promise<void> {
         const promise = utils.spawn(this.context.cmd[0], this.context.cmd.slice(1), {
             cwd: this.context.cwd,
             env: process.env,

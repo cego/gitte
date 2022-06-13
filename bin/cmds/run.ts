@@ -4,7 +4,7 @@ import { fromConfig as gitOpsFromConfig } from "../../src/gitops";
 import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
 import { actionsBuilder } from "./actions";
-import { ActionOutputPrinter } from "../../src/actions_utils";
+import { TaskHandler } from "../../src/task_running/task_handler";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -20,7 +20,7 @@ export async function handler(argv: any) {
 		const cnf = await loadConfig(argv.cwd);
 		await startup(cnf);
 		await gitOpsFromConfig(cnf, argv.autoMerge);
-		await new ActionOutputPrinter(cnf, argv.action, argv.group, argv.projects).run();
+		await new TaskHandler(cnf, argv.action, argv.group, argv.projects).run();
 	} catch (e) {
 		errorHandler(e);
 	}

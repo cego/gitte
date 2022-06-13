@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { Config, ProjectAction } from "../types/config";
 import { ChildProcessOutput, GroupKey } from "../types/utils";
-import { logActionOutput, searchOutputForHints } from "../search_output";
+// import { logActionOutput, searchOutputForHints } from "../search_output";
 import { printHeader } from "../utils";
 import { getProgressBar, waitingOnToString } from "../progress";
 import { SingleBar } from "cli-progress";
@@ -34,10 +34,12 @@ class TaskHandler {
 	private termBuffer = "";
 	private bufferStream?: BufferStreamWithTty;
     private plan: Task[];
+	private runString: string;
 
 	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
 		this.config = cfg;
         this.plan = (new TaskPlanner(cfg)).planStringInput(actionToRun, groupToRun, projectToRun);
+		this.runString = `${actionToRun} ${groupToRun} ${projectToRun}`;
 	}
 
 	addToBufferStream = (chunk: string) => {
@@ -149,9 +151,9 @@ class TaskHandler {
 				callback();
 			},
 		});
-		this.progressBar = getProgressBar(`Running TODO`, this.bufferStream);
+		this.progressBar = getProgressBar(`Running ${this.runString}`, this.bufferStream);
 
-		printHeader(`Running TODO`);
+		printHeader(`Running ${this.runString}`);
 		this.prepareOutputLines();
 		// every 100ms, print output
 		const interval = setInterval(() => {
