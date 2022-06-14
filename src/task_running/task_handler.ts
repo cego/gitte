@@ -1,6 +1,6 @@
 import chalk from "chalk";
-import { Config, ProjectAction } from "../types/config";
-import { ChildProcessOutput, GroupKey } from "../types/utils";
+import { Config } from "../types/config";
+import { GroupKey } from "../types/utils";
 // import { logActionOutput, searchOutputForHints } from "../search_output";
 import { printHeader } from "../utils";
 import { getProgressBar, waitingOnToString } from "../progress";
@@ -10,12 +10,11 @@ import path from "path";
 import { Writable } from "stream";
 import ansiEscapes from "ansi-escapes";
 import ON_DEATH from "death";
-import assert, { AssertionError } from "assert";
-import { getProjectDirFromRemote } from "../project";
+import assert from "assert";
 import { Task } from "../task_running/task";
 import { TaskPlanner } from "./task_planner";
 import { TaskRunner } from "./task_runner";
-import { logTaskOutput } from "../search_output";
+import { logTaskOutput, searchOutputForHints, stashLogsToFile } from "../search_output";
 
 /** The progress bar does not like to output stuff is isTTY is not set to true. */
 class BufferStreamWithTty extends Writable {
@@ -27,19 +26,19 @@ class BufferStreamWithTty extends Writable {
  * It handles the output of the runner
  */
 class TaskHandler {
-    private readonly maxLines = 10;
-	private lastFewLines: { out: string; project: string }[] = [];
+	private readonly maxLines = 10;
+	private lastFewLines: { out: string; task: Task }[] = [];
 	private progressBar?: SingleBar;
 	private readonly config: Config;
 	private waitingOn = [] as GroupKey[];
 	private termBuffer = "";
 	private bufferStream?: BufferStreamWithTty;
-    private plan: Task[];
+	private plan: Task[];
 	private runString: string;
 
 	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
 		this.config = cfg;
-        this.plan = (new TaskPlanner(cfg)).planStringInput(actionToRun, groupToRun, projectToRun);
+		this.plan = new TaskPlanner(cfg).planStringInput(actionToRun, groupToRun, projectToRun);
 		this.runString = `${actionToRun} ${groupToRun} ${projectToRun}`;
 	}
 
@@ -66,17 +65,15 @@ class TaskHandler {
 			toWrite += ansiEscapes.cursorDown(1) + ansiEscapes.cursorLeft + ansiEscapes.eraseLine;
 			// get terminal width
 			if (this.lastFewLines[i]) {
-				const maxWidth = Math.max(width - (this.lastFewLines[i].project.length + 3), 0);
-				toWrite += chalk`{inverse  ${this.lastFewLines[i].project} } {gray ${this.lastFewLines[i].out.slice(
-					0,
-					maxWidth,
-				)}}`;
+				const keyString = this.lastFewLines[i].task.toString();
+				const maxWidth = Math.max(width - (keyString.length + 3), 0);
+				toWrite += chalk`{inverse  ${keyString} } {gray ${this.lastFewLines[i].out.slice(0, maxWidth)}}`;
 			}
 		}
 		process.stdout.write(toWrite);
 	};
 
-	handleLogOutput = (str: string, projectName: string) => {
+	handleLogOutput = (str: string, task: Task) => {
 		// Only print "printable" characters
 		str = str.replace(/[\p{Cc}\p{Cf}\p{Cs}]+/gu, "");
 
@@ -85,7 +82,7 @@ class TaskHandler {
 			.map((splitted) => splitted.replace(/\r/g, ""))
 			.filter((splitted) => splitted.length);
 		lines.forEach((line) => {
-			this.lastFewLines.push({ out: line, project: projectName });
+			this.lastFewLines.push({ out: line, task });
 		});
 
 		while (this.lastFewLines.length > this.maxLines) {
@@ -93,11 +90,11 @@ class TaskHandler {
 		}
 	};
 
-	getWritableStream = (name: string) => {
+	getWritableStream = (task: Task) => {
 		const handle = this.handleLogOutput;
 		return new Writable({
 			write(chunk, _, callback) {
-				handle(chunk.toString(), name);
+				handle(chunk.toString(), task);
 				callback();
 			},
 		});
@@ -123,21 +120,25 @@ class TaskHandler {
 
 	beganTask = (task: Task): boolean => {
 		this.waitingOn.push(task.key);
-		this.progressBar?.update({ status: waitingOnToString(this.waitingOn.map(key => `${key.action}/${key.project}/${key.group}`)) });
+		this.progressBar?.update({
+			status: waitingOnToString(this.waitingOn.map((key) => `${key.action}/${key.project}/${key.group}`)),
+		});
 
 		return true;
 	};
 
 	finishedTask = (task: Task) => {
 		this.waitingOn = this.waitingOn.filter((key) => key !== task.key);
-		this.progressBar?.increment({ status: waitingOnToString(this.waitingOn.map(key => `${key.action}/${key.project}/${key.group}`)) });
+		this.progressBar?.increment({
+			status: waitingOnToString(this.waitingOn.map((key) => `${key.action}/${key.project}/${key.group}`)),
+		});
 	};
 
 	run = async (): Promise<void> => {
-        const taskRunner = new TaskRunner(this.plan, this)
-		
-        // 1. Prepare output for running.
-        const addToBufferStream = this.addToBufferStream;
+		const taskRunner = new TaskRunner(this.plan, this);
+
+		// 1. Prepare output for running.
+		const addToBufferStream = this.addToBufferStream;
 		this.bufferStream = new BufferStreamWithTty({
 			write(chunk, _, callback) {
 				addToBufferStream(chunk.toString());
@@ -153,48 +154,24 @@ class TaskHandler {
 			this.printOutputLines();
 		}, 100);
 		this.progressBar?.start(this.plan.length, 0, { status: waitingOnToString([]) });
-		
-        // 2. Run
-        await taskRunner.run();
 
-        // 3. Cleanup output
+		// 2. Run
+		await taskRunner.run();
+
+		// 3. Cleanup output
 		clearInterval(interval);
 		this.progressBar.update({ status: waitingOnToString(null) });
 		this.progressBar.stop();
 		this.printOutputLines();
 		await this.clearOutputLines();
 
-        // 4. Print summary
-		logTaskOutput(this.plan, this.config.cwd)
-        printHeader(`TODO Summary`);
+		// 4. Print summary
+		const isError = logTaskOutput(this.plan, this.config.cwd);
+		searchOutputForHints(this.plan, this.config);
+		stashLogsToFile(this.plan, this.config);
 
-		// assert(!isError, "At least one action failed");
-	
+		assert(!isError, "At least one action failed");
 	};
-
-	static getLogFilePath = async (cwd: string, task: Task): Promise<string> => {
-		const logsFolderPath = path.join(cwd, "logs");
-
-		if (!(await fs.pathExists(logsFolderPath))) {
-			await fs.mkdir(logsFolderPath);
-		}
-
-		return path.join(logsFolderPath, `${task.key.action}-${task.key.group}-${task.key.project}.log`);
-		// Todo verify order of action group project in all places.
-	};
-
-	// stashLogsToFile = async (logs: (GroupKey & ChildProcessOutput)[]) => {
-	// 	for (const log of logs) {
-	// 		const logsFilePath = await TaskHandler.getLogFilePath(this.config.cwd, log);
-	// 		const output = [];
-	// 		output.push(...(log.stdout?.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
-	// 		output.push(...(log.stderr?.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
-	// 		output.push(
-	// 			`[exitCode] ${log.cmd?.join(" ")} exited with ${log.exitCode} in ${log.dir} at ${new Date().toISOString()}`,
-	// 		);
-	// 		await fs.writeFile(logsFilePath, output.join("\n"));
-	// 	}
-	// };
 }
 
-export { TaskHandler }
+export { TaskHandler };

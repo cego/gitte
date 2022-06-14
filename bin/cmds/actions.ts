@@ -14,7 +14,7 @@ export const describe = "Run actions on selected projects for <actions> and <gro
 // noinspection JSUnusedGlobalSymbols
 export async function handler(argv: any) {
 	try {
-		const cnf = await loadConfig(argv.cwd);
+		const cnf = await loadConfig(argv.cwd, argv.needs);
 		await new TaskHandler(cnf, argv.actions, argv.groups, argv.projects).run();
 	} catch (e) {
 		errorHandler(e);
