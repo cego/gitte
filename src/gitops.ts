@@ -201,7 +201,7 @@ export function handleGitopsResults(projectNames: string[], logs: (string | Erro
 			console.log(`${j === logs[i].length - 1 ? "└" : "├"}─── ${formattedLog}`);
 		}
 	}
-	
+
 	if (errorCount > 0) {
 		throw new AssertionError({ message: "At least one git operation failed" });
 	}
