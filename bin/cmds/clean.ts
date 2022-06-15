@@ -3,13 +3,14 @@ import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
 import { TaskHandler } from "../../src/task_running/task_handler";
 import { GitteCleaner } from "../../src/clean";
+import { AssertionError } from "assert";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
 	return cleanBuilder(y);
 }
 // noinspection JSUnusedGlobalSymbols
-export const command = "clean [untracked|local-changes|master|non-gitte]";
+export const command = "clean [subaction]";
 // noinspection JSUnusedGlobalSymbols
 export const describe = "Run cleanup on projects";
 // noinspection JSUnusedGlobalSymbols
@@ -17,7 +18,7 @@ export async function handler(argv: any) {
 	try {
         const config = await loadConfig(argv.cwd);
         const cleaner = new GitteCleaner(config)
-		switch(argv.cleanAction) {
+		switch(argv.subaction) {
             case "untracked":
                 await cleaner.cleanUntracked();
                 break;
@@ -34,7 +35,7 @@ export async function handler(argv: any) {
                 await cleaner.clean();
                 break;
             default:
-                throw new Error("Unknown clean action");
+                throw new AssertionError({ message: `Unknown clean action: ${argv.subaction}, expected one of: untracked, local-changes, master, non-gitte`});
         }
 	} catch (e) {
 		errorHandler(e);
@@ -43,7 +44,7 @@ export async function handler(argv: any) {
 
 export function cleanBuilder(y: Argv): Argv {
 	return y
-		.positional("cleanAction", {
+		.positional("subaction", {
 			required: false,
 			describe: "The cleanup action to run. Default all",
             default: "all",

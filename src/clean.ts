@@ -7,6 +7,7 @@ import path from "path";
 import readline from "readline";
 import prompts from "prompts";
 import chalk from "chalk";
+import tildify from "tildify";
 
 type ShouldDeleteFolder = {
     keep: boolean;
@@ -36,7 +37,7 @@ class GitteCleaner {
             try {
                 await utils.spawn("git", ["clean", "-fdx"], { cwd: project.cwd });
             } catch (e) {
-                console.error(chalk`{red Failed to clean untracked files in ${project.cwd}. Try running {cyan git clean -fdx} manually}`);
+                console.error(chalk`{red Failed to clean untracked files in {cyan ${tildify(project.cwd)}}. Try running {cyan git clean -fdx} manually}`);
             }
         }
     }
@@ -49,7 +50,7 @@ class GitteCleaner {
                 const response = await prompts({
                     type: 'confirm',
                     name: 'value',
-                    message: `There are local changes in ${project.cwd}. Are you sure you want to delete them?`,
+                    message: `There are local changes in ${tildify(project.cwd)}. Are you sure you want to delete them?`,
                     initial: false
                 });
     
@@ -58,7 +59,7 @@ class GitteCleaner {
                         await utils.spawn("git", ["reset", "--hard"], { cwd: project.cwd });
                     }
                     catch (e) {
-                        console.error(chalk`{red Failed to clean local changes in ${project.cwd}. Try running {cyan git reset --hard} manually}`);
+                        console.error(chalk`{red Failed to clean local changes in {cyan ${tildify(project.cwd)}}. Try running {cyan git reset --hard} manually}`);
                     }
                 }
             }
@@ -74,7 +75,7 @@ class GitteCleaner {
                 await utils.spawn("git", ["checkout", project.defaultBranch], { cwd: project.cwd });
             }
             catch (e) {
-                console.error(chalk`{red Failed to checkout ${project.defaultBranch} in ${project.cwd}. Try running {cyan git checkout ${project.defaultBranch}} manually}`);
+                console.error(chalk`{red Failed to checkout ${project.defaultBranch} in {cyan ${tildify(project.cwd)}}. Try running {cyan git checkout ${project.defaultBranch}} manually}`);
             }
         }
     }
@@ -86,7 +87,9 @@ class GitteCleaner {
         const res = await this.cleanFolder(gitteFolder, gitFolders);
         if (res.foldersToDelete.length > 0) {
             console.log("Going to delete the following folders, which are not maintained by gitte:")
-            console.table(res.foldersToDelete);
+            res.foldersToDelete.forEach(folder => {
+                console.log(`  - ${tildify(folder)}`);
+            });
 
             const response = await prompts({
                 type: 'confirm',
