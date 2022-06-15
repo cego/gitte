@@ -7,7 +7,6 @@ import { compareGroupKeys } from "../utils";
  * Class that, given a list of tasks, will run them.
  * Should respect the dependencies of the tasks.
  * Should respect the priority of the tasks.
- * Should skip duplicate tasks - TODO maybe this should be handled by deduplicating before.
  * Should skip tasks which a dependency failed
  *
  * This class is NOT responsible for constructing the tasks but simply running them respecting above rules.
@@ -73,6 +72,7 @@ class TaskRunner {
 					).length > 0,
 			)
 			.forEach((task) => {
+				task.skippedBy = taskIn;
 				this.skipAllBlockedActions(task);
 			});
 	}

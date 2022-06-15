@@ -9,8 +9,7 @@ import path from "path";
 import fs from "fs-extra";
 
 function getLogFilePath(cwd: string, task: Task): string {
-	const logsFilePath = path.join(cwd, "logs", `${task.key.project}-${task.key.action}-${task.key.group}.log`);
-	return logsFilePath;
+	return path.join(cwd, "logs", `${task.key.project}-${task.key.action}-${task.key.group}.log`);
 }
 
 export const stashLogsToFile = (tasks: Task[], config: Config, action: string) => {
@@ -30,43 +29,42 @@ export const stashLogsToFile = (tasks: Task[], config: Config, action: string) =
 	}
 };
 
+const sortTasksByTimeThenState = (a: Task, b: Task): number => {
+	if (a.result && b.result) {
+		return a.result.finishTime.getTime() - b.result.finishTime.getTime();
+	}
+	// sort by state: COMPLETED, FAILED before SKIPPED
+	const firstStates = [TaskState.COMPLETED, TaskState.FAILED];
+
+	if (firstStates.includes(a.state) && firstStates.includes(b.state)) {
+		return 0;
+	}
+	if (firstStates.includes(a.state)) {
+		return -1;
+	}
+	if (firstStates.includes(b.state)) {
+		return 1;
+	}
+
+	return 0;
+};
+
 export async function logTaskOutput(tasks: Task[], cwd: string, action: string): Promise<boolean> {
-	tasks = tasks
-		.filter((task) => task.key.action === action)
-		.sort((a, b) => {
-			if (a.result && b.result) {
-				return a.result.finishTime.getTime() - b.result.finishTime.getTime();
-			}
-			// sort by state: COMPLETED, FAILED before SKIPPED
-			const firstStates = [TaskState.COMPLETED, TaskState.FAILED];
-
-			if (firstStates.includes(a.state) && firstStates.includes(b.state)) {
-				return 0;
-			}
-			if (firstStates.includes(a.state)) {
-				return -1;
-			}
-			if (firstStates.includes(b.state)) {
-				return 1;
-			}
-
-			return 0;
-		});
-
+	tasks = tasks.filter((task) => task.key.action === action).sort(sortTasksByTimeThenState);
 	let isError = false;
 	for (const task of tasks) {
-		if (task.state === TaskState.SKIPPED_DUPLICATE) {
-			console.log(chalk`{inverse  INFO } Skipped {bold ${task.toString()}} because it was already run.`);
-		} else if (task.state === TaskState.SKIPPED_FAILED_DEPENDENCY) {
-			console.log(chalk`{bgYellow  WARN } Skipped: {bold ${task.toString()}} because it needed TODO, which failed.`);
+		if (task.state === TaskState.SKIPPED_FAILED_DEPENDENCY) {
+			console.log(
+				chalk`{bgYellow  WARN } Skipped: {bold ${task.toString()}} because it needed {bold ${
+					task.skippedBy ?? "unknown"
+				}}, which failed.`,
+			);
 		} else if (task.state === TaskState.COMPLETED) {
 			console.log(
 				chalk`{bgGreen  PASS } {bold ${task.toString()}} {blue ${task.context.cmd.join(" ")}} ran in {cyan ${tildify(
 					task.context.cwd ?? "",
 				)}}`,
 			);
-		} else if (task.state === TaskState.PENDING) {
-			continue;
 		} else {
 			console.error(
 				chalk`{bgRed  FAIL } {bold ${task.toString()}} failed.` +

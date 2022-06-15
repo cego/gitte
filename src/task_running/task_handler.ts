@@ -127,7 +127,7 @@ class TaskHandler {
 	beganTask = (task: Task): boolean => {
 		this.waitingOn.push(task);
 		this.progressBar?.update({
-			status: waitingOnToString(this.waitingOn.map((task) => `${task.toString()}`)),
+			status: waitingOnToString(this.waitingOn.map((waitingOnTask) => `${waitingOnTask.toString()}`)),
 		});
 
 		return true;
@@ -136,7 +136,7 @@ class TaskHandler {
 	finishedTask = (task: Task) => {
 		this.waitingOn = this.waitingOn.filter((taskWaitingOn) => !compareGroupKeys(taskWaitingOn.key, task.key));
 		this.progressBar?.increment({
-			status: waitingOnToString(this.waitingOn.map((task) => `${task.toString()}`)),
+			status: waitingOnToString(this.waitingOn.map((waitingOnTask) => `${waitingOnTask.toString()}`)),
 		});
 	};
 

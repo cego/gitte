@@ -23,7 +23,6 @@ enum TaskState {
 	RUNNING = "running",
 	COMPLETED = "completed",
 	FAILED = "failed",
-	SKIPPED_DUPLICATE = "skipped_duplicate",
 	SKIPPED_FAILED_DEPENDENCY = "skipped_failed_dependency",
 }
 
@@ -33,6 +32,8 @@ class Task {
 			this.state = TaskState.BLOCKED;
 		}
 	}
+
+	public skippedBy?: Task;
 
 	// tostring method
 	public toString(): string {
