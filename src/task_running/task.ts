@@ -8,6 +8,7 @@ type ActionResult = {
 	stderr: string;
 	exitCode: number;
 	signal?: string;
+	finishTime: Date;
 };
 
 type ActionContext = {
@@ -27,7 +28,11 @@ enum TaskState {
 }
 
 class Task {
-	constructor(public key: GroupKey, public context: ActionContext, public needs: GroupKey[]) {}
+	constructor(public key: GroupKey, public context: ActionContext, public needs: GroupKey[]) {
+		if (needs.length > 0) {
+			this.state = TaskState.BLOCKED;
+		}
+	}
 
 	// tostring method
 	public toString(): string {
@@ -56,6 +61,7 @@ class Task {
 			stderr: res.stderr?.toString() ?? "",
 			exitCode: res.exitCode,
 			signal: res.signal,
+			finishTime: new Date(),
 		};
 		this.state = TaskState.COMPLETED;
 	}

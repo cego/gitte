@@ -1,6 +1,7 @@
 import { Task, TaskState } from "./task";
 import assert from "assert";
 import { TaskHandler } from "./task_handler";
+import { compareGroupKeys } from "../utils";
 
 /**
  * Class that, given a list of tasks, will run them.
@@ -12,7 +13,10 @@ import { TaskHandler } from "./task_handler";
  * This class is NOT responsible for constructing the tasks but simply running them respecting above rules.
  */
 class TaskRunner {
-	constructor(private tasks: Task[], private actionOutputPrinter: TaskHandler) {}
+	public tasks: Task[];
+	constructor(tasksIn: Task[], private actionOutputPrinter: TaskHandler, action: string) {
+		this.tasks = tasksIn.filter((task) => task.key.action == action);
+	}
 
 	public async run(): Promise<void> {
 		const priorities = this.getUniquePriorities();
@@ -42,7 +46,7 @@ class TaskRunner {
 			const taskFreedPromises = this.tasks
 				.filter((task) => task.state === TaskState.BLOCKED)
 				.reduce((carry, task) => {
-					task.needs = task.needs.filter((need) => need === task.key);
+					task.needs = task.needs.filter((need) => !compareGroupKeys(need, taskToRun.key));
 					if (task.needs.length === 0) {
 						task.state = TaskState.PENDING;
 						return [...carry, task];
@@ -51,7 +55,7 @@ class TaskRunner {
 				}, [] as Task[])
 				.map((task) => this.wrapTask(task));
 
-			Promise.all(taskFreedPromises);
+			await Promise.all(taskFreedPromises);
 		});
 	}
 
@@ -59,7 +63,15 @@ class TaskRunner {
 		taskIn.state = TaskState.SKIPPED_FAILED_DEPENDENCY;
 		this.tasks
 			.filter((task) => task.state === TaskState.BLOCKED)
-			.filter((task) => task.needs.includes(taskIn.key))
+			.filter(
+				(task) =>
+					task.needs.filter(
+						(needKey) =>
+							needKey.action == taskIn.key.action &&
+							needKey.group == taskIn.key.group &&
+							needKey.project == taskIn.key.project,
+					).length > 0,
+			)
 			.forEach((task) => {
 				this.skipAllBlockedActions(task);
 			});

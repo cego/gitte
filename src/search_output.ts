@@ -4,7 +4,6 @@ import { Config, SearchFor } from "./types/config";
 import template from "chalk/source/templates";
 import { printHeader } from "./utils";
 import tildify from "tildify";
-import { TaskHandler } from "./task_running/task_handler";
 import { Task, TaskState } from "./task_running/task";
 import path from "path";
 import fs from "fs-extra";
@@ -12,23 +11,48 @@ import fs from "fs-extra";
 function getLogFilePath(cwd: string, task: Task): string {
 	const logsFilePath = path.join(cwd, "logs", `${task.key.project}-${task.key.action}-${task.key.group}.log`);
 	return logsFilePath;
-};
+}
 
-export const stashLogsToFile = (tasks: Task[], config: Config) => {
+export const stashLogsToFile = (tasks: Task[], config: Config, action: string) => {
+	tasks = tasks.filter((task) => task.key.action === action);
 	for (const task of tasks) {
 		const logsFilePath = getLogFilePath(config.cwd, task);
 		const output = [];
 		output.push(...(task.result?.stdout.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
 		output.push(...(task.result?.stderr.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
 		output.push(
-			`[exitCode] ${task.context.cmd.join(" ")} exited with ${task.result?.exitCode} in ${task.context.cwd} at ${new Date().toISOString()}`,
+			`[exitCode] ${task.context.cmd.join(" ")} exited with ${task.result?.exitCode} in ${
+				task.context.cwd
+			} at ${new Date().toISOString()}`,
 		);
 		fs.ensureFileSync(logsFilePath);
 		fs.writeFileSync(logsFilePath, output.join("\n"));
 	}
 };
 
-export async function logTaskOutput(tasks: Task[], cwd: string): Promise<boolean> {
+export async function logTaskOutput(tasks: Task[], cwd: string, action: string): Promise<boolean> {
+	tasks = tasks
+		.filter((task) => task.key.action === action)
+		.sort((a, b) => {
+			if (a.result && b.result) {
+				return a.result.finishTime.getTime() - b.result.finishTime.getTime();
+			}
+			// sort by state: COMPLETED, FAILED before SKIPPED
+			const firstStates = [TaskState.COMPLETED, TaskState.FAILED];
+
+			if (firstStates.includes(a.state) && firstStates.includes(b.state)) {
+				return 0;
+			}
+			if (firstStates.includes(a.state)) {
+				return -1;
+			}
+			if (firstStates.includes(b.state)) {
+				return 1;
+			}
+
+			return 0;
+		});
+
 	let isError = false;
 	for (const task of tasks) {
 		if (task.state === TaskState.SKIPPED_DUPLICATE) {
@@ -41,6 +65,8 @@ export async function logTaskOutput(tasks: Task[], cwd: string): Promise<boolean
 					task.context.cwd ?? "",
 				)}}`,
 			);
+		} else if (task.state === TaskState.PENDING) {
+			continue;
 		} else {
 			console.error(
 				chalk`{bgRed  FAIL } {bold ${task.toString()}} failed.` +
@@ -52,7 +78,15 @@ export async function logTaskOutput(tasks: Task[], cwd: string): Promise<boolean
 	return isError;
 }
 
-export function searchOutputForHints(tasks: Task[], cfg: Config, firstHint = true) {
+export function searchOutputForHints(tasks: Task[], cfg: Config, action: string, firstHint = true) {
+	tasks = tasks.filter((task) => task.key.action === action);
+	tasks = tasks.sort((a, b) => {
+		if (a.result && b.result) {
+			return a.result.finishTime.getTime() - b.result.finishTime.getTime();
+		}
+		return 0;
+	});
+
 	cfg.searchFor.forEach((search) => (firstHint = searchForRegex(search, tasks, firstHint)));
 	tasks.forEach((task) => {
 		const searchFor = cfg.projects[task.key.project]?.actions[task.key.action]?.searchFor;

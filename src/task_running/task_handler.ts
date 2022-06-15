@@ -1,12 +1,8 @@
 import chalk from "chalk";
 import { Config } from "../types/config";
-import { GroupKey } from "../types/utils";
-// import { logActionOutput, searchOutputForHints } from "../search_output";
-import { printHeader } from "../utils";
+import { compareGroupKeys, printHeader } from "../utils";
 import { getProgressBar, waitingOnToString } from "../progress";
 import { SingleBar } from "cli-progress";
-import fs from "fs-extra";
-import path from "path";
 import { Writable } from "stream";
 import ansiEscapes from "ansi-escapes";
 import ON_DEATH from "death";
@@ -30,16 +26,26 @@ class TaskHandler {
 	private lastFewLines: { out: string; task: Task }[] = [];
 	private progressBar?: SingleBar;
 	private readonly config: Config;
-	private waitingOn = [] as GroupKey[];
+	private waitingOn = [] as Task[];
 	private termBuffer = "";
 	private bufferStream?: BufferStreamWithTty;
 	private plan: Task[];
-	private runString: string;
+	private actions: string[];
 
 	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
 		this.config = cfg;
 		this.plan = new TaskPlanner(cfg).planStringInput(actionToRun, groupToRun, projectToRun);
-		this.runString = `${actionToRun} ${groupToRun} ${projectToRun}`;
+		this.actions = this.getActionsInOrderFromActionString(actionToRun);
+	}
+
+	getActionsInOrderFromActionString(actionsString: string) {
+		const actions = actionsString.split("+");
+
+		if (actions.includes("*")) {
+			return [...this.plan.reduce((carry, task) => new Set([...carry, ...task.key.action]), new Set<string>())];
+		}
+
+		return actions;
 	}
 
 	addToBufferStream = (chunk: string) => {
@@ -119,23 +125,30 @@ class TaskHandler {
 	};
 
 	beganTask = (task: Task): boolean => {
-		this.waitingOn.push(task.key);
+		this.waitingOn.push(task);
 		this.progressBar?.update({
-			status: waitingOnToString(this.waitingOn.map((key) => `${key.action}/${key.project}/${key.group}`)),
+			status: waitingOnToString(this.waitingOn.map((task) => `${task.toString()}`)),
 		});
 
 		return true;
 	};
 
 	finishedTask = (task: Task) => {
-		this.waitingOn = this.waitingOn.filter((key) => key !== task.key);
+		this.waitingOn = this.waitingOn.filter((taskWaitingOn) => !compareGroupKeys(taskWaitingOn.key, task.key));
 		this.progressBar?.increment({
-			status: waitingOnToString(this.waitingOn.map((key) => `${key.action}/${key.project}/${key.group}`)),
+			status: waitingOnToString(this.waitingOn.map((task) => `${task.toString()}`)),
 		});
 	};
 
-	run = async (): Promise<void> => {
-		const taskRunner = new TaskRunner(this.plan, this);
+	run = async () => {
+		for (const action of this.actions) {
+			await this.runAction(action);
+		}
+	};
+
+	runAction = async (action: string): Promise<void> => {
+		this.lastFewLines = [];
+		const taskRunner = new TaskRunner(this.plan, this, action);
 
 		// 1. Prepare output for running.
 		const addToBufferStream = this.addToBufferStream;
@@ -145,15 +158,15 @@ class TaskHandler {
 				callback();
 			},
 		});
-		this.progressBar = getProgressBar(`Running ${this.runString}`, this.bufferStream);
+		this.progressBar = getProgressBar(`Running ${action}`, this.bufferStream);
 
-		printHeader(`Running ${this.runString}`);
+		printHeader(`Running ${action}`);
 		this.prepareOutputLines();
 		// every 100ms, print output
 		const interval = setInterval(() => {
 			this.printOutputLines();
 		}, 100);
-		this.progressBar?.start(this.plan.length, 0, { status: waitingOnToString([]) });
+		this.progressBar?.start(taskRunner.tasks.length, 0, { status: waitingOnToString([]) });
 
 		// 2. Run
 		await taskRunner.run();
@@ -166,9 +179,9 @@ class TaskHandler {
 		await this.clearOutputLines();
 
 		// 4. Print summary
-		const isError = logTaskOutput(this.plan, this.config.cwd);
-		searchOutputForHints(this.plan, this.config);
-		stashLogsToFile(this.plan, this.config);
+		const isError = await logTaskOutput(this.plan, this.config.cwd, action);
+		searchOutputForHints(this.plan, this.config, action);
+		stashLogsToFile(this.plan, this.config, action);
 
 		assert(!isError, "At least one action failed");
 	};

@@ -1,3 +1,5 @@
+import { assert } from "console";
+import _ from "lodash";
 import { getProjectDirFromRemote } from "../project";
 import { Config } from "../types/config";
 import { GroupKey } from "../types/utils";
@@ -37,7 +39,11 @@ class TaskPlanner {
 			return project == "all" ? "*" : project;
 		});
 
-		return this.plan(actions, groups, projects);
+		const plan = this.plan(actions, groups, projects);
+
+		assert(plan.length > 0, "No tasks found to run.");
+
+		return plan;
 	}
 
 	public plan(actions: string[], groups: string[], projects: string[]): Task[] {
@@ -48,10 +54,28 @@ class TaskPlanner {
 		return keySets.map((keySet) => {
 			const project = this.config.projects[keySet.project];
 			const action = project.actions[keySet.action];
-			const needs = this.config.needs ? action.needs.map((need: string) => ({ ...keySet, action: need })) : [];
+			const needs = this.config.needs ? this.resolveNeeds(keySet, action.needs, keySets) : [];
 			const cwd = getProjectDirFromRemote(this.config.cwd, project.remote);
 
 			return new Task(keySet, { cwd, cmd: action.groups[keySet.group], priority: action.priority ?? 0 }, needs);
+		});
+	}
+
+	resolveNeeds(keySet: GroupKey, needs: string[], keySets: GroupKey[]): GroupKey[] {
+		return needs.map((need) => {
+			const needKeySet = { ...keySet, project: need };
+
+			if (
+				keySets.filter(
+					(keys) =>
+						keys.action == needKeySet.action && keys.group === needKeySet.group && keys.project === needKeySet.project,
+				).length > 0
+			) {
+				return needKeySet;
+			}
+
+			// fallback to * group if not found.
+			return { ...needKeySet, group: "*" };
 		});
 	}
 
@@ -68,7 +92,7 @@ class TaskPlanner {
 		keySets = this.removeUnrunnable(keySets);
 
 		// Remove duplicates
-		keySets = [...new Set(keySets)];
+		keySets = _.uniqBy(keySets, (keySet) => keySet.project + keySet.action + keySet.group);
 
 		return keySets;
 	}
