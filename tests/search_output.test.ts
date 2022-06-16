@@ -78,7 +78,7 @@ describe("Search action output", () => {
 		const error = await logTaskOutput([task], cwdStub, "up");
 		expect(error).toBe(false);
 
-		expect(console.error).toHaveBeenCalledWith(expect.stringContaining("because it needed"));
+		expect(console.log).toHaveBeenCalledWith(expect.stringContaining("because it needed"));
 	});
 
 	test("It logs task output failed", async () => {
