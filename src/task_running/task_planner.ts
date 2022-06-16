@@ -1,4 +1,4 @@
-import { assert } from "console";
+import assert from "assert";
 import _ from "lodash";
 import { getProjectDirFromRemote } from "../project";
 import { Config } from "../types/config";
