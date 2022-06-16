@@ -4,7 +4,6 @@ import * as utils from "../src/utils";
 import { cnfStub } from "./utils/stubs";
 import { ExecaReturnValue } from "execa";
 import { GitteCleaner } from "../src/clean";
-import { assert } from "console";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 let promptSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
@@ -129,9 +128,59 @@ describe("Clean tests", () => {
 		expect(console.error).toHaveBeenCalledTimes(3);
 	});
 	it("should detect non-gitte folders and prompt to clean them", async () => {
-		assert(true);
+		fs.removeSync = jest.fn();
+		fs.lstat = jest.fn();
+		fs.readdir = jest.fn();
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte").mockResolvedValue([".git", "gitte", "cego"]);
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte/gitte").mockResolvedValue([]);
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte/cego").mockResolvedValue(["example", "not-used"]);
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte/cego/not-used").mockResolvedValue([]);
+
+		// @ts-ignore
+		when(fs.lstat).mockResolvedValue({ isDirectory: () => true });
+
+		mockPromptNo();
+
+		await new GitteCleaner(cnfStub).cleanNonGitte();
+		expect(fs.removeSync).toHaveBeenCalledTimes(0);
+		expect(fs.lstat).toHaveBeenCalledTimes(5);
+		expect(fs.readdir).toHaveBeenCalledTimes(4);
 	});
 	it("should clean non-gitte folders", async () => {
-		assert(true);
+		fs.removeSync = jest.fn();
+		fs.lstat = jest.fn();
+		fs.readdir = jest.fn();
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte").mockResolvedValue([".git", "gitte", "cego"]);
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte/gitte").mockResolvedValue([]);
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte/cego").mockResolvedValue(["example", "not-used"]);
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte/cego/not-used").mockResolvedValue([]);
+
+		// @ts-ignore
+		when(fs.lstat).mockResolvedValue({ isDirectory: () => true });
+
+		mockPromptYes();
+
+		await new GitteCleaner(cnfStub).cleanNonGitte();
+		expect(fs.removeSync).toHaveBeenCalledTimes(2);
+		expect(fs.removeSync).toHaveBeenCalledWith("/home/user/gitte/cego/not-used");
+		expect(fs.removeSync).toHaveBeenCalledWith("/home/user/gitte/gitte");
+		expect(fs.lstat).toHaveBeenCalledTimes(5);
+		expect(fs.readdir).toHaveBeenCalledTimes(4);
 	});
 });

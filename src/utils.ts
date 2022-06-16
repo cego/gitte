@@ -18,7 +18,7 @@ export function compareGroupKeys(a: GroupKey, b: GroupKey): boolean {
 }
 
 export async function promptBoolean(question: string, init = false): Promise<boolean> {
-	return await prompts({
+	return prompts({
 		type: "confirm",
 		name: "value",
 		message: question,
