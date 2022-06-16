@@ -8,7 +8,7 @@ import { Task, TaskState } from "./task_running/task";
 import path from "path";
 import fs from "fs-extra";
 
-function getLogFilePath(cwd: string, task: Task): string {
+export function getLogFilePath(cwd: string, task: Task): string {
 	return path.join(cwd, "logs", `${task.key.project}-${task.key.action}-${task.key.group}.log`);
 }
 
@@ -29,16 +29,13 @@ export const stashLogsToFile = (tasks: Task[], config: Config, action: string) =
 	}
 };
 
-const sortTasksByTimeThenState = (a: Task, b: Task): number => {
+export const sortTasksByTimeThenState = (a: Task, b: Task): number => {
 	if (a.result && b.result) {
 		return a.result.finishTime.getTime() - b.result.finishTime.getTime();
 	}
 	// sort by state: COMPLETED, FAILED before SKIPPED
 	const firstStates = [TaskState.COMPLETED, TaskState.FAILED];
 
-	if (firstStates.includes(a.state) && firstStates.includes(b.state)) {
-		return 0;
-	}
 	if (firstStates.includes(a.state)) {
 		return -1;
 	}
