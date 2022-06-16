@@ -110,8 +110,9 @@ describe("Search action output", () => {
 
 	test("It searched output for hints local", async () => {
 		const task = getTask();
+		task.key = { project: "projecta", action: "start", group: "cego.dk" };
 		const config: Config = _.cloneDeep(cnfStub);
-		config.projects[task.key.project].actions[task.key.action].searchFor = [
+		config.projects["projecta"].actions["start"].searchFor = [
 			{
 				// string contain any digit
 				regex: "[a-z]",
@@ -119,7 +120,7 @@ describe("Search action output", () => {
 			},
 		];
 
-		searchOutputForHints([task], config, "up");
+		searchOutputForHints([task], config, "start");
 
 		expect(console.log).toHaveBeenCalledTimes(4);
 		expect(console.log).toHaveBeenCalledWith(expect.stringContaining("This string contains a letter"));
