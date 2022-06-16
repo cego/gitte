@@ -3,6 +3,7 @@ import _ from "lodash";
 import { getProjectDirFromRemote } from "../project";
 import { Config } from "../types/config";
 import { GroupKey } from "../types/utils";
+import { compareGroupKeys } from "../utils";
 import { Task } from "./task";
 
 type ProjectAction = {
@@ -54,10 +55,9 @@ class TaskPlanner {
 		return keySets.map((keySet) => {
 			const project = this.config.projects[keySet.project];
 			const action = project.actions[keySet.action];
-			const needs = this.config.needs ? this.resolveNeeds(keySet, action.needs, keySets) : [];
 			const cwd = getProjectDirFromRemote(this.config.cwd, project.remote);
 
-			return new Task(keySet, { cwd, cmd: action.groups[keySet.group], priority: action.priority ?? 0 }, needs);
+			return new Task(keySet, { cwd, cmd: action.groups[keySet.group], priority: action.priority ?? 0 }, keySet.needs);
 		});
 	}
 
@@ -65,13 +65,13 @@ class TaskPlanner {
 		return needs.map((need) => {
 			const needKeySet = { ...keySet, project: need };
 
-			if (
-				keySets.filter(
-					(keys) =>
-						keys.action == needKeySet.action && keys.group === needKeySet.group && keys.project === needKeySet.project,
-				).length > 0
-			) {
+			if (keySets.filter((keys) => compareGroupKeys(keys, needKeySet)).length > 0) {
 				return needKeySet;
+			}
+
+			// check for ! group
+			if (keySets.filter((keys) => compareGroupKeys(keys, { ...needKeySet, group: "!" })).length > 0) {
+				return { ...needKeySet, group: "!" };
 			}
 
 			// fallback to * group if not found.
@@ -79,7 +79,7 @@ class TaskPlanner {
 		});
 	}
 
-	findKeySets(actionsStr: string[], groupsStr: string[], projectsStr: string[]): GroupKey[] {
+	findKeySets(actionsStr: string[], groupsStr: string[], projectsStr: string[]): GroupKeyWithDependencies[] {
 		const projects = this.findProjects(projectsStr);
 		const actions = this.findActions(projects, actionsStr);
 		let keySets = this.findGroups(actions, groupsStr);
@@ -107,11 +107,15 @@ class TaskPlanner {
 			if (keySet.group == "!") {
 				keySetsCopy = keySetsCopy.filter((keySetFilter) => keySet != keySetFilter);
 				// find all keySets that depend on this keySet
-				const dependentKeySets = keySetsCopy.filter((keySetFilter) => keySetFilter.needs.includes(keySet));
+				const dependentKeySets = keySetsCopy.filter(
+					(keySetFilter) =>
+						keySetFilter.needs.filter((keySetFilterNeedsKeySet) => compareGroupKeys(keySetFilterNeedsKeySet, keySet))
+							.length > 0,
+				);
 				// replace the dependency with the dependencies of the unrunnable keyset.
 				for (const dependentKeySet of dependentKeySets) {
 					dependentKeySet.needs = [
-						...dependentKeySet.needs.filter((keySetFilter) => keySetFilter != keySet),
+						...dependentKeySet.needs.filter((keySetFilter) => !compareGroupKeys(keySetFilter, keySet)),
 						...keySet.needs,
 					];
 				}
@@ -133,6 +137,12 @@ class TaskPlanner {
 		for (const keySet of keySets) {
 			foundKeySets.push(...this.addProjectDependenciesHelper(keySet, foundKeySets));
 		}
+
+		foundKeySets.forEach((keySet) => {
+			const project = this.config.projects[keySet.project];
+			const action = project.actions[keySet.action];
+			keySet.needs = this.resolveNeeds(keySet, action.needs, foundKeySets);
+		});
 
 		return foundKeySets;
 	}
@@ -157,14 +167,15 @@ class TaskPlanner {
 		return needsStr.map((needStr) => {
 			const project = this.config.projects[needStr];
 			const action = project.actions[keySet.action];
+
 			if (action.groups[keySet.group]) {
-				return { ...keySet, project: needStr };
+				return { action: keySet.action, group: keySet.group, project: needStr, needs: [] };
 			}
 			if (action.groups["*"]) {
-				return { ...keySet, project: needStr, group: "*" };
+				return { action: keySet.action, project: needStr, group: "*", needs: [] };
 			}
 			// not able to be solved.. mark it as so
-			return { ...keySet, project: needStr, group: "!" };
+			return { action: keySet.action, project: needStr, group: "!", needs: [] };
 		});
 	}
 
@@ -198,4 +209,4 @@ class TaskPlanner {
 	}
 }
 
-export { TaskPlanner };
+export { TaskPlanner, GroupKeyWithDependencies };

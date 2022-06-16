@@ -1,5 +1,7 @@
 import { AssertionError } from "assert";
-import { TaskPlanner } from "../../src/task_running/task_planner";
+import _ from "lodash";
+import { GroupKeyWithDependencies, TaskPlanner } from "../../src/task_running/task_planner";
+import { Config } from "../../src/types/config";
 import { cnfStub } from "../utils/stubs";
 
 describe("Task Planner tests", () => {
@@ -53,6 +55,126 @@ describe("Task Planner tests", () => {
 
 			expect(resolved).toHaveLength(1);
 			expect(resolved[0]).toEqual({ action: "a", group: "*", project: "f" });
+		});
+	});
+
+	describe("addProjectDependencies and removeUnrunnable", () => {
+		it("should add dependencies and remove unrunnable", () => {
+			const config: Config = _.cloneDeep(cnfStub);
+
+			config.projects = {
+				service: {
+					remote: "",
+					default_branch: "",
+					actions: {
+						a: {
+							searchFor: [],
+							priority: 0, // not relevant for test
+							needs: ["terraform"],
+							groups: {
+								b: ["echo", "b"],
+							},
+						},
+					},
+				},
+				terraform: {
+					remote: "",
+					default_branch: "",
+					actions: {
+						a: {
+							searchFor: [],
+							priority: 0, // not relevant for test
+							needs: ["mysql"],
+							groups: {
+								b: ["echo", "b"],
+							},
+						},
+					},
+				},
+				mysql: {
+					remote: "",
+					default_branch: "",
+					actions: {
+						a: {
+							searchFor: [],
+							priority: 0, // not relevant for test
+							needs: ["bootOs"],
+							groups: {
+								b: ["echo", "b"],
+							},
+						},
+					},
+				},
+				bootOs: {
+					remote: "",
+					default_branch: "",
+					actions: {
+						a: {
+							searchFor: [],
+							priority: 0, // not relevant for test
+							needs: ["nginx"],
+							groups: {
+								c: ["echo", "b"],
+							},
+						},
+					},
+				},
+				nginx: {
+					remote: "",
+					default_branch: "",
+					actions: {
+						a: {
+							searchFor: [],
+							priority: 0, // not relevant for test
+							needs: [],
+							groups: {
+								"*": ["echo", "b"],
+							},
+						},
+					},
+				},
+			};
+
+			const keySets: GroupKeyWithDependencies[] = [{ action: "a", group: "b", project: "service", needs: [] }];
+
+			const planner = new TaskPlanner(config);
+			const resolved = planner.addProjectDependencies(keySets);
+
+			expect(resolved).toHaveLength(5);
+			expect(resolved).toContainEqual({
+				action: "a",
+				group: "b",
+				project: "service",
+				needs: [{ action: "a", group: "b", project: "terraform", needs: [] }],
+			});
+			expect(resolved).toContainEqual({
+				action: "a",
+				group: "b",
+				project: "terraform",
+				needs: [{ action: "a", group: "b", project: "mysql", needs: [] }],
+			});
+			expect(resolved).toContainEqual({
+				action: "a",
+				group: "b",
+				project: "mysql",
+				needs: [{ action: "a", group: "!", project: "bootOs", needs: [] }],
+			});
+			expect(resolved).toContainEqual({
+				action: "a",
+				group: "!",
+				project: "bootOs",
+				needs: [{ action: "a", group: "*", project: "nginx", needs: [] }],
+			});
+			expect(resolved).toContainEqual({ action: "a", group: "*", project: "nginx", needs: [] });
+
+			const final = planner.removeUnrunnable(resolved);
+			expect(final).toHaveLength(4);
+			expect(final).toContainEqual({
+				action: "a",
+				group: "b",
+				project: "mysql",
+				needs: [{ action: "a", group: "*", project: "nginx", needs: [] }],
+			});
 		});
 	});
 });
