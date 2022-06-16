@@ -66,6 +66,7 @@ class TaskHandler {
 
 		toWrite += this.termBuffer;
 		toWrite += ansiEscapes.cursorDown(1);
+		toWrite += ansiEscapes.eraseLine;
 		const width = process.stdout.columns;
 		for (let i = 0; i < this.maxLines; i++) {
 			toWrite += ansiEscapes.cursorDown(1) + ansiEscapes.cursorLeft + ansiEscapes.eraseLine;

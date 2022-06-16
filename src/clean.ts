@@ -4,7 +4,6 @@ import { Config } from "./types/config";
 import * as utils from "./utils";
 import fs from "fs-extra";
 import path from "path";
-import prompts from "prompts";
 import chalk from "chalk";
 import tildify from "tildify";
 
@@ -20,9 +19,7 @@ class GitteCleaner {
 		await this.cleanUntracked();
 		await this.cleanLocalChanges();
 		await this.cleanMaster();
-
 		await this.cleanNonGitte();
-
 		await fromConfig(this.config, false);
 	}
 
@@ -47,14 +44,11 @@ class GitteCleaner {
 		utils.printHeader(`Cleaning local changes..`);
 		for (const project of gitFolders) {
 			if (await hasLocalChanges(project.cwd)) {
-				const response = await prompts({
-					type: "confirm",
-					name: "value",
-					message: `There are local changes in ${tildify(project.cwd)}. Are you sure you want to delete them?`,
-					initial: false,
-				});
-
-				if (response.value) {
+				if (
+					await utils.promptBoolean(
+						`There are local changes in ${tildify(project.cwd)}. Are you sure you want to delete them?`,
+					)
+				) {
 					try {
 						await utils.spawn("git", ["reset", "--hard"], { cwd: project.cwd });
 					} catch (e) {
@@ -96,14 +90,7 @@ class GitteCleaner {
 				console.log(`  - ${tildify(folder)}`);
 			});
 
-			const response = await prompts({
-				type: "confirm",
-				name: "value",
-				message: "Are you sure you want to delete these folders?",
-				initial: false,
-			});
-
-			if (response.value) {
+			if (await utils.promptBoolean("Are you sure you want to delete these folders?")) {
 				for (const folder of res.foldersToDelete) {
 					fs.removeSync(folder);
 				}
