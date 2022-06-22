@@ -1,189 +1,128 @@
+import {
+	getLogFilePath,
+	logTaskOutput,
+	searchOutputForHints,
+	sortTasksByTimeThenState,
+	stashLogsToFile,
+} from "../src/search_output";
+import { cnfStub, cwdStub, getTask } from "./utils/stubs";
+import fs from "fs-extra";
+import { TaskState } from "../src/task_running/task";
+import assert from "assert";
 import chalk from "chalk";
-import { searchOutputForHints } from "../src/search_output";
-import { Config, SearchFor } from "../src/types/config";
-import { ChildProcessOutput, GroupKey } from "../src/types/utils";
-import { cnfStub } from "./utils/stubs";
+import _ from "lodash";
+import { Config } from "../src/types/config";
 
 beforeEach(() => {
 	console.log = jest.fn();
+	console.error = jest.fn();
 });
 
 describe("Search action output", () => {
-	test("It searches stdout", async () => {
-		const searchFor: SearchFor[] = [
-			{
-				// string contain any digit
-				regex: "[0-9]",
-				hint: "This string contains a digit",
-			},
-		];
-		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
-			{
-				project: "project1",
-				action: "action1",
-				group: "group1",
-				stdout: "This string does contain 1 digit",
-				stderr: "This string does not contain a digit",
-			},
-		];
-
-		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory, false);
-
-		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
+	test("It gets log file path", () => {
+		const task = getTask();
+		const res = getLogFilePath(cwdStub, task);
+		expect(res).toBe(`${cwdStub}/logs/example-up-cego.log`);
 	});
 
-	test("It searches stderr", async () => {
-		const searchFor: SearchFor[] = [
-			{
-				// string contain any digit
-				regex: "[0-9]",
-				hint: "This string contains a digit",
-			},
-		];
-		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
-			{
-				project: "project1",
-				action: "action1",
-				group: "group1",
-				stdout: "This string does contain 1 digit",
-				stderr: "This string does not contain a digit",
-			},
-		];
+	test("It stashes logs to file", async () => {
+		const task = getTask();
+		fs.ensureFileSync = jest.fn();
+		fs.writeFileSync = jest.fn();
+		await stashLogsToFile([task], cnfStub, "up");
 
-		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory, false);
-
-		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
+		expect(fs.ensureFileSync).toHaveBeenCalledWith(`${cwdStub}/logs/example-up-cego.log`);
+		expect(fs.writeFileSync).toHaveBeenCalledWith(`${cwdStub}/logs/example-up-cego.log`, expect.any(String));
 	});
 
-	test("It searches stdout and stderr", async () => {
-		const searchFor: SearchFor[] = [
-			{
-				// string contain any digit
-				regex: "[0-9]",
-				hint: "This string contains a digit",
-			},
-		];
-		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
-			{
-				project: "project1",
-				action: "action1",
-				group: "group1",
-				stdout: "This string does contain 1 digit",
-				stderr: "This string does contain 1 digit",
-			},
-		];
+	test("It sort tasks by time then state", () => {
+		const c = getTask();
+		const a = getTask();
+		assert(a.result);
+		a.result.finishTime = new Date(0);
+		const b = getTask();
+		assert(b.result);
+		b.result.finishTime = new Date(2);
+		c.state = TaskState.SKIPPED_FAILED_DEPENDENCY;
+		c.result = null;
 
-		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory, false);
+		// a was finished before b.
+		const ab = sortTasksByTimeThenState(a, b);
+		expect(ab).toBe(-2);
 
-		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
+		// first have firstStates
+		const ac = sortTasksByTimeThenState(a, c);
+		expect(ac).toBe(-1);
+
+		// second have firstStates
+		const ca = sortTasksByTimeThenState(c, a);
+		expect(ca).toBe(1);
 	});
 
-	test("It searches multiple outputs", async () => {
-		const searchFor: SearchFor[] = [
+	test("It logs task output success", async () => {
+		const task = getTask();
+
+		const error = await logTaskOutput([task], cwdStub, "up");
+		expect(error).toBe(false);
+
+		expect(console.log).toHaveBeenCalledWith(
+			chalk`{bgGreen  PASS } {bold example/up/cego} {blue woot a} ran in {cyan /home/user/gitte}`,
+		);
+	});
+
+	test("It logs task output skipped", async () => {
+		const task = getTask();
+		task.skippedBy = task;
+		task.state = TaskState.SKIPPED_FAILED_DEPENDENCY;
+
+		const error = await logTaskOutput([task], cwdStub, "up");
+		expect(error).toBe(false);
+
+		expect(console.log).toHaveBeenCalledWith(expect.stringContaining("because it needed"));
+	});
+
+	test("It logs task output failed", async () => {
+		const task = getTask();
+		task.state = TaskState.FAILED;
+
+		const error = await logTaskOutput([task], cwdStub, "up");
+		expect(error).toBe(true);
+
+		expect(console.error).toHaveBeenCalledWith(expect.stringContaining("FAIL"));
+	});
+
+	test("It searched output for hints global", async () => {
+		const task = getTask();
+		const config: Config = _.cloneDeep(cnfStub);
+		config.searchFor = [
 			{
 				// string contain any digit
 				regex: "[0-9]",
 				hint: "This string contains a digit",
 			},
+		];
+
+		searchOutputForHints([task], config, "up");
+
+		expect(console.log).toHaveBeenCalledTimes(4);
+		expect(console.log).toHaveBeenCalledWith(expect.stringContaining("This string contains a digit"));
+	});
+
+	test("It searched output for hints local", async () => {
+		const task = getTask();
+		task.key = { project: "projecta", action: "start", group: "cego.dk" };
+		const config: Config = _.cloneDeep(cnfStub);
+		config.projects["projecta"].actions["start"].searchFor = [
 			{
-				// string contain any letter
+				// string contain any digit
 				regex: "[a-z]",
 				hint: "This string contains a letter",
 			},
 		];
-		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
-			{
-				project: "project1",
-				action: "action1",
-				group: "group1",
-				stdout: "1",
-				stderr: "",
-			},
-			{
-				project: "project1",
-				action: "action1",
-				group: "group2",
-				stdout: "letter",
-				stderr: "",
-			},
-			{
-				project: "project1",
-				action: "action1",
-				group: "group3",
-				stdout: "@!???",
-				stderr: ":) 🤷‍♂️",
-			},
-			{
-				project: "project1",
-				action: "action1",
-				group: "group4",
-				stdout: "letter 123",
-				stderr: "",
-			},
-		];
 
-		searchOutputForHints({ projects: {}, searchFor } as unknown as Config, stdoutHistory, false);
+		searchOutputForHints([task], config, "start");
 
 		expect(console.log).toHaveBeenCalledTimes(4);
-		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
-		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[1].hint} {gray (Source: project1)}`);
-		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: project1)}`);
-		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[1].hint} {gray (Source: project1)}`);
-	});
-
-	test("It searches action specific searchFor", () => {
-		const searchFor: SearchFor[] = [
-			{
-				// string contain any digit
-				regex: "[0-9]",
-				hint: "This string contains a digit",
-			},
-		];
-		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
-			{
-				project: "projecta",
-				action: "start",
-				group: "group1",
-				stdout: "This string does contain 1 digit",
-				stderr: "This string does not contain a digit",
-			},
-		];
-
-		const cfg: Config = JSON.parse(JSON.stringify(cnfStub));
-		cfg.projects["projecta"].actions["start"].searchFor = searchFor;
-
-		searchOutputForHints(cfg, stdoutHistory, false);
-
-		expect(console.log).toHaveBeenCalledTimes(1);
-		expect(console.log).toHaveBeenCalledWith(chalk`${searchFor[0].hint} {gray (Source: projecta)}`);
-	});
-
-	test("It supports chalking in searchFor", () => {
-		const searchFor: SearchFor[] = [
-			{
-				// string contain any digit
-				regex: "[0-9]",
-				hint: "{green This string contains a digit}",
-			},
-		];
-		const stdoutHistory: (GroupKey & ChildProcessOutput)[] = [
-			{
-				project: "projecta",
-				action: "start",
-				group: "group1",
-				stdout: "This string does contain 1 digit",
-				stderr: "This string does not contain a digit",
-			},
-		];
-
-		const cfg: Config = JSON.parse(JSON.stringify(cnfStub));
-		cfg.projects["projecta"].actions["start"].searchFor = searchFor;
-
-		searchOutputForHints(cfg, stdoutHistory, false);
-
-		expect(console.log).toHaveBeenCalledWith(chalk`{green This string contains a digit} {gray (Source: projecta)}`);
+		expect(console.log).toHaveBeenCalledWith(expect.stringContaining("This string contains a letter"));
 	});
 });

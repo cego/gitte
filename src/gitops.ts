@@ -11,7 +11,7 @@ import tildify from "tildify";
 
 type LogFn = (arg: string | ErrorWithHint) => void;
 
-async function hasLocalChanges(dir: string): Promise<boolean> {
+export async function hasLocalChanges(dir: string): Promise<boolean> {
 	const [err, res]: ToChildProcessOutput = await to(
 		utils.spawn("git", ["status", "--porcelain"], { cwd: dir, encoding: "utf8" }),
 	);
@@ -201,6 +201,7 @@ export function handleGitopsResults(projectNames: string[], logs: (string | Erro
 			console.log(`${j === logs[i].length - 1 ? "└" : "├"}─── ${formattedLog}`);
 		}
 	}
+
 	if (errorCount > 0) {
 		throw new AssertionError({ message: "At least one git operation failed" });
 	}

@@ -1,3 +1,4 @@
+import { Task, TaskState } from "../../src/task_running/task";
 import { CmdAction, ShellAction } from "../../src/types/config";
 
 export const projectStub: any = {
@@ -61,3 +62,22 @@ export const cnfStub: any = {
 	searchFor: [],
 };
 export const cwdStub = "/home/user/gitte";
+
+export const getTask = (): Task => {
+	const task = new Task(
+		{ project: "example", action: "up", group: "cego" },
+		{ cwd: cwdStub, cmd: ["woot", "a"], priority: 0 },
+		[],
+	);
+
+	task.result = {
+		stdout: "Hello World 123",
+		stderr: "",
+		exitCode: 0,
+		finishTime: new Date(),
+	};
+
+	task.state = TaskState.COMPLETED;
+
+	return task;
+};

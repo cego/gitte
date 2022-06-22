@@ -25,5 +25,10 @@ yargs(process.argv.slice(2))
 		type: "boolean",
 		default: false,
 	})
+	.option("needs", {
+		describe: "Require dependencies of projects to be run.",
+		type: "boolean",
+		default: true,
+	})
 	.alias("h", "help")
 	.parse();
