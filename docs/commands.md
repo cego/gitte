@@ -33,13 +33,13 @@ $ gitte clean
 ```
 
 It can be run with 4 different options:
- - `untracked` will remove all untracked files in all projects. (`git clean -fdx`)
- - `local-changes` will remove local-changes in all projects. Will ask for confirmation before deleting anything. 
- - `master` will checkout the default branch in all projects.
- - `non-gitte` will remove folders that gitte did not create. Will ask for confirmation before deleting anything.
+
+- `untracked` will remove all untracked files in all projects. (`git clean -fdx`)
+- `local-changes` will remove local-changes in all projects. Will ask for confirmation before deleting anything.
+- `master` will checkout the default branch in all projects.
+- `non-gitte` will remove folders that gitte did not create. Will ask for confirmation before deleting anything.
 
 If no option is specified, it will do all of the above.
-
 
 ### Listing all projects and their actions
 
