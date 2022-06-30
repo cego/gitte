@@ -33,7 +33,7 @@ export function getDisabledProjects(cachePath: string, projectsDisablePath: stri
 	return projectsDisabled;
 }
 
-function getPreviouslySeenProjectsFromCache(cachePath: string): string[] {
+export function getPreviouslySeenProjectsFromCache(cachePath: string): string[] {
 	if (fs.pathExistsSync(cachePath)) {
 		const cache = fs.readJsonSync(cachePath);
 		assert(validateCache(cache), "Invalid .gitte-cache.json file. Try deleting this file and running gitte again.");
@@ -58,7 +58,7 @@ export function logDisabledProjects(cfg: Config): void {
 	});
 }
 
-export function cleanDisabledProjects(cfg: Config): void {
+export function resetDisabledProjects(cfg: Config): void {
 	// overwrite .gitte-projects-disable with defaultDisabled projects
 	const cwd = cfg.cwd;
 	const projectsDisablePath = path.join(cwd, ".gitte-projects-disable");
