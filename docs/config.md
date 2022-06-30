@@ -41,7 +41,7 @@ startup:
 
 Projects define what projects should be kept up to date and cloned, and also what actions are available on each project.
 
-A project must contain the properties remote and default_branch.
+A project must contain the properties remote and default_branch. The property defaultDisabled is optional, and if set to true, the project will not be cloned or updated unless explicitly enabled.
 
 A project can contain many actions.
 
@@ -50,6 +50,7 @@ A project can contain many actions.
 projects:
   example:
     remote: git@gitlab.com:cego/example.git
+    defaultDisabled: true
     default_branch: main
     actions:
       up:

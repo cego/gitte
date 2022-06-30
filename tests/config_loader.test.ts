@@ -7,19 +7,31 @@ import { loadConfig } from "../src/config_loader";
 import { ExecaReturnValue } from "execa";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
+let readSpy: jest.MockInstance<any, any[]>;
+let readSpySync: jest.MockInstance<any, any[]>;
 beforeEach(() => {
-	jest.spyOn(fs, "readFile").mockResolvedValue(
-		Buffer.from(
+	readSpy = jest.spyOn(fs, "readFile");
+	readSpySync = jest.spyOn(fs, "readFileSync");
+
+	// @ts-ignore
+	when(readSpy)
+		.calledWith(`${cwdStub}/.gitte.yml`, "utf8")
+		.mockResolvedValue(
 			`---\n${yaml.dump({
 				projects: { example: projectStub },
 				startup: startupStub,
 			})}`,
-		),
-	);
+		);
 
 	// @ts-ignore
 	utils.spawn = jest.fn();
 	fs.pathExists = jest.fn().mockImplementation(() => Promise.resolve(true));
+	fs.writeFileSync = jest.fn().mockImplementation(() => {
+		return;
+	});
+	fs.writeJsonSync = jest.fn().mockImplementation(() => {
+		return;
+	});
 	console.log = jest.fn();
 	console.error = jest.fn();
 
@@ -30,6 +42,18 @@ beforeEach(() => {
 	when(spawnSpy)
 		.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
 		.mockResolvedValue({ stdout: "main" });
+
+	// @ts-ignore
+	when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(true);
+
+	// @ts-ignore
+	when(readSpySync).calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8").mockResolvedValue(``);
+
+	// @ts-ignore
+	when(readSpySync).calledWith(`${cwdStub}/.gitte-cache.json`, "utf8").mockResolvedValue(``);
+
+	// @ts-ignore
+	when(readSpy).calledWith(`${cwdStub}/.gitte-override.yml`, "utf8").mockResolvedValue(``);
 });
 
 describe("Config loader", () => {
@@ -81,7 +105,7 @@ describe("Config loader", () => {
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-override.yml`).mockResolvedValue(true);
 		// @ts-ignore
-		when(fs.readFile).calledWith(`${cwdStub}/.gitte-override.yml`, "utf8").mockResolvedValue(overrideFileCnt);
+		when(readSpy).calledWith(`${cwdStub}/.gitte-override.yml`, "utf8").mockResolvedValue(overrideFileCnt);
 
 		const config = await loadConfig(cwdStub);
 
@@ -113,5 +137,102 @@ describe("Config loader", () => {
 		expect(config.projects.example.actions.up.needs).toEqual([]);
 		expect(config.projects.example.actions.up.searchFor).toEqual([]);
 		expect(config.projects.example.actions.up.priority).toEqual(null);
+	});
+
+	test("It removed projects from .gitte-projects-disable", async () => {
+		const fileCnt = `---\n${yaml.dump({
+			startup: startupStub,
+			projects: {
+				example1: {
+					remote: "git@gitlab.com:cego/example.git",
+					default_branch: "main",
+					actions: {
+						up: { groups: { default: ["echo", "up"] } },
+					},
+				},
+				example2: {
+					remote: "git@gitlab.com:cego/example.git",
+					default_branch: "main",
+					actions: {
+						up: { groups: { default: ["echo", "up"] } },
+					},
+				},
+				example3: {
+					remote: "git@gitlab.com:cego/example.git",
+					default_branch: "main",
+					actions: {
+						up: { groups: { default: ["echo", "up"] } },
+					},
+				},
+			},
+		})}`;
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-override.yml`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.readFile).calledWith(`${cwdStub}/.gitte.yml`, "utf8").mockResolvedValue(fileCnt);
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(true);
+		// @ts-ignore
+		when(readSpySync).calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8").mockReturnValue(`example1\nexample3`);
+
+		const config = await loadConfig(cwdStub);
+
+		expect(Object.keys(config.projects)).toEqual(["example2"]);
+	});
+	test("It creates empty .gitte-projects-disable if not exists", async () => {
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-override.yml`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(false);
+
+		const writeSpy = jest.spyOn(fs, "writeFileSync").mockImplementation(() => {
+			return;
+		});
+
+		await loadConfig(cwdStub);
+
+		expect(writeSpy).toHaveBeenCalledWith(`${cwdStub}/.gitte-projects-disable`, "", "utf8");
+	});
+	test("It does not remove any projects if .gitte-projects-disable is empty", async () => {
+		const fileCnt = `---\n${yaml.dump({
+			startup: startupStub,
+			projects: {
+				example1: {
+					remote: "git@gitlab.com:cego/example.git",
+					default_branch: "main",
+					actions: {
+						up: { groups: { default: ["echo", "up"] } },
+					},
+				},
+				example2: {
+					remote: "git@gitlab.com:cego/example.git",
+					default_branch: "main",
+					actions: {
+						up: { groups: { default: ["echo", "up"] } },
+					},
+				},
+				example3: {
+					remote: "git@gitlab.com:cego/example.git",
+					default_branch: "main",
+					actions: {
+						up: { groups: { default: ["echo", "up"] } },
+					},
+				},
+			},
+		})}`;
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-override.yml`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.readFile).calledWith(`${cwdStub}/.gitte.yml`, "utf8").mockResolvedValue(fileCnt);
+
+		const config = await loadConfig(cwdStub);
+
+		expect(Object.keys(config.projects)).toEqual(["example1", "example2", "example3"]);
 	});
 });
