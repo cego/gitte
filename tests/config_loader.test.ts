@@ -8,8 +8,10 @@ import { ExecaReturnValue } from "execa";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 let readSpy: jest.MockInstance<any, any[]>;
+let readSpySync: jest.MockInstance<any, any[]>;
 beforeEach(() => {
 	readSpy = jest.spyOn(fs, "readFile");
+	readSpySync = jest.spyOn(fs, "readFileSync");
 
 	// @ts-ignore
 	when(readSpy)
@@ -24,6 +26,12 @@ beforeEach(() => {
 	// @ts-ignore
 	utils.spawn = jest.fn();
 	fs.pathExists = jest.fn().mockImplementation(() => Promise.resolve(true));
+	fs.writeFileSync = jest.fn().mockImplementation(() => {
+		return;
+	});
+	fs.writeJsonSync = jest.fn().mockImplementation(() => {
+		return;
+	});
 	console.log = jest.fn();
 	console.error = jest.fn();
 
@@ -39,7 +47,10 @@ beforeEach(() => {
 	when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(true);
 
 	// @ts-ignore
-	when(readSpy).calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8").mockResolvedValue(``);
+	when(readSpySync).calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8").mockResolvedValue(``);
+
+	// @ts-ignore
+	when(readSpySync).calledWith(`${cwdStub}/.gitte-cache.json`, "utf8").mockResolvedValue(``);
 
 	// @ts-ignore
 	when(readSpy).calledWith(`${cwdStub}/.gitte-override.yml`, "utf8").mockResolvedValue(``);
@@ -164,7 +175,7 @@ describe("Config loader", () => {
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(true);
 		// @ts-ignore
-		when(readSpy).calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8").mockResolvedValue(`example1\nexample3`);
+		when(readSpySync).calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8").mockReturnValue(`example1\nexample3`);
 
 		const config = await loadConfig(cwdStub);
 
@@ -178,7 +189,9 @@ describe("Config loader", () => {
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(false);
 
-		const writeSpy = jest.spyOn(fs, "writeFile").mockImplementation(() => Promise.resolve());
+		const writeSpy = jest.spyOn(fs, "writeFileSync").mockImplementation(() => {
+			return;
+		});
 
 		await loadConfig(cwdStub);
 

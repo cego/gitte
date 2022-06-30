@@ -71,7 +71,7 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 		version: 1,
 		seenProjects: Object.keys(yml.projects),
 	};
-	fs.writeJsonSync(cachePath, cache);
+	fs.writeJsonSync(cachePath, cache, { spaces: 4 });
 
 	assert(validateYaml(yml), "Invalid .gitte.yml file");
 
