@@ -9,7 +9,7 @@ export const describe = "Validate the configuration";
 // noinspection JSUnusedGlobalSymbols
 export async function handler(argv: any) {
 	try {
-		await loadConfig(argv.cwd);
+		await loadConfig(argv.cwd, argv.needs);
 		console.log(chalk`{green .gitte.yml is valid}`);
 	} catch (e) {
 		errorHandler(e);

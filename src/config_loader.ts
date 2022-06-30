@@ -8,7 +8,7 @@ import fs from "fs-extra";
 import yaml from "js-yaml";
 import * as _ from "lodash";
 
-export async function loadConfig(cwd: string): Promise<Config> {
+export async function loadConfig(cwd: string, needs = true): Promise<Config> {
 	const cnfPath = path.join(cwd, `.gitte.yml`);
 	const dotenvPath = path.join(cwd, `.gitte-env`);
 	const overridePath = path.join(cwd, ".gitte-override.yml");
@@ -45,7 +45,7 @@ export async function loadConfig(cwd: string): Promise<Config> {
 		const message = `No .gitte.yml or .gitte-env found in current or parent directories.`;
 		throw new AssertionError({ message });
 	} else {
-		return loadConfig(path.resolve(cwd, ".."));
+		return loadConfig(path.resolve(cwd, ".."), needs);
 	}
 
 	// Load .gitte-override.yml
@@ -76,5 +76,5 @@ export async function loadConfig(cwd: string): Promise<Config> {
 		});
 	});
 
-	return { ...yml, cwd };
+	return { ...yml, cwd, needs };
 }
