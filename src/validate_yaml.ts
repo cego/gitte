@@ -7,14 +7,14 @@ const ajv = new Ajv2019();
 const schema = {
 	type: "object",
 	required: ["startup", "projects"],
-	additionalProperties: false,
+	additionalProperties: true,
 	properties: {
 		searchFor: {
 			type: "array",
 			items: {
 				type: "object",
 				required: ["regex", "hint"],
-				additionalProperties: false,
+				additionalProperties: true,
 				properties: {
 					regex: {
 						type: "string",
@@ -32,7 +32,7 @@ const schema = {
 					{
 						type: "object",
 						required: ["cmd"],
-						additionalProperties: false,
+						additionalProperties: true,
 						properties: {
 							cmd: {
 								type: "array",
@@ -47,7 +47,7 @@ const schema = {
 					{
 						type: "object",
 						required: ["shell", "script"],
-						additionalProperties: false,
+						additionalProperties: true,
 						properties: {
 							shell: {
 								type: "string",
@@ -68,7 +68,7 @@ const schema = {
 			additionalProperties: {
 				type: "object",
 				required: ["remote", "default_branch"],
-				additionalProperties: false,
+				additionalProperties: true,
 				properties: {
 					remote: {
 						type: "string",
@@ -76,11 +76,14 @@ const schema = {
 					default_branch: {
 						type: "string",
 					},
+					defaultDisabled: {
+						type: "boolean",
+					},
 					actions: {
 						type: "object",
 						additionalProperties: {
 							type: "object",
-							additionalProperties: false,
+							additionalProperties: true,
 							properties: {
 								priority: {
 									type: "integer",
@@ -103,7 +106,7 @@ const schema = {
 									items: {
 										type: "object",
 										required: ["regex", "hint"],
-										additionalProperties: false,
+										additionalProperties: true,
 										properties: {
 											regex: {
 												type: "string",

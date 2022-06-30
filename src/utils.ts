@@ -3,9 +3,9 @@ import execa from "execa";
 import prompts from "prompts";
 import { GroupKey } from "./types/utils";
 
-export function printHeader(header: string) {
+export function printHeader(header: string, status = "BEGIN") {
 	console.log();
-	console.log(chalk`{bgCyan  BEGIN } {bold ${header}}`);
+	console.log(chalk`{bgCyan  ${status} } {bold ${header}}`);
 	console.log();
 }
 

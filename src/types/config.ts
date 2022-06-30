@@ -15,6 +15,7 @@ export type Project = {
 	remote: string;
 	default_branch: string;
 	actions: { [key: string]: ProjectAction };
+	defaultDisabled?: boolean;
 };
 
 export type Config = {
