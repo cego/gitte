@@ -58,6 +58,22 @@ If you want to specify multiple actions, groups or project, please use the `+` o
 gitte run build+deploy example.com
 ```
 
+## Disabling projects
+
+It is possible to disable projects completely. This can be done using the `toggle` command.
+
+To see a current list of enabled/disabled projects:
+
+`gitte toggle`
+
+To toggle a project:
+
+`gitte toggle <project>`
+
+To reset to default state:
+
+`gitte toggle reset`
+
 ## Other commands
 
 For other usage, such as running startup, git operations or actions seperately, please refer to [commands documentation](./docs/commands.md), or see `gitte --help`.
