@@ -34,5 +34,8 @@ export function actionsBuilder(y: Argv): Argv {
 		.positional("projects", {
 			describe: "projects to run action on",
 			default: "*",
+		}).completion('completion', () => {
+			// read .gitte-cache.json
+			return ["seamless-wallet", 'all'];
 		});
 }
