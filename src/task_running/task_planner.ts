@@ -202,7 +202,7 @@ class TaskPlanner {
 		return projectActions.reduce((carry, projectAction) => {
 			const action = this.config.projects[projectAction.project].actions[projectAction.action];
 			const groups = Object.keys(action.groups)
-				.filter((groupName) => groupsStr.includes(groupName) || groupsStr.includes("*"))
+				.filter((groupName) => groupsStr.includes(groupName) || groupsStr.includes("*") || groupName === "*")
 				.map((groupName) => ({ ...projectAction, group: groupName, needs: [] }));
 			return [...carry, ...groups];
 		}, [] as GroupKeyWithDependencies[]);
