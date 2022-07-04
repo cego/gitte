@@ -2,6 +2,7 @@ import { loadConfig } from "../../src/config_loader";
 import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
 import { TaskHandler } from "../../src/task_running/task_handler";
+import { tabCompleteActions } from "../../src/tab_completion";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -34,8 +35,6 @@ export function actionsBuilder(y: Argv): Argv {
 		.positional("projects", {
 			describe: "projects to run action on",
 			default: "*",
-		}).completion('completion', () => {
-			// read .gitte-cache.json
-			return ["seamless-wallet", 'all'];
-		});
+		})
+		// .completion("completion", tabCompleteActions);	
 }
