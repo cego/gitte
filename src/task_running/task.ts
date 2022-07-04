@@ -9,10 +9,10 @@ type OutType = "stdout" | "stderr";
 type OutObject = {
 	text: string;
 	type: OutType;
-}
+};
 
 type ActionResult = {
-	out: OutObject[]
+	out: OutObject[];
 	exitCode: number;
 	signal?: string;
 	finishTime: Date;
@@ -78,11 +78,11 @@ class Task {
 		this.state = TaskState.COMPLETED;
 	}
 
-	private getWritableStream(type: OutType, outArr: OutObject[]): Writable{
+	private getWritableStream(type: OutType, outArr: OutObject[]): Writable {
 		return new Writable({
 			write(chunk, _, callback) {
 				const text: string[] = chunk.toString().split("\n");
-				text.forEach(x => outArr.push({ text: x, type }));
+				text.forEach((x) => outArr.push({ text: x, type }));
 				callback();
 			},
 		});

@@ -15,7 +15,7 @@ export function getLogFilePath(cwd: string, task: Task): string {
 export const stashLogsToFile = (tasks: Task[], config: Config, action: string) => {
 	tasks = tasks.filter((task) => task.key.action === action);
 	for (const task of tasks) {
-		if(!task.result) continue;
+		if (!task.result) continue;
 		const logsFilePath = getLogFilePath(config.cwd, task);
 		const output = task.result.out.map((line) => `[${line.type}] ${line.text}`);
 		output.push(
@@ -91,10 +91,8 @@ export function searchOutputForHints(tasks: Task[], cfg: Config, action: string,
 }
 
 function searchForRegex(searchFor: SearchFor, tasks: Task[], firstHint: boolean): boolean {
- 
-
 	for (const task of tasks) {
-		if(!task.result) continue;
+		if (!task.result) continue;
 		const outAsText = task.result.out.reduce((acc, line) => acc + line.text, "");
 		if (new RegExp(searchFor.regex, "g").test(outAsText)) {
 			if (firstHint) {
