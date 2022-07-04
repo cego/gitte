@@ -15,10 +15,9 @@ export function getLogFilePath(cwd: string, task: Task): string {
 export const stashLogsToFile = (tasks: Task[], config: Config, action: string) => {
 	tasks = tasks.filter((task) => task.key.action === action);
 	for (const task of tasks) {
+		if (!task.result) continue;
 		const logsFilePath = getLogFilePath(config.cwd, task);
-		const output = [];
-		output.push(...(task.result?.stdout.split("\n").map((line) => `[stdout] ${line.trim()}`) ?? []));
-		output.push(...(task.result?.stderr.split("\n").map((line) => `[stderr] ${line.trim()}`) ?? []));
+		const output = task.result.out.map((line) => `[${line.type}] ${line.text}`);
 		output.push(
 			`[exitCode] ${task.context.cmd.join(" ")} exited with ${task.result?.exitCode} in ${
 				task.context.cwd
@@ -93,16 +92,14 @@ export function searchOutputForHints(tasks: Task[], cfg: Config, action: string,
 
 function searchForRegex(searchFor: SearchFor, tasks: Task[], firstHint: boolean): boolean {
 	for (const task of tasks) {
-		if (
-			task.result &&
-			(new RegExp(searchFor.regex, "g").test(task.result.stdout) ||
-				new RegExp(searchFor.regex, "g").test(task.result.stderr))
-		) {
+		if (!task.result) continue;
+		const outAsText = task.result.out.reduce((acc, line) => acc + line.text, "");
+		if (new RegExp(searchFor.regex, "g").test(outAsText)) {
 			if (firstHint) {
 				printHeader("Hints");
 				firstHint = false;
 			}
-			const groups = new RegExp(searchFor.regex, "g").exec(task.result.stdout + task.result.stderr) ?? ([] as string[]);
+			const groups = new RegExp(searchFor.regex, "g").exec(outAsText) ?? ([] as string[]);
 			let hint: string = searchFor.hint.replace(/{(\d+)}/g, (_, d) => groups[d]);
 
 			hint = template(chalk, hint);
