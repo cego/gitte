@@ -2,10 +2,17 @@ import { GroupKey } from "../types/utils";
 import * as utils from "../utils";
 import { ExecaError, ExecaReturnValue } from "execa";
 import { TaskHandler } from "./task_handler";
+import { Writable } from "stream";
+
+type OutType = "stdout" | "stderr";
+
+type OutObject = {
+	text: string;
+	type: OutType;
+}
 
 type ActionResult = {
-	stdout: string;
-	stderr: string;
+	out: OutObject[]
 	exitCode: number;
 	signal?: string;
 	finishTime: Date;
@@ -55,16 +62,30 @@ class Task {
 		promise.stdout?.pipe(printer.getWritableStream(this));
 		promise.stderr?.pipe(printer.getWritableStream(this));
 
+		// Also pipe stdout to save in task
+		const out: OutObject[] = [];
+		promise.stdout?.pipe(this.getWritableStream("stdout", out));
+		promise.stderr?.pipe(this.getWritableStream("stderr", out));
+
 		const res: ExecaReturnValue<string> | ExecaError<string> = await promise.catch((err) => err);
 
 		this.result = {
-			stdout: res.stdout?.toString() ?? "",
-			stderr: res.stderr?.toString() ?? "",
+			out,
 			exitCode: res.exitCode,
 			signal: res.signal,
 			finishTime: new Date(),
 		};
 		this.state = TaskState.COMPLETED;
+	}
+
+	private getWritableStream(type: OutType, outArr: OutObject[]): Writable{
+		return new Writable({
+			write(chunk, _, callback) {
+				const text: string[] = chunk.toString().split("\n");
+				text.forEach(x => outArr.push({ text: x, type }));
+				callback();
+			},
+		});
 	}
 }
 
