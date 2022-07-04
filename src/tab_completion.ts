@@ -41,10 +41,11 @@ export async function getProjectNames(argv: any, actionsStr: string, groupsStr: 
     }, new Set<string>())];
 }
 
-export async function tabCompleteActions(argv: any): Promise<string[]> {
+export async function tabCompleteActions(_:string, argv: any): Promise<string[]> {
     const words = argv._.slice(2);
+    // console.log(words);
     // predict action
-    if (words.length <= 1) {
+    if (words.length == 1) {
         const actionNames = [...new Set(await getActionNames(argv))];
         return appendToMultiple(words[0], actionNames);
     }
@@ -61,10 +62,11 @@ export async function tabCompleteActions(argv: any): Promise<string[]> {
         return appendToMultiple(words[2], projectNames);
     }
 
-    return ["wat3"]
+    return []
 }
 
 function appendToMultiple(word: string, options: string[]) {
+    console.log({word})
     const previousActions = word.split('+');
     if(previousActions.length == 1) {
         return options;

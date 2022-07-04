@@ -44,9 +44,7 @@ export const y = yargs(process.argv.slice(2))
 		switch (words[1]) {
             case "actions":
             case "run":
-                return tabCompleteActions(yargsArgv);
-			case "clean":
-				return tabCompleteClean(yargsArgv);
+                // return tabCompleteActions(yargsArgv);
 			case "toggle":
 				return tabCompleteToggle(yargsArgv);
 			case "gitops":

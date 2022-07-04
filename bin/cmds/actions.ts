@@ -9,7 +9,7 @@ export function builder(y: Argv) {
 	return actionsBuilder(y);
 }
 // noinspection JSUnusedGlobalSymbols
-export const command = "actions <actions> <groups> [projects]";
+export const command = "actions [actions] [groups] [projects]";
 // noinspection JSUnusedGlobalSymbols
 export const describe = "Run actions on selected projects for <actions> and <groups>";
 // noinspection JSUnusedGlobalSymbols
@@ -36,5 +36,5 @@ export function actionsBuilder(y: Argv): Argv {
 			describe: "projects to run action on",
 			default: "*",
 		})
-		// .completion("completion", tabCompleteActions);	
+		.completion("completion", tabCompleteActions);	
 }
