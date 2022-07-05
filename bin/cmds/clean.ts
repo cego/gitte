@@ -3,6 +3,7 @@ import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
 import { GitteCleaner } from "../../src/clean";
 import { AssertionError } from "assert";
+import { tabCompleteClean } from "../../src/tab_completion";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -50,5 +51,5 @@ export function cleanBuilder(y: Argv): Argv {
 			describe: "The cleanup action to run. Default all",
 			default: "all",
 		})
-		.completion("completion", () => ["untracked", "local-changes", "master", "non-gitte", "all"]);
+		.completion("completion", (_, argv) => tabCompleteClean(argv));
 }
