@@ -2,13 +2,11 @@ import { Config } from "./types/config";
 import path from "path";
 import assert from "assert";
 import fs from "fs-extra";
-import { validateCache } from "./cache";
+import { loadCachePath } from "./cache";
 import chalk from "chalk";
 import { printHeader } from "./utils";
 
-export function getDisabledProjects(cachePath: string, projectsDisablePath: string, cfg: Config): string[] {
-	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
-
+export function getDisabledProjects(seenProjects: string[], projectsDisablePath: string, cfg: Config): string[] {
 	// Load .gitte-projects-disable
 	if (!fs.pathExistsSync(projectsDisablePath)) {
 		fs.writeFileSync(projectsDisablePath, "", "utf8");
@@ -34,9 +32,8 @@ export function getDisabledProjects(cachePath: string, projectsDisablePath: stri
 }
 
 export function getPreviouslySeenProjectsFromCache(cachePath: string): string[] {
-	if (fs.pathExistsSync(cachePath)) {
-		const cache = fs.readJsonSync(cachePath);
-		assert(validateCache(cache), "Invalid .gitte-cache.json file. Try deleting this file and running gitte again.");
+	const cache = loadCachePath(cachePath);
+	if (cache !== null) {
 		return cache.seenProjects;
 	}
 	return [];
@@ -47,7 +44,8 @@ export function logDisabledProjects(cfg: Config): void {
 	const cachePath = path.join(cwd, ".gitte-cache.json");
 	const projectsDisablePath = path.join(cwd, ".gitte-projects-disable");
 
-	const projectsDisabled = getDisabledProjects(cachePath, projectsDisablePath, cfg);
+	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
+	const projectsDisabled = getDisabledProjects(seenProjects, projectsDisablePath, cfg);
 
 	Object.keys(cfg.projects).forEach((projectName) => {
 		if (projectsDisabled.includes(projectName)) {
@@ -88,7 +86,8 @@ export function toggleProjectDisable(cfg: Config, projectName: string): void {
 		`Project "${projectName}" does not exist. (See "gitte list" to see available projects.)`,
 	);
 
-	const projectsDisabled = getDisabledProjects(cachePath, projectsDisablePath, cfg);
+	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
+	const projectsDisabled = getDisabledProjects(seenProjects, projectsDisablePath, cfg);
 
 	let enabled = true;
 

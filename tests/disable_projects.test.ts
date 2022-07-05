@@ -28,6 +28,7 @@ describe("getPreviouslySeenProjectsFromCache", () => {
 			.mockReturnValue({
 				version: 1,
 				seenProjects: ["projecta"],
+				config: cnfStub,
 			});
 
 		const projectNames = getPreviouslySeenProjectsFromCache(`${cwdStub}/.gitte-cache.json`);

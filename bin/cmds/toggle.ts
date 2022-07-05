@@ -2,6 +2,7 @@ import { loadConfig } from "../../src/config_loader";
 import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
 import { resetDisabledProjects, logDisabledProjects, toggleProjectDisable } from "../../src/disable_projects";
+import { tabCompleteToggle } from "../../src/tab_completion";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -33,9 +34,13 @@ export async function handler(argv: any) {
 }
 
 export function cleanBuilder(y: Argv): Argv {
-	return y.positional("project", {
-		required: false,
-		describe: "The project to disable, reset to reset to default. Default: Status of disabled projects.",
-		default: "status",
-	});
+	return y
+		.positional("project", {
+			required: false,
+			describe: "The project to disable, reset to reset to default. Default: Status of disabled projects.",
+			default: "status",
+		})
+		.completion("completion", (argString, yargsArgv) => {
+			return tabCompleteToggle(yargsArgv);
+		});
 }

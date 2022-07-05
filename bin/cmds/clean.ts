@@ -3,6 +3,7 @@ import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
 import { GitteCleaner } from "../../src/clean";
 import { AssertionError } from "assert";
+import { tabCompleteClean } from "../../src/tab_completion";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -44,9 +45,11 @@ export async function handler(argv: any) {
 }
 
 export function cleanBuilder(y: Argv): Argv {
-	return y.positional("subaction", {
-		required: false,
-		describe: "The cleanup action to run. Default all",
-		default: "all",
-	});
+	return y
+		.positional("subaction", {
+			required: false,
+			describe: "The cleanup action to run. Default all",
+			default: "all",
+		})
+		.completion("completion", (_, argv) => tabCompleteClean(argv));
 }
