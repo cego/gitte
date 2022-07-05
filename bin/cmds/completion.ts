@@ -10,5 +10,7 @@ export const command = "completion";
 export const describe = "stuff";
 // noinspection JSUnusedGlobalSymbols
 export async function handler(argv: any) {
+    // load config to cache it
+    await loadConfig(argv.cwd, false, false);
     y.showCompletionScript();
 }

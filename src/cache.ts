@@ -1,10 +1,14 @@
 import Ajv2019 from "ajv/dist/2019";
+import path from "path";
+import { Config } from "./types/config";
+import fs from "fs-extra";
 
 const ajv = new Ajv2019();
 
 export type Cache = {
 	version: number;
 	seenProjects: string[];
+	config: Config;
 };
 
 const schema = {
@@ -36,4 +40,16 @@ export function validateCache(cache: any): cache is Cache {
 		return false;
 	}
 	return true;
+}
+
+export function getCachePathFromCwd(cwd: string): string | null {
+	const cachePath = path.join(cwd, ".gitte-cache.json");
+	if (fs.pathExistsSync(cachePath)) {
+		return cachePath;
+	}
+	else if (cwd === "/") {
+		return null;
+	} else {
+		return getCachePathFromCwd(path.resolve(cwd, ".."));
+	}
 }

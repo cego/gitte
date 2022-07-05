@@ -7,7 +7,7 @@ import { validateYaml } from "./validate_yaml";
 import fs from "fs-extra";
 import yaml from "js-yaml";
 import * as _ from "lodash";
-import { getDisabledProjects } from "./disable_projects";
+import { getDisabledProjects, getPreviouslySeenProjectsFromCache } from "./disable_projects";
 import { Cache } from "./cache";
 
 export async function loadConfig(cwd: string, needs = true, shouldDisableProjects = true): Promise<Config> {
@@ -59,19 +59,23 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 		yml = _.merge(yml, overrideYml);
 	}
 
-	const disabledProjects = getDisabledProjects(cachePath, projectsDisablePath, yml);
+	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
+
+	// Write .gitte-cache.json
+	const cache: Cache = {
+		version: 1,
+		seenProjects: Object.keys(yml.projects),
+		config: yml,
+	};
+	fs.writeJsonSync(cachePath, cache, { spaces: 4 });
+
+	const disabledProjects = getDisabledProjects(seenProjects, projectsDisablePath, yml);
 	if (shouldDisableProjects) {
 		disabledProjects.forEach((projectName) => {
 			_.unset(yml.projects, projectName);
 		});
 	}
 
-	// Write .gitte-cache.json
-	const cache: Cache = {
-		version: 1,
-		seenProjects: Object.keys(yml.projects),
-	};
-	fs.writeJsonSync(cachePath, cache, { spaces: 4 });
 
 	assert(validateYaml(yml), "Invalid .gitte.yml file");
 

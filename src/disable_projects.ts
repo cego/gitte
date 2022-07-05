@@ -6,8 +6,7 @@ import { validateCache } from "./cache";
 import chalk from "chalk";
 import { printHeader } from "./utils";
 
-export function getDisabledProjects(cachePath: string, projectsDisablePath: string, cfg: Config): string[] {
-	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
+export function getDisabledProjects(seenProjects: string[], projectsDisablePath: string, cfg: Config): string[] {
 
 	// Load .gitte-projects-disable
 	if (!fs.pathExistsSync(projectsDisablePath)) {
@@ -47,7 +46,8 @@ export function logDisabledProjects(cfg: Config): void {
 	const cachePath = path.join(cwd, ".gitte-cache.json");
 	const projectsDisablePath = path.join(cwd, ".gitte-projects-disable");
 
-	const projectsDisabled = getDisabledProjects(cachePath, projectsDisablePath, cfg);
+	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
+	const projectsDisabled = getDisabledProjects(seenProjects, projectsDisablePath, cfg);
 
 	Object.keys(cfg.projects).forEach((projectName) => {
 		if (projectsDisabled.includes(projectName)) {
@@ -87,8 +87,9 @@ export function toggleProjectDisable(cfg: Config, projectName: string): void {
 		cfg.projects[projectName],
 		`Project "${projectName}" does not exist. (See "gitte list" to see available projects.)`,
 	);
-
-	const projectsDisabled = getDisabledProjects(cachePath, projectsDisablePath, cfg);
+	
+	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
+	const projectsDisabled = getDisabledProjects(seenProjects, projectsDisablePath, cfg);
 
 	let enabled = true;
 

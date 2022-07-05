@@ -1,22 +1,24 @@
-import { loadConfig } from "./config_loader";
 import { TaskPlanner } from "./task_running/task_planner";
+import fs from "fs-extra";
+import { getCachePathFromCwd } from "./cache";
+import { Config } from "./types/config";
 
-export async function getActionNames(argv: any): Promise<string[]> {
-    const cnf = await loadConfig(argv.cwd, argv.needs);
-
-    const taskPlanner = new TaskPlanner(cnf);
+export function getActionNames(config: Config): string[] {
+    const taskPlanner = new TaskPlanner(config);
     const projects = taskPlanner.findProjects(['*']);
 
-    return (new TaskPlanner(cnf)).findActions(projects, ['*'])
+    return taskPlanner.findActions(projects, ['*'])
         .map(a => a.action);
 }
 
-export async function getGroupNames(argv: any, actionsStr: string): Promise<string[]> {
-    const cnf = await loadConfig(argv.cwd, argv.needs);
+const rewriteAllToStar = (name: string) => {
+    return name === 'all' ? '*' : name;
+}
 
-    const actions: string[] = actionsStr.split('+');
+export function getGroupNames(config: Config, actionsStr: string): string[] {
+    const actions: string[] = actionsStr.split('+').map(rewriteAllToStar);
 
-    const taskPlanner = new TaskPlanner(cnf);
+    const taskPlanner = new TaskPlanner(config);
     const projects = taskPlanner.findProjects(['*']);
     const projectActions = taskPlanner.findActions(projects, actions);
 
@@ -24,14 +26,13 @@ export async function getGroupNames(argv: any, actionsStr: string): Promise<stri
         .map(a => a.group);
 }
 
-export async function getProjectNames(argv: any, actionsStr: string, groupsStr: string): Promise<string[]> {
-    const cnf = await loadConfig(argv.cwd, argv.needs);
+export function getProjectNames(config: Config, actionsStr: string, groupsStr: string): string[] {
 
-    const actions: string[] = actionsStr.split('+');
-    const groups: string[] = groupsStr.split('+');
+    const actions: string[] = actionsStr.split('+').map(rewriteAllToStar);
+    const groups: string[] = groupsStr.split('+').map(rewriteAllToStar);
 
     // given actions and groups, find compatible projects
-    const taskPlanner = new TaskPlanner(cnf);
+    const taskPlanner = new TaskPlanner(config);
     const projects = taskPlanner.findProjects(['*']);
     const projectActions = taskPlanner.findActions(projects, actions);
     const keys = taskPlanner.findGroups(projectActions, groups);
@@ -41,34 +42,48 @@ export async function getProjectNames(argv: any, actionsStr: string, groupsStr: 
     }, new Set<string>())];
 }
 
-export async function tabCompleteActions(_:string, argv: any): Promise<string[]> {
-    const words = argv._.slice(2);
-    // console.log(words);
-    // predict action
-    if (words.length == 1) {
-        const actionNames = [...new Set(await getActionNames(argv))];
-        return appendToMultiple(words[0], actionNames);
+export function tabCompleteActions(_: string, argv: any): string[] {
+
+    const cachePath = getCachePathFromCwd(argv.cwd);
+    if (!cachePath) return [];
+
+    try {
+        const config = fs.readJsonSync(cachePath).config;
+        const words = argv._.slice(2);
+
+        // predict action
+        if (words.length == 1) {
+            const actionNames = [...new Set(getActionNames(config))];
+            return appendToMultiple(words[0], actionNames);
+        }
+
+        // predict group
+        if (words.length == 2) {
+            const groupNames = [...new Set(getGroupNames(config, words[0]))];
+            return appendToMultiple(words[1], groupNames);
+        }
+
+        // predict project
+        if (words.length == 3) {
+            const projectNames = [...new Set(getProjectNames(config, words[0], words[1]))];
+            return appendToMultiple(words[2], projectNames);
+        }
+
+
+    } catch (e) {
+        return [];
     }
 
-    // predict group
-    if (words.length == 2) {
-        const groupNames = [...new Set(await getGroupNames(argv, words[0]))];
-        return appendToMultiple(words[1], groupNames);
-    }
-
-    // predict project
-    if (words.length == 3) {
-        const projectNames = [...new Set(await getProjectNames(argv, words[0], words[1]))];
-        return appendToMultiple(words[2], projectNames);
-    }
 
     return []
 }
 
 function appendToMultiple(word: string, options: string[]) {
-    console.log({word})
+    // append all to options
+    options = [ 'all', ...options];
+
     const previousActions = word.split('+');
-    if(previousActions.length == 1) {
+    if (previousActions.length == 1) {
         return options;
     }
 
@@ -86,8 +101,8 @@ function appendToMultiple(word: string, options: string[]) {
 export function tabCompleteClean(argv: any) {
     // slice first word off
     const words = argv._.slice(2);
-    
-    if(words.length == 1) {
+
+    if (words.length == 1) {
         return [
             "untracked", "local-changes", "master", "non-gitte", "all"
         ];
@@ -96,14 +111,21 @@ export function tabCompleteClean(argv: any) {
     return [];
 }
 
-export async function tabCompleteToggle(argv: any) {
+export function tabCompleteToggle(argv: any): string[] {
     // slice first word off
     const words = argv._.slice(2);
 
-    if(words.length == 1) {
-        const cnf = await loadConfig(argv.cwd, argv.needs);
-        const taskPlanner = new TaskPlanner(cnf);
-        return taskPlanner.findProjects(['*']);
+    if (words.length == 1) {
+        const cachePath = getCachePathFromCwd(argv.cwd);
+        if (!cachePath) return [];
+
+        try {
+            const config = fs.readJsonSync(cachePath).config;
+            const taskPlanner = new TaskPlanner(config);
+            return taskPlanner.findProjects(['*']);
+        } catch (e) {
+            return [];
+        }
     }
 
     return [];
