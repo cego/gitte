@@ -6,7 +6,7 @@ export function getActionNames(config: Config): string[] {
 	const taskPlanner = new TaskPlanner(config);
 	const projects = taskPlanner.findProjects(["*"]);
 
-	return taskPlanner.findActions(projects, ["*"]).map((a) => a.action);
+	return [...new Set(taskPlanner.findActions(projects, ["*"]).map((a) => a.action))];
 }
 
 const rewriteAllToStar = (name: string) => {
