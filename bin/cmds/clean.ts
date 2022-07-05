@@ -50,6 +50,7 @@ export function cleanBuilder(y: Argv): Argv {
 			required: false,
 			describe: "The cleanup action to run. Default all",
 			default: "all",
+			choices: ["untracked", "local-changes", "master", "non-gitte", "all"],
 		})
 		.completion("completion", (_, argv) => tabCompleteClean(argv));
 }
