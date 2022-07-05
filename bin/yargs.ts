@@ -30,33 +30,4 @@ export const y = yargs(process.argv.slice(2))
 		type: "boolean",
 		default: true,
 	})
-	// .option("get-yargs-completions", {
-	// 	type: 'array',
-	// })
 	.alias("h", "help");
-// .completion("completion", (argString, yargsArgv) => {
-
-// 	const words = yargsArgv._
-
-//     // console.log({words})
-
-// 	switch (words[1]) {
-//         case "actions":
-//         case "run":
-//             return tabCompleteActions("", yargsArgv);
-// 		case "toggle":
-// 			return tabCompleteToggle(yargsArgv);
-// 		case "gitops":
-// 		case "startup":
-// 		case "validate":
-// 			return [];
-// 		default:
-// 			if (words.length > 2) {
-// 				return []
-// 			}
-// 			return [
-// 				"run", "actions", "clean", "toggle", "gitops", "startup", "validate",
-// 			]
-// 	}
-//     return ["wat"];
-// })

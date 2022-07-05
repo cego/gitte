@@ -2,7 +2,7 @@ import { Config } from "./types/config";
 import path from "path";
 import assert from "assert";
 import fs from "fs-extra";
-import { validateCache } from "./cache";
+import { loadCachePath } from "./cache";
 import chalk from "chalk";
 import { printHeader } from "./utils";
 
@@ -32,9 +32,8 @@ export function getDisabledProjects(seenProjects: string[], projectsDisablePath:
 }
 
 export function getPreviouslySeenProjectsFromCache(cachePath: string): string[] {
-	if (fs.pathExistsSync(cachePath)) {
-		const cache = fs.readJsonSync(cachePath);
-		assert(validateCache(cache), "Invalid .gitte-cache.json file. Try deleting this file and running gitte again.");
+	const cache = loadCachePath(cachePath);
+	if (cache !== null) {
 		return cache.seenProjects;
 	}
 	return [];

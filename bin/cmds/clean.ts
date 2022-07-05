@@ -50,5 +50,5 @@ export function cleanBuilder(y: Argv): Argv {
 			describe: "The cleanup action to run. Default all",
 			default: "all",
 		})
-		.completion("completion", async () => ["untracked", "local-changes", "master", "non-gitte", "all"]);
+		.completion("completion", () => ["untracked", "local-changes", "master", "non-gitte", "all"]);
 }

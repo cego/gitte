@@ -2,6 +2,8 @@ import Ajv2019 from "ajv/dist/2019";
 import path from "path";
 import { Config } from "./types/config";
 import fs from "fs-extra";
+import { configSchema } from "./validate_yaml";
+import { AssertionError } from "assert";
 
 const ajv = new Ajv2019();
 
@@ -13,7 +15,7 @@ export type Cache = {
 
 const schema = {
 	type: "object",
-	required: ["version", "seenProjects"],
+	required: ["version", "seenProjects", "config"],
 	additionalProperties: true,
 	properties: {
 		version: {
@@ -28,6 +30,7 @@ const schema = {
 				type: "string",
 			},
 		},
+		config: configSchema,
 	},
 };
 
@@ -51,4 +54,24 @@ export function getCachePathFromCwd(cwd: string): string | null {
 	} else {
 		return getCachePathFromCwd(path.resolve(cwd, ".."));
 	}
+}
+
+export function loadCachePath(cwd: string): Cache | null {
+	const cachePath = getCachePathFromCwd(cwd);
+	if (cachePath === null) {
+		return null;
+	}
+	const cache = fs.readJSONSync(cachePath);
+	if (!validateCache(cache)) {
+		throw new AssertionError({ message: "Cache is invalid" });
+	}
+	return cache;
+}
+
+export function loadCacheCwd(cwd: string): Cache | null {
+	const cachePath = getCachePathFromCwd(cwd);
+	if (cachePath === null) {
+		return null;
+	}
+	return loadCachePath(cachePath);
 }

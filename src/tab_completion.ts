@@ -1,6 +1,5 @@
 import { TaskPlanner } from "./task_running/task_planner";
-import fs from "fs-extra";
-import { getCachePathFromCwd } from "./cache";
+import { loadCacheCwd } from "./cache";
 import { Config } from "./types/config";
 
 export function getActionNames(config: Config): string[] {
@@ -42,32 +41,28 @@ export function getProjectNames(config: Config, actionsStr: string, groupsStr: s
 }
 
 export function tabCompleteActions(_: string, argv: any): string[] {
-	const cachePath = getCachePathFromCwd(argv.cwd);
-	if (!cachePath) return [];
+	const cache = loadCacheCwd(argv.cwd);
+	if (!cache) return [];
 
-	try {
-		const config = fs.readJsonSync(cachePath).config;
-		const words = argv._.slice(2);
+	const config = cache.config;
+	const words = argv._.slice(2);
 
-		// predict action
-		if (words.length == 1) {
-			const actionNames = [...new Set(getActionNames(config))];
-			return appendToMultiple(words[0], actionNames);
-		}
+	// predict action
+	if (words.length == 1) {
+		const actionNames = [...new Set(getActionNames(config))];
+		return appendToMultiple(words[0], actionNames);
+	}
 
-		// predict group
-		if (words.length == 2) {
-			const groupNames = [...new Set(getGroupNames(config, words[0]))];
-			return appendToMultiple(words[1], groupNames);
-		}
+	// predict group
+	if (words.length == 2) {
+		const groupNames = [...new Set(getGroupNames(config, words[0]))];
+		return appendToMultiple(words[1], groupNames);
+	}
 
-		// predict project
-		if (words.length == 3) {
-			const projectNames = [...new Set(getProjectNames(config, words[0], words[1]))];
-			return appendToMultiple(words[2], projectNames);
-		}
-	} catch (e) {
-		return [];
+	// predict project
+	if (words.length == 3) {
+		const projectNames = [...new Set(getProjectNames(config, words[0], words[1]))];
+		return appendToMultiple(words[2], projectNames);
 	}
 
 	return [];
@@ -108,16 +103,12 @@ export function tabCompleteToggle(argv: any): string[] {
 	const words = argv._.slice(2);
 
 	if (words.length == 1) {
-		const cachePath = getCachePathFromCwd(argv.cwd);
-		if (!cachePath) return [];
+		const cache = loadCacheCwd(argv.cwd);
+		if (!cache) return [];
 
-		try {
-			const config = fs.readJsonSync(cachePath).config;
-			const taskPlanner = new TaskPlanner(config);
-			return taskPlanner.findProjects(["*"]);
-		} catch (e) {
-			return [];
-		}
+		const config = cache.config;
+		const taskPlanner = new TaskPlanner(config);
+		return taskPlanner.findProjects(["*"]);
 	}
 
 	return [];

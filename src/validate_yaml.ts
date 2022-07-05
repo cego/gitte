@@ -4,7 +4,7 @@ import { Config } from "./types/config";
 
 const ajv = new Ajv2019();
 
-const schema = {
+export const configSchema = {
 	type: "object",
 	required: ["startup", "projects"],
 	additionalProperties: true,
@@ -126,7 +126,7 @@ const schema = {
 	},
 };
 
-const validate = ajv.compile<Config>(schema);
+const validate = ajv.compile<Config>(configSchema);
 
 export function validateYaml(obj: any): obj is Config {
 	const valid = validate(obj);
