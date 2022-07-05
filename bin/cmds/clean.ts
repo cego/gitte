@@ -44,10 +44,11 @@ export async function handler(argv: any) {
 }
 
 export function cleanBuilder(y: Argv): Argv {
-	return y.positional("subaction", {
-		required: false,
-		describe: "The cleanup action to run. Default all",
-		default: "all",
-	})
-	.completion('completion', async () => ["untracked", "local-changes", "master", "non-gitte", "all"]);
+	return y
+		.positional("subaction", {
+			required: false,
+			describe: "The cleanup action to run. Default all",
+			default: "all",
+		})
+		.completion("completion", async () => ["untracked", "local-changes", "master", "non-gitte", "all"]);
 }

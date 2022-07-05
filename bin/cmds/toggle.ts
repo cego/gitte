@@ -34,11 +34,12 @@ export async function handler(argv: any) {
 }
 
 export function cleanBuilder(y: Argv): Argv {
-	return y.positional("project", {
-		required: false,
-		describe: "The project to disable, reset to reset to default. Default: Status of disabled projects.",
-		default: "status",
-	})
+	return y
+		.positional("project", {
+			required: false,
+			describe: "The project to disable, reset to reset to default. Default: Status of disabled projects.",
+			default: "status",
+		})
 		.completion("completion", (argString, yargsArgv) => {
 			return tabCompleteToggle(yargsArgv);
 		});

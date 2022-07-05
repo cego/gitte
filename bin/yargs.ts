@@ -3,7 +3,6 @@ import "source-map-support/register";
 import yargs from "yargs/yargs";
 import fs from "fs-extra";
 import path from "path";
-import { tabCompleteActions, tabCompleteClean } from "../src/tab_completion";
 
 const terminalWidth = yargs().terminalWidth();
 const packageJsonPath = path.join(__dirname, "../package.json");
@@ -34,30 +33,30 @@ export const y = yargs(process.argv.slice(2))
 	// .option("get-yargs-completions", {
 	// 	type: 'array',
 	// })
-	.alias("h", "help")
-	// .completion("completion", (argString, yargsArgv) => {
+	.alias("h", "help");
+// .completion("completion", (argString, yargsArgv) => {
 
-	// 	const words = yargsArgv._
+// 	const words = yargsArgv._
 
-    //     // console.log({words})
+//     // console.log({words})
 
-	// 	switch (words[1]) {
-    //         case "actions":
-    //         case "run":
-    //             return tabCompleteActions("", yargsArgv);
-	// 		case "toggle":
-	// 			return tabCompleteToggle(yargsArgv);
-	// 		case "gitops":
-	// 		case "startup":
-	// 		case "validate":
-	// 			return [];
-	// 		default:
-	// 			if (words.length > 2) {
-	// 				return []   
-	// 			}
-	// 			return [
-	// 				"run", "actions", "clean", "toggle", "gitops", "startup", "validate",
-	// 			]
-	// 	}
-    //     return ["wat"];
-	// })
+// 	switch (words[1]) {
+//         case "actions":
+//         case "run":
+//             return tabCompleteActions("", yargsArgv);
+// 		case "toggle":
+// 			return tabCompleteToggle(yargsArgv);
+// 		case "gitops":
+// 		case "startup":
+// 		case "validate":
+// 			return [];
+// 		default:
+// 			if (words.length > 2) {
+// 				return []
+// 			}
+// 			return [
+// 				"run", "actions", "clean", "toggle", "gitops", "startup", "validate",
+// 			]
+// 	}
+//     return ["wat"];
+// })

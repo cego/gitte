@@ -36,5 +36,5 @@ export function actionsBuilder(y: Argv): Argv {
 			describe: "projects to run action on",
 			default: "*",
 		})
-		.completion("completion", tabCompleteActions);	
+		.completion("completion", tabCompleteActions);
 }

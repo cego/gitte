@@ -76,7 +76,6 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 		});
 	}
 
-
 	assert(validateYaml(yml), "Invalid .gitte.yml file");
 
 	// For any action, replace needs with an empty array if undefined.

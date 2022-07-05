@@ -1,7 +1,4 @@
 import { loadConfig } from "../../src/config_loader";
-import chalk from "chalk";
-import { errorHandler } from "../../src/error_handler";
-import yargs from "yargs/yargs";
 import { y } from "../yargs";
 
 // noinspection JSUnusedGlobalSymbols
@@ -10,7 +7,7 @@ export const command = "completion";
 export const describe = "stuff";
 // noinspection JSUnusedGlobalSymbols
 export async function handler(argv: any) {
-    // load config to cache it
-    await loadConfig(argv.cwd, false, false);
-    y.showCompletionScript();
+	// load config to cache it
+	await loadConfig(argv.cwd, false, false);
+	y.showCompletionScript();
 }

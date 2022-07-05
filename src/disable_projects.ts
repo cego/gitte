@@ -7,7 +7,6 @@ import chalk from "chalk";
 import { printHeader } from "./utils";
 
 export function getDisabledProjects(seenProjects: string[], projectsDisablePath: string, cfg: Config): string[] {
-
 	// Load .gitte-projects-disable
 	if (!fs.pathExistsSync(projectsDisablePath)) {
 		fs.writeFileSync(projectsDisablePath, "", "utf8");
@@ -87,7 +86,7 @@ export function toggleProjectDisable(cfg: Config, projectName: string): void {
 		cfg.projects[projectName],
 		`Project "${projectName}" does not exist. (See "gitte list" to see available projects.)`,
 	);
-	
+
 	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
 	const projectsDisabled = getDisabledProjects(seenProjects, projectsDisablePath, cfg);
 

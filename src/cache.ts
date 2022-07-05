@@ -46,8 +46,7 @@ export function getCachePathFromCwd(cwd: string): string | null {
 	const cachePath = path.join(cwd, ".gitte-cache.json");
 	if (fs.pathExistsSync(cachePath)) {
 		return cachePath;
-	}
-	else if (cwd === "/") {
+	} else if (cwd === "/") {
 		return null;
 	} else {
 		return getCachePathFromCwd(path.resolve(cwd, ".."));
