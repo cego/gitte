@@ -56,12 +56,11 @@ export function getCachePathFromCwd(cwd: string): string | null {
 	}
 }
 
-export function loadCachePath(cwd: string): Cache | null {
-	const cachePath = getCachePathFromCwd(cwd);
-	if (cachePath === null) {
+export function loadCachePath(cachePath: string): Cache | null {
+	if (!fs.pathExistsSync(cachePath)) {
 		return null;
 	}
-	const cache = fs.readJSONSync(cachePath);
+	const cache = fs.readJsonSync(cachePath);
 	if (!validateCache(cache)) {
 		throw new AssertionError({ message: "Cache is invalid" });
 	}
