@@ -17,7 +17,7 @@ export const stashLogsToFile = (tasks: Task[], config: Config, action: string) =
 	for (const task of tasks) {
 		if (!task.result) continue;
 		const logsFilePath = getLogFilePath(config.cwd, task);
-		const output = task.result.out.map((line) => `[${line.type}] ${line.text}`);
+		const output = [task.result.out.join("")];
 		output.push(
 			`[exitCode] ${task.context.cmd.join(" ")} exited with ${task.result?.exitCode} in ${
 				task.context.cwd
@@ -93,7 +93,7 @@ export function searchOutputForHints(tasks: Task[], cfg: Config, action: string,
 function searchForRegex(searchFor: SearchFor, tasks: Task[], firstHint: boolean): boolean {
 	for (const task of tasks) {
 		if (!task.result) continue;
-		const outAsText = task.result.out.reduce((acc, line) => acc + line.text, "");
+		const outAsText = task.result.out.join("");
 		if (new RegExp(searchFor.regex, "g").test(outAsText)) {
 			if (firstHint) {
 				printHeader("Hints");

@@ -71,7 +71,7 @@ export const getTask = (): Task => {
 	);
 
 	task.result = {
-		out: [{ text: "Hello World 123", type: "stdout" }],
+		out: ["Hello World 123"],
 		exitCode: 0,
 		finishTime: new Date(),
 	};
