@@ -4,15 +4,8 @@ import { ExecaError, ExecaReturnValue } from "execa";
 import { TaskHandler } from "./task_handler";
 import { Writable } from "stream";
 
-type OutType = "stdout" | "stderr";
-
-type OutObject = {
-	text: string;
-	type: OutType;
-};
-
 type ActionResult = {
-	out: OutObject[];
+	out: string[];
 	exitCode: number;
 	signal?: string;
 	finishTime: Date;
@@ -63,9 +56,9 @@ class Task {
 		promise.stderr?.pipe(printer.getWritableStream(this));
 
 		// Also pipe stdout to save in task
-		const out: OutObject[] = [];
-		promise.stdout?.pipe(this.getWritableStream("stdout", out));
-		promise.stderr?.pipe(this.getWritableStream("stderr", out));
+		const out: string[] = [];
+		promise.stdout?.pipe(this.getWritableStream(out));
+		promise.stderr?.pipe(this.getWritableStream(out));
 
 		const res: ExecaReturnValue<string> | ExecaError<string> = await promise.catch((err) => err);
 
@@ -78,11 +71,10 @@ class Task {
 		this.state = TaskState.COMPLETED;
 	}
 
-	private getWritableStream(type: OutType, outArr: OutObject[]): Writable {
+	private getWritableStream(outArr: string[]): Writable {
 		return new Writable({
 			write(chunk, _, callback) {
-				const text: string[] = chunk.toString().split("\n");
-				text.forEach((x) => outArr.push({ text: x, type }));
+				outArr.push(chunk.toString());
 				callback();
 			},
 		});
