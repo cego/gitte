@@ -93,7 +93,7 @@ export function searchOutputForHints(tasks: Task[], cfg: Config, action: string,
 function searchForRegex(searchFor: SearchFor, tasks: Task[], firstHint: boolean): boolean {
 	for (const task of tasks) {
 		if (!task.result) continue;
-		const outAsText = task.result.out.reduce((acc, line) => acc + line.text, "");
+		const outAsText = task.result.out.map(line=>line.text).join("\n");
 		if (new RegExp(searchFor.regex, "g").test(outAsText)) {
 			if (firstHint) {
 				printHeader("Hints");
