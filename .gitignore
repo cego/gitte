@@ -8,3 +8,4 @@ src/**/*.js
 bin/**/*.js
 tests/**/*.js
 test
+cego-gitte-*.tgz

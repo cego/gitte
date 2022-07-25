@@ -73,3 +73,18 @@ Author: Mads Jon Nielsen <madsjon@gmail.com>
 Name: gitte
 Website: https://github.com/cego/gitte
 
+Package: gitte
+Version: 1.0.1
+Architecture: amd64
+Maintainer: Mads Jon Nielsen <madsjon@gmail.com>
+Filename: ./gitte_1.0.1_amd64.deb
+Size: 13529976
+MD5sum: bdb130d569f86d331c9248028bafa2f0
+SHA1: 4e734fea90f9ada1b1178c3c625ecf2396643790
+SHA256: 4bd414c2cfd164efffff1af36733ee79ed034e479686820ac3077a41096fc249
+Homepage: https://github.com/cego/gitte
+Description: Git automation and action execution across a list of projects
+Author: Mads Jon Nielsen <madsjon@gmail.com>
+Name: gitte
+Website: https://github.com/cego/gitte
+
