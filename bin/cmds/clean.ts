@@ -16,7 +16,7 @@ export const describe = "Run cleanup on projects";
 // noinspection JSUnusedGlobalSymbols
 export async function handler(argv: any) {
 	try {
-		const config = await loadConfig(argv.cwd, argv.needs, true);
+		const config = await loadConfig(argv.cwd, argv.needs, false);
 		const cleaner = new GitteCleaner(config);
 		switch (argv.subaction) {
 			case "untracked":
