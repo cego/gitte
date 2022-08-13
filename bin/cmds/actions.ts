@@ -39,7 +39,6 @@ export function actionsBuilder(y: Argv): Argv {
 		})
 		.option("max-task-parallelization", {
 			describe: "max number of parallel tasks to run",
-			// Default: max number of cpus / 2
 			default: Math.ceil(os.cpus().length / 2),
 		})
 		.completion("completion", tabCompleteActions);

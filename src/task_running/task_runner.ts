@@ -14,7 +14,12 @@ import { compareGroupKeys } from "../utils";
 class TaskRunner {
 	public tasks: Task[];
 	private taskQueue: Task[] = [];
-	constructor(tasksIn: Task[], private actionOutputPrinter: TaskHandler, action: string, private maxTaskParallelization: number) {
+	constructor(
+		tasksIn: Task[],
+		private actionOutputPrinter: TaskHandler,
+		action: string,
+		private maxTaskParallelization: number,
+	) {
 		this.tasks = tasksIn.filter((task) => task.key.action == action);
 	}
 
@@ -57,7 +62,7 @@ class TaskRunner {
 						return [...carry, task];
 					}
 					return [...carry];
-				}, [] as Task[])
+				}, [] as Task[]);
 
 			// Add tasks that are freed to the taskQueue
 			this.taskQueue = [...this.taskQueue, ...taskFreed];

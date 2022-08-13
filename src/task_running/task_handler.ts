@@ -32,7 +32,13 @@ class TaskHandler {
 	private plan: Task[];
 	private actions: string[];
 
-	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string, private maxTaskParallelization: number) {
+	constructor(
+		cfg: Config,
+		actionToRun: string,
+		groupToRun: string,
+		projectToRun: string,
+		private maxTaskParallelization: number,
+	) {
 		this.config = cfg;
 		this.plan = new TaskPlanner(cfg).planStringInput(actionToRun, groupToRun, projectToRun);
 		this.actions = this.getActionsInOrderFromActionString(actionToRun);
