@@ -83,3 +83,25 @@ For other usage, such as running startup, git operations or actions seperately, 
 If the file `.gitte-override.yml` exist in the same folder as `.gitte.yml` or `.gitte-env` it will automatically be merged.
 
 If the file `.gitte-projects-disable` exist, projects, seperated by a newline, will be excluded from gitte.
+
+## Environment variables
+
+### GITTE_AUTO_MERGE
+Default: false
+
+Gitte will automatically merge default branch into custom branches if this is set to true.
+
+### GITTE_CWD
+Default: cwd of the current process
+
+Gitte will use this as the current working directory.
+
+### GITTE_NO_NEEDS
+Default: false (false = needs are enabled)
+
+Ignore dependencies.
+
+### GITTE_MAX_TASK_PARALLELIZATION
+Default: CPU/2
+
+Set this to limit the number of parallel processes when running tasks.
