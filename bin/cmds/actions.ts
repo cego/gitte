@@ -3,6 +3,7 @@ import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
 import { TaskHandler } from "../../src/task_running/task_handler";
 import { tabCompleteActions } from "../../src/tab_completion";
+import os from "os";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -16,7 +17,7 @@ export const describe = "Run actions on selected projects for <actions> and <gro
 export async function handler(argv: any) {
 	try {
 		const cnf = await loadConfig(argv.cwd, argv.needs);
-		await new TaskHandler(cnf, argv.actions, argv.groups, argv.projects).run();
+		await new TaskHandler(cnf, argv.actions, argv.groups, argv.projects, argv.maxTaskParallelization).run();
 	} catch (e) {
 		errorHandler(e);
 	}
@@ -35,6 +36,11 @@ export function actionsBuilder(y: Argv): Argv {
 		.positional("projects", {
 			describe: "projects to run action on",
 			default: "*",
+		})
+		.option("max-task-parallelization", {
+			describe: "max number of parallel tasks to run",
+			// Default: max number of cpus / 2
+			default: Math.ceil(os.cpus().length / 2),
 		})
 		.completion("completion", tabCompleteActions);
 }

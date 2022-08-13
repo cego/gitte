@@ -13,7 +13,8 @@ import { compareGroupKeys } from "../utils";
  */
 class TaskRunner {
 	public tasks: Task[];
-	constructor(tasksIn: Task[], private actionOutputPrinter: TaskHandler, action: string) {
+	private taskQueue: Task[] = [];
+	constructor(tasksIn: Task[], private actionOutputPrinter: TaskHandler, action: string, private maxTaskParallelization: number) {
 		this.tasks = tasksIn.filter((task) => task.key.action == action);
 	}
 
@@ -24,7 +25,11 @@ class TaskRunner {
 				(task) => task.context.priority === priority && task.needs.length === 0 && task.state === TaskState.PENDING,
 			);
 
-			const promises = beginningTasks.map((task) => this.wrapTask(task));
+			// Take maxTaskParallelization number of tasks from beginningTasks and put the rest in taskQueue
+			const tasksToRun = beginningTasks.slice(0, this.maxTaskParallelization);
+			this.taskQueue = beginningTasks.slice(this.maxTaskParallelization);
+
+			const promises = tasksToRun.map((task) => this.wrapTask(task));
 			await Promise.all(promises);
 		}
 	}
@@ -39,10 +44,11 @@ class TaskRunner {
 			if (taskToRun.result.exitCode !== 0) {
 				this.skipAllBlockedActions(taskToRun);
 				taskToRun.state = TaskState.FAILED;
+				await this.runNextTask();
 				return;
 			}
 
-			const taskFreedPromises = this.tasks
+			const taskFreed = this.tasks
 				.filter((task) => task.state === TaskState.BLOCKED)
 				.reduce((carry, task) => {
 					task.needs = task.needs.filter((need) => !compareGroupKeys(need, taskToRun.key));
@@ -52,9 +58,10 @@ class TaskRunner {
 					}
 					return [...carry];
 				}, [] as Task[])
-				.map((task) => this.wrapTask(task));
 
-			await Promise.all(taskFreedPromises);
+			// Add tasks that are freed to the taskQueue
+			this.taskQueue = [...this.taskQueue, ...taskFreed];
+			await this.runNextTask();
 		});
 	}
 
@@ -80,6 +87,16 @@ class TaskRunner {
 	private getUniquePriorities(): number[] {
 		const priorities = this.tasks.map((task) => task.context.priority);
 		return [...new Set(priorities)];
+	}
+
+	private async runNextTask(): Promise<void> {
+		if (this.taskQueue.length === 0) {
+			return;
+		}
+		const nextTask = this.taskQueue.shift();
+		if (nextTask) {
+			await this.wrapTask(nextTask);
+		}
 	}
 }
 
