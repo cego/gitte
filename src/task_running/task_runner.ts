@@ -53,7 +53,7 @@ class TaskRunner {
 				return;
 			}
 
-			const taskFreed = this.tasks
+			const tasksFreed = this.tasks
 				.filter((task) => task.state === TaskState.BLOCKED)
 				.reduce((carry, task) => {
 					task.needs = task.needs.filter((need) => !compareGroupKeys(need, taskToRun.key));
@@ -65,7 +65,7 @@ class TaskRunner {
 				}, [] as Task[]);
 
 			// Add tasks that are freed to the taskQueue
-			this.taskQueue = [...this.taskQueue, ...taskFreed];
+			this.taskQueue = [...this.taskQueue, ...tasksFreed];
 			await this.runNextTask();
 		});
 	}
