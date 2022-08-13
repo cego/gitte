@@ -14,6 +14,7 @@ beforeEach(() => {
 	console.log = jest.fn();
 	console.error = jest.fn();
 	fs.pathExists = jest.fn();
+	fs.existsSync = jest.fn();
 	// @ts-ignore
 	promptSpy = jest.spyOn(utils, "promptBoolean");
 
@@ -30,6 +31,8 @@ beforeEach(() => {
 	when(spawnSpy)
 		.calledWith("git", ["branch", "--show-current"], expect.objectContaining({ cwd: expect.any(String) }))
 		.mockResolvedValue({ stdout: "main" });
+
+	when(fs.existsSync).mockReturnValue(true);
 });
 
 function mockPromptYes() {
