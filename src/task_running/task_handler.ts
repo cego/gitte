@@ -7,7 +7,7 @@ import { Writable } from "stream";
 import ansiEscapes from "ansi-escapes";
 import ON_DEATH from "death";
 import assert from "assert";
-import { Task } from "../task_running/task";
+import { Task } from "./task";
 import { TaskPlanner } from "./task_planner";
 import { TaskRunner } from "./task_runner";
 import { logTaskOutput, searchOutputForHints, stashLogsToFile } from "../search_output";
@@ -32,7 +32,13 @@ class TaskHandler {
 	private plan: Task[];
 	private actions: string[];
 
-	constructor(cfg: Config, actionToRun: string, groupToRun: string, projectToRun: string) {
+	constructor(
+		cfg: Config,
+		actionToRun: string,
+		groupToRun: string,
+		projectToRun: string,
+		private maxTaskParallelization: number,
+	) {
 		this.config = cfg;
 		this.plan = new TaskPlanner(cfg).planStringInput(actionToRun, groupToRun, projectToRun);
 		this.actions = this.getActionsInOrderFromActionString(actionToRun);
@@ -149,7 +155,7 @@ class TaskHandler {
 
 	runAction = async (action: string): Promise<void> => {
 		this.lastFewLines = [];
-		const taskRunner = new TaskRunner(this.plan, this, action);
+		const taskRunner = new TaskRunner(this.plan, this, action, this.maxTaskParallelization);
 
 		// 1. Prepare output for running.
 		const addToBufferStream = this.addToBufferStream;

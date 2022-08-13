@@ -20,7 +20,7 @@ export async function handler(argv: any) {
 		const cnf = await loadConfig(argv.cwd, argv.needs);
 		await startup(cnf);
 		await gitOpsFromConfig(cnf, argv.autoMerge);
-		await new TaskHandler(cnf, argv.action, argv.group, argv.projects).run();
+		await new TaskHandler(cnf, argv.action, argv.group, argv.projects, argv.maxTaskParallelization).run();
 	} catch (e) {
 		errorHandler(e);
 	}
