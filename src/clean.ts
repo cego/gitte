@@ -150,7 +150,7 @@ class GitteCleaner {
 				cwd: getProjectDirFromRemote(this.config.cwd, project.remote),
 				defaultBranch: project.default_branch,
 			};
-		});
+		}).filter((project) => fs.existsSync(project.cwd));
 	}
 }
 
