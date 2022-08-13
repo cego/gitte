@@ -160,13 +160,16 @@ describe("Clean tests", () => {
 		fs.readdir = jest.fn();
 
 		// @ts-ignore
-		when(fs.readdir).calledWith("/home/user/gitte").mockResolvedValue([".git", "gitte", "cego"]);
+		when(fs.readdir).calledWith("/home/user/gitte").mockResolvedValue([".git", "gitte", "cego", "logs"]);
 
 		// @ts-ignore
 		when(fs.readdir).calledWith("/home/user/gitte/gitte").mockResolvedValue([]);
 
 		// @ts-ignore
-		when(fs.readdir).calledWith("/home/user/gitte/cego").mockResolvedValue(["example", "not-used"]);
+		when(fs.readdir).calledWith("/home/user/gitte/cego").mockResolvedValue(["example", "not-used", "logs"]);
+
+		// @ts-ignore
+		when(fs.readdir).calledWith("/home/user/gitte/cego/logs").mockResolvedValue([]);
 
 		// @ts-ignore
 		when(fs.readdir).calledWith("/home/user/gitte/cego/not-used").mockResolvedValue([]);
@@ -177,10 +180,11 @@ describe("Clean tests", () => {
 		mockPromptYes();
 
 		await new GitteCleaner(cnfStub).cleanNonGitte();
-		expect(fs.removeSync).toHaveBeenCalledTimes(2);
+		expect(fs.removeSync).toHaveBeenCalledTimes(3);
 		expect(fs.removeSync).toHaveBeenCalledWith("/home/user/gitte/cego/not-used");
 		expect(fs.removeSync).toHaveBeenCalledWith("/home/user/gitte/gitte");
-		expect(fs.lstat).toHaveBeenCalledTimes(5);
-		expect(fs.readdir).toHaveBeenCalledTimes(4);
+		expect(fs.removeSync).toHaveBeenCalledWith("/home/user/gitte/cego/logs");
+		expect(fs.lstat).toHaveBeenCalledTimes(7);
+		expect(fs.readdir).toHaveBeenCalledTimes(5);
 	});
 });
