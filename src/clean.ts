@@ -145,12 +145,14 @@ class GitteCleaner {
 	}
 
 	private getGitFolders(): { cwd: string; defaultBranch: string }[] {
-		return Object.values(this.config.projects).map((project) => {
-			return {
-				cwd: getProjectDirFromRemote(this.config.cwd, project.remote),
-				defaultBranch: project.default_branch,
-			};
-		}).filter((project) => fs.existsSync(project.cwd));
+		return Object.values(this.config.projects)
+			.map((project) => {
+				return {
+					cwd: getProjectDirFromRemote(this.config.cwd, project.remote),
+					defaultBranch: project.default_branch,
+				};
+			})
+			.filter((project) => fs.existsSync(project.cwd));
 	}
 }
 
