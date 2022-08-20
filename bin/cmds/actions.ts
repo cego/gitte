@@ -17,7 +17,13 @@ export const describe = "Run actions on selected projects for <actions> and <gro
 export async function handler(argv: any) {
 	try {
 		const cnf = await loadConfig(argv.cwd, argv.needs);
-		await new TaskHandler(cnf, argv.actions, argv.groups, argv.projects, argv.maxTaskParallelization).run();
+		await TaskHandler.fromActionGroupProjectStrings(
+			cnf,
+			argv.actions,
+			argv.groups,
+			argv.projects,
+			argv.maxTaskParallelization,
+		).run();
 	} catch (e) {
 		errorHandler(e);
 	}

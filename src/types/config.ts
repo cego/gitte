@@ -12,6 +12,7 @@ export type ProjectAction = {
 };
 
 export type Project = {
+	common?: boolean;
 	remote: string;
 	default_branch: string;
 	actions: { [key: string]: ProjectAction };
@@ -22,6 +23,7 @@ export type Config = {
 	cwd: string;
 	needs: boolean;
 	startup: { [key: string]: CmdAction | ShellAction };
+	switch?: { upAction: string; downAction: string };
 	projects: { [key: string]: Project };
 	searchFor: SearchFor[];
 };

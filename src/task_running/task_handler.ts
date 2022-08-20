@@ -32,23 +32,29 @@ class TaskHandler {
 	private plan: Task[];
 	private actions: string[];
 
-	constructor(
+	constructor(cfg: Config, plan: Task[], actions: string[], private maxTaskParallelization: number) {
+		this.config = cfg;
+		this.plan = plan;
+		this.actions = actions;
+	}
+
+	static fromActionGroupProjectStrings(
 		cfg: Config,
 		actionToRun: string,
 		groupToRun: string,
 		projectToRun: string,
-		private maxTaskParallelization: number,
+		maxTaskParallelization: number,
 	) {
-		this.config = cfg;
-		this.plan = new TaskPlanner(cfg).planStringInput(actionToRun, groupToRun, projectToRun);
-		this.actions = this.getActionsInOrderFromActionString(actionToRun);
+		const plan = new TaskPlanner(cfg).planStringInput(actionToRun, groupToRun, projectToRun);
+
+		return new this(cfg, plan, this.getActionsInOrderFromActionString(actionToRun, plan), maxTaskParallelization);
 	}
 
-	getActionsInOrderFromActionString(actionsString: string) {
+	static getActionsInOrderFromActionString(actionsString: string, plan: Task[]) {
 		const actions = actionsString.split("+");
 
 		if (actions.includes("*")) {
-			return [...this.plan.reduce((carry, task) => new Set([...carry, ...task.key.action]), new Set<string>())];
+			return [...plan.reduce((carry, task) => new Set([...carry, ...task.key.action]), new Set<string>())];
 		}
 
 		return actions;

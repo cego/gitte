@@ -63,6 +63,19 @@ export const configSchema = {
 				],
 			},
 		},
+		switch: {
+			type: "object",
+			additionalProperties: true,
+			required: ["downAction", "upAction"],
+			properties: {
+				downAction: {
+					type: "string",
+				},
+				upAction: {
+					type: "string",
+				},
+			},
+		},
 		projects: {
 			type: "object",
 			additionalProperties: {

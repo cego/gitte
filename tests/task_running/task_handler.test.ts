@@ -17,7 +17,7 @@ describe("Task Handler tests", () => {
 			.spyOn(utils, "spawn")
 			.mockResolvedValue({ stdout: "Mocked Stdout", exitCode: 0 } as unknown as ExecaReturnValue<string>);
 
-		const taskHandler = new TaskHandler(cnfStub, "start", "cego.dk", "projecta", 1);
+		const taskHandler = TaskHandler.fromActionGroupProjectStrings(cnfStub, "start", "cego.dk", "projecta", 1);
 		await taskHandler.run();
 
 		expect(spawnSpy).toBeCalledTimes(1);
