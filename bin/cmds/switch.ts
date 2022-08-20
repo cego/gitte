@@ -7,6 +7,7 @@ import { TaskPlanner } from "../../src/task_running/task_planner";
 import assert from "assert";
 import { fromConfig as gitOpsFromConfig } from "../../src/gitops";
 import { startup } from "../../src/startup";
+import { tabCompleteSwitch } from "../../src/tab_completion";
 
 // noinspection JSUnusedGlobalSymbols
 export function builder(y: Argv) {
@@ -18,7 +19,8 @@ export function builder(y: Argv) {
 		.option("max-task-parallelization", {
 			describe: "max number of parallel tasks to run",
 			default: Math.ceil(os.cpus().length / 2),
-		});
+		})
+		.completion("completion", tabCompleteSwitch);
 	// todo completion
 }
 // noinspection JSUnusedGlobalSymbols

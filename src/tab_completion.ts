@@ -87,6 +87,27 @@ function appendToMultiple(word: string, options: string[]) {
 		});
 }
 
+export function getUppableGroupNames(config: Config): string[] {
+	if (!config.switch) return [];
+	return getGroupNames(config, config.switch.upAction).filter((name) => name !== "*");
+}
+
+export function tabCompleteSwitch(_: string, argv: any) {
+	const cache = loadCacheCwd(argv.cwd);
+	if (!cache) return [];
+
+	const config = cache.config;
+	const words = argv._.slice(2);
+
+	// predict groups
+	if (words.length == 1) {
+		const groupNames = [...new Set(getUppableGroupNames(config))];
+		return appendToMultiple(words[0], groupNames).filter((name) => name !== "all");
+	}
+
+	return [];
+}
+
 export function tabCompleteClean(argv: any) {
 	// slice first word off
 	const words = argv._.slice(2);

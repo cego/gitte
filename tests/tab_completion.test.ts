@@ -3,8 +3,10 @@ import {
 	getActionNames,
 	getGroupNames,
 	getProjectNames,
+	getUppableGroupNames,
 	tabCompleteActions,
 	tabCompleteClean,
+	tabCompleteSwitch,
 	tabCompleteToggle,
 } from "../src/tab_completion";
 import { Config } from "../src/types/config";
@@ -27,8 +29,6 @@ beforeEach(() => {
 	});
 
 	when(fs.pathExistsSync).calledWith(path.join(cwdStub, ".gitte-cache.json")).mockReturnValue(true);
-
-	// todo mock cache
 });
 
 describe("Action tab completion", () => {
@@ -81,5 +81,27 @@ describe("Toggle tab completion", () => {
 		const res = tabCompleteToggle({ _: ["tab_completion", "start", ""], cwd: cwdStub });
 
 		expect(res).toEqual(["projecta", "projectd", "projecte"]);
+	});
+});
+
+describe("Switch tab completion", () => {
+	test("getUppableGroupNames no-config", () => {
+		const res = getUppableGroupNames(config);
+
+		expect(res).toEqual([]);
+	});
+
+	test("getUppableGroupNames", () => {
+		config.switch = { upAction: "up", downAction: "down" };
+		const res = new Set(getUppableGroupNames(config));
+
+		expect(Array.from(res)).toEqual(["cego.dk"]);
+	});
+
+	test("tabCompleteSwitch", () => {
+		config.switch = { upAction: "up", downAction: "down" };
+		const res = tabCompleteSwitch("", { _: ["tab_completion", "switch", ""], cwd: cwdStub });
+
+		expect(Array.from(res)).toEqual(["cego.dk"]);
 	});
 });
