@@ -44,6 +44,12 @@ Gitte will then do the following
 
 > An optional option `--auto-merge` can be supplied, that will automatically merge origin/<default_branch> into each project, if you are on a non-default branch without local changes or conflicts. This can also be set by the env variable `GITTE_AUTO_MERGE=true`.
 
+If configured, gitte is able to switch automatically between groups. Switching between groups involve downing all other groups than specified, then upping the specified group.
+
+```
+$ gitte switch <group>
+```
+
 ## Wildcards and lists
 
 All three parameters support the wildcard '\*' which will run all action, groups or projects. For example one might want to run all actions in all groups, which can be accomplished with
