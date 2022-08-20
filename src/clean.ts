@@ -13,6 +13,8 @@ type ShouldDeleteFolder = {
 };
 
 class GitteCleaner {
+	readonly allowedFolders: string[] = ["logs"];
+
 	constructor(private config: Config) {}
 
 	async clean() {
@@ -110,39 +112,47 @@ class GitteCleaner {
 		for (const content of contents) {
 			const contentPath = path.join(cwd, content);
 
-			// if folder
-			if (await fs.lstat(contentPath).then((stat) => stat.isDirectory())) {
-				// if folder starts with .
-				if (content.startsWith(".")) {
-					continue;
-				}
-
-				// if folder is in gitFolders
-				if (gitFolders.find((folder) => folder.cwd === contentPath)) {
-					value.keep = true;
-					continue;
-				}
-				// if folder is not in gitFolders
-				const folderContainsGitteContent = await this.cleanFolder(contentPath, gitFolders);
-				if (!folderContainsGitteContent.keep) {
-					value.foldersToDelete = [...value.foldersToDelete, contentPath];
-				} else {
-					value.foldersToDelete = [...value.foldersToDelete, ...folderContainsGitteContent.foldersToDelete];
-				}
-				value.keep = folderContainsGitteContent.keep || value.keep;
+			if (!(await fs.lstat(contentPath).then((stat) => stat.isDirectory()))) {
+				continue;
 			}
+
+			// if folder starts with .
+			if (content.startsWith(".")) {
+				continue;
+			}
+
+			// if folder is in allowed folders
+			if (this.allowedFolders.includes(path.relative(this.config.cwd, contentPath))) {
+				continue;
+			}
+
+			// if folder is in gitFolders
+			if (gitFolders.find((folder) => folder.cwd === contentPath)) {
+				value.keep = true;
+				continue;
+			}
+			// if folder is not in gitFolders
+			const folderContainsGitteContent = await this.cleanFolder(contentPath, gitFolders);
+			if (!folderContainsGitteContent.keep) {
+				value.foldersToDelete = [...value.foldersToDelete, contentPath];
+			} else {
+				value.foldersToDelete = [...value.foldersToDelete, ...folderContainsGitteContent.foldersToDelete];
+			}
+			value.keep = folderContainsGitteContent.keep || value.keep;
 		}
 
 		return value;
 	}
 
 	private getGitFolders(): { cwd: string; defaultBranch: string }[] {
-		return Object.values(this.config.projects).map((project) => {
-			return {
-				cwd: getProjectDirFromRemote(this.config.cwd, project.remote),
-				defaultBranch: project.default_branch,
-			};
-		});
+		return Object.values(this.config.projects)
+			.map((project) => {
+				return {
+					cwd: getProjectDirFromRemote(this.config.cwd, project.remote),
+					defaultBranch: project.default_branch,
+				};
+			})
+			.filter((project) => fs.existsSync(project.cwd));
 	}
 }
 
