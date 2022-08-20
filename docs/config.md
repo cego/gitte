@@ -102,3 +102,25 @@ REMOTE_GIT_REPO="git@gitlab.com:cego/example.git"
 REMOTE_GIT_FILE=".gitte.yml"
 REMOTE_GIT_REF="master"
 ```
+
+## Switch
+
+If you want to use `gitte switch`, please define the default up and down actions as follows in the root schema:
+
+```yaml
+switch:
+  downAction: "down"
+  upAction: "up"
+```
+
+## ActionOverrides
+
+Some properties may override the default behavior of an action.
+
+```yaml
+actionOverrides:
+  down:
+    maxParallelization: 1
+```
+
+Will tell gitte to override `--max-task-parallelization`.

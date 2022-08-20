@@ -19,11 +19,16 @@ export type Project = {
 	defaultDisabled?: boolean;
 };
 
+export type ActionOverride = {
+	maxParallelization?: number;
+};
+
 export type Config = {
 	cwd: string;
 	needs: boolean;
 	startup: { [key: string]: CmdAction | ShellAction };
 	switch?: { upAction: string; downAction: string };
+	actionOverride?: { [key: string]: ActionOverride };
 	projects: { [key: string]: Project };
 	searchFor: SearchFor[];
 };
