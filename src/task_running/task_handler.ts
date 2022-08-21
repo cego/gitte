@@ -161,7 +161,7 @@ class TaskHandler {
 
 	runAction = async (action: string): Promise<void> => {
 		this.lastFewLines = [];
-		const taskRunner = new TaskRunner(this.plan, this, action, this.maxTaskParallelization);
+		const taskRunner = new TaskRunner(this.plan, this, action, this.maxTaskParallelization, this.config);
 
 		// 1. Prepare output for running.
 		const addToBufferStream = this.addToBufferStream;

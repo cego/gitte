@@ -76,6 +76,19 @@ export const configSchema = {
 				},
 			},
 		},
+		actionOverride: {
+			type: "object",
+			additionalProperties: {
+				type: "object",
+				additionalProperties: true,
+				properties: {
+					maxParallelization: {
+						type: "integer",
+						minimum: 1,
+					},
+				},
+			},
+		},
 		projects: {
 			type: "object",
 			additionalProperties: {

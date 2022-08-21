@@ -2,6 +2,7 @@ import { Task, TaskState } from "./task";
 import assert from "assert";
 import { TaskHandler } from "./task_handler";
 import { compareGroupKeys } from "../utils";
+import { Config } from "../types/config";
 
 /**
  * Class that, given a list of tasks, will run them.
@@ -14,13 +15,22 @@ import { compareGroupKeys } from "../utils";
 class TaskRunner {
 	public tasks: Task[];
 	private taskQueue: Task[] = [];
+
 	constructor(
 		tasksIn: Task[],
 		private actionOutputPrinter: TaskHandler,
 		action: string,
-		private maxTaskParallelization: number,
+		public maxTaskParallelization: number,
+		private config: Config,
 	) {
 		this.tasks = tasksIn.filter((task) => task.key.action == action);
+
+		if (this.config.actionOverride && Object.keys(this.config.actionOverride).includes(action)) {
+			const actionOverride = this.config.actionOverride[action];
+			if (actionOverride.maxParallelization) {
+				this.maxTaskParallelization = actionOverride.maxParallelization;
+			}
+		}
 	}
 
 	public async run(): Promise<void> {
