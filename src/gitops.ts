@@ -26,9 +26,9 @@ async function pull(dir: string, currentBranch: string, log: LogFn) {
 	const [err, res]: ToChildProcessOutput = await to(pcpPromise);
 
 	if (err || !res) {
-		if (`${err?.stderr}`.trim().startsWith("There is no tracking information for the current branch")) {
+		if (`${err?.stderr}`.trim().includes("There is no tracking information for the current branch")) {
 			log(chalk`{cyan ${currentBranch}} {red doesn't have a remote origin} in {cyan ${tildify(dir)}}`);
-		} else if (`${err?.stderr}`.trim().startsWith(`Your configuration specifies to merge with the ref`)) {
+		} else if (`${err?.stderr}`.trim().includes(`Your configuration specifies to merge with the ref`)) {
 			log(chalk`{cyan ${currentBranch}} {red no such ref could be fetched} in {cyan ${tildify(dir)}}`);
 		} else {
 			log(
