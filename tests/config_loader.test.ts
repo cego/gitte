@@ -247,7 +247,9 @@ describe("Config loader", () => {
 		cnf.projects.projecta.actions.start.needs = ["example2", "example3"];
 		// @ts-ignore
 		when(fs.readFile)
+			// @ts-ignore
 			.calledWith(`${cwdStub}/.gitte.yml`, "utf8")
+			// @ts-ignore
 			.mockResolvedValue(`---\n${yaml.dump(cnf)}`);
 
 		// @ts-ignore
