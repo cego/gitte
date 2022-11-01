@@ -49,7 +49,7 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 		const message = `No .gitte.yml or .gitte-env found in current or parent directories.`;
 		throw new AssertionError({ message });
 	} else {
-		return loadConfig(path.resolve(cwd, ".."), needs);
+		return loadConfig(path.resolve(cwd, ".."), needs, shouldDisableProjects);
 	}
 
 	// Load .gitte-override.yml
