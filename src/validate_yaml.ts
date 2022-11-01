@@ -1,5 +1,4 @@
 import Ajv2019 from "ajv/dist/2019";
-import { createActionGraphs } from "./graph";
 import { Config } from "./types/config";
 
 const ajv = new Ajv2019();
@@ -158,14 +157,6 @@ export function validateYaml(obj: any): obj is Config {
 	const valid = validate(obj);
 	if (!valid) {
 		console.error(validate.errors);
-		return false;
-	}
-
-	// Fail fast if graph is invalid.
-	try {
-		createActionGraphs(obj);
-	} catch (e: any) {
-		console.log(e.message);
 		return false;
 	}
 

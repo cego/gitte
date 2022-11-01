@@ -9,6 +9,7 @@ import yaml from "js-yaml";
 import * as _ from "lodash";
 import { getDisabledProjects, getPreviouslySeenProjectsFromCache } from "./disable_projects";
 import { Cache } from "./cache";
+import { createActionGraphs } from "./graph";
 
 export async function loadConfig(cwd: string, needs = true, shouldDisableProjects = true): Promise<Config> {
 	const cnfPath = path.join(cwd, `.gitte.yml`);
@@ -81,11 +82,13 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 	// For any action, replace needs with an empty array if undefined.
 	Object.entries(yml.projects).forEach(([, project]) => {
 		Object.entries(project.actions).forEach(([, action]) => {
-			action.needs = action.needs || [];
+			action.needs = action.needs?.filter((need) => !disabledProjects.includes(need)) ?? [];
 			action.priority = action.priority || null;
 			action.searchFor = action.searchFor || [];
 		});
 	});
+
+	createActionGraphs(yml);
 
 	return { ...yml, cwd, needs };
 }

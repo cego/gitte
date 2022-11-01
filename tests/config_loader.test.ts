@@ -2,9 +2,11 @@ import fs from "fs-extra";
 import { when } from "jest-when";
 import yaml from "js-yaml";
 import * as utils from "../src/utils";
-import { cwdStub, projectStub, startupStub } from "./utils/stubs";
+import { cnfStub, cwdStub, projectStub, startupStub } from "./utils/stubs";
 import { loadConfig } from "../src/config_loader";
 import { ExecaReturnValue } from "execa";
+import { Config } from "../src/types/config";
+import * as _ from "lodash";
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 let readSpy: jest.MockInstance<any, any[]>;
@@ -234,5 +236,29 @@ describe("Config loader", () => {
 		const config = await loadConfig(cwdStub);
 
 		expect(Object.keys(config.projects)).toEqual(["example1", "example2", "example3"]);
+	});
+
+	test("It removes disabled projects from needs", async () => {
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
+
+		const cnf: Config = _.cloneDeep(cnfStub);
+
+		cnf.projects.projecta.actions.start.needs = ["example2", "example3"];
+		// @ts-ignore
+		when(fs.readFile)
+			// @ts-ignore
+			.calledWith(`${cwdStub}/.gitte.yml`, "utf8")
+			// @ts-ignore
+			.mockResolvedValue(`---\n${yaml.dump(cnf)}`);
+
+		// @ts-ignore
+		when(fs.readFileSync)
+			.calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8")
+			.mockReturnValue(`example2\nexample3`);
+
+		const result = await loadConfig(cwdStub);
+
+		expect(result.projects.projecta.actions.start.needs).toEqual([]);
 	});
 });
