@@ -14,7 +14,6 @@ import { Config } from "../types/config";
  */
 class TaskRunner {
 	public tasks: Task[];
-	private taskQueue: Task[] = [];
 
 	constructor(
 		tasksIn: Task[],
@@ -42,7 +41,11 @@ class TaskRunner {
 
 			// Take maxTaskParallelization number of tasks from beginningTasks and put the rest in taskQueue
 			const tasksToRun = beginningTasks.slice(0, this.maxTaskParallelization);
-			this.taskQueue = beginningTasks.slice(this.maxTaskParallelization);
+
+			// Mark the rest of the beginningTasks as QUEUED
+			beginningTasks.slice(this.maxTaskParallelization).forEach((task) => {
+				task.state = TaskState.QUEUED;
+			});
 
 			const promises = tasksToRun.map((task) => this.wrapTask(task));
 			await Promise.all(promises);
@@ -63,7 +66,7 @@ class TaskRunner {
 				return;
 			}
 
-			const tasksFreed = this.tasks
+			this.tasks
 				.filter((task) => task.state === TaskState.BLOCKED)
 				.reduce((carry, task) => {
 					task.needs = task.needs.filter((need) => !compareGroupKeys(need, taskToRun.key));
@@ -72,10 +75,9 @@ class TaskRunner {
 						return [...carry, task];
 					}
 					return [...carry];
-				}, [] as Task[]);
+				}, [] as Task[])
+				.forEach((task) => (task.state = TaskState.QUEUED));
 
-			// Add tasks that are freed to the taskQueue
-			this.taskQueue = [...this.taskQueue, ...tasksFreed];
 			await this.runNextTask();
 		});
 	}
@@ -105,13 +107,24 @@ class TaskRunner {
 	}
 
 	private async runNextTask(): Promise<void> {
-		if (this.taskQueue.length === 0) {
+		// If there no more tasks to run, return
+		if (this.tasks.filter((task) => task.state === TaskState.QUEUED).length === 0) {
 			return;
 		}
-		const nextTask = this.taskQueue.shift();
-		if (nextTask) {
-			await this.wrapTask(nextTask);
-		}
+
+		// Find out how many more tasks we can start by looking at how many tasks are currently running
+		const tasksRunning = this.tasks.filter((task) => task.state === TaskState.RUNNING).length;
+		const tasksToStart = Math.max(this.maxTaskParallelization - tasksRunning, 1);
+
+		// Get the next tasks to run
+		const tasksToRun = this.tasks
+			.filter((task) => task.state === TaskState.QUEUED)
+			.slice(0, tasksToStart)
+			.map((task) => {
+				return this.wrapTask(task);
+			});
+
+		await Promise.all(tasksToRun);
 	}
 }
 

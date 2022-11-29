@@ -21,6 +21,7 @@ enum TaskState {
 	PENDING = "pending",
 	BLOCKED = "blocked",
 	RUNNING = "running",
+	QUEUED = "queued",
 	COMPLETED = "completed",
 	FAILED = "failed",
 	SKIPPED_FAILED_DEPENDENCY = "skipped_failed_dependency",
@@ -45,6 +46,8 @@ class Task {
 	public result: ActionResult | null = null;
 
 	public async run(printer: TaskHandler): Promise<void> {
+		this.state = TaskState.RUNNING;
+
 		const promise = utils.spawn(this.context.cmd[0], this.context.cmd.slice(1), {
 			cwd: this.context.cwd,
 			env: process.env,
