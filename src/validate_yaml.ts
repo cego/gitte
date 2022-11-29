@@ -97,7 +97,8 @@ export const configSchema = {
 				properties: {
 					remote: {
 						type: "string",
-						pattern: "((git|ssh|http(s)?)|(git@[\\w\\.]+))(:(\\\/\\\/)?)([\\w\\.@:\\\/\\-~]+)(\\.git)(\\\/)?",
+						/* eslint-disable-next-line no-useless-escape */
+						pattern: "((git|ssh|http(s)?)|(git@[\\w\\.]+))(:(\\/\\/)?)([\\w\\.@:\\/\\-~]+)(\\.git)(\\/)?",
 					},
 					default_branch: {
 						type: "string",
