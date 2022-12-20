@@ -1,6 +1,6 @@
 # gitte
 
-[![quality](https://img.shields.io/github/workflow/status/cego/gitte/Quality)](https://github.com/cego/gitte/actions)
+[![quality](https://img.shields.io/github/actions/workflow/status/cego/gitte/quality.yml?branch=main)](https://github.com/cego/gitte/actions)
 [![license](https://img.shields.io/github/license/cego/gitte)](https://npmjs.org/package/gitte)
 [![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=cego_gitte&metric=alert_status)](https://sonarcloud.io/dashboard?id=cego_gitte)
