@@ -19,14 +19,30 @@ Requires npm and node version 16 or higher.
 npm install -g @cego/gitte
 ```
 
-## Linux binaries
+### Linux based on Debian
+
+Users of Debian-based distributions should prefer the [the Deb822 format][deb822], installed with:
 
 ```bash
-curl -s "https://cego.github.io/gitte/ppa/pubkey.gpg" | sudo apt-key add -
-sudo curl -s -o /etc/apt/sources.list.d/gitte.list "https://cego.github.io/gitte/ppa/gitte.list"
+sudo wget -O /etc/apt/sources.list.d/gitte.sources https://gitte.cego.dk/gitte.sources
 sudo apt-get update
 sudo apt-get install gitte
 ```
+
+[deb822]: https://repolib.readthedocs.io/en/latest/deb822-format.html#deb822-format
+
+If your distribution does not support this, you can run these commands:
+
+```bash
+curl -s "https://gitte-ppa.cego.dk/pubkey.gpg" | sudo apt-key add -
+echo "deb https://gitte-ppa.cego.dk ./" | sudo tee /etc/apt/sources.list.d/gitte.list
+sudo apt-get update
+sudo apt-get install gitte
+```
+
+Note that the path `/etc/apt/sources.list.d/gitte.list` is used in the file `gitte.list`.
+If you change it in these commands you must also change it in `/etc/apt/sources.list.d/gitte.list`.
+
 
 # Basic usage
 
