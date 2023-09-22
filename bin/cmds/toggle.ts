@@ -1,9 +1,7 @@
 import { loadConfig } from "../../src/config_loader";
 import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
-import {
-	logProjectStatus, resetToggledProjects, toggleProject
-} from "../../src/toggle_projects";
+import { logProjectStatus, resetToggledProjects, toggleProject } from "../../src/toggle_projects";
 import { tabCompleteToggle } from "../../src/tab_completion";
 
 // noinspection JSUnusedGlobalSymbols

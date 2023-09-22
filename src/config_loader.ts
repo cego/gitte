@@ -1,4 +1,4 @@
-import {Config, Project} from "./types/config";
+import { Config } from "./types/config";
 import * as utils from "./utils";
 import path from "path";
 import assert, { AssertionError } from "assert";
@@ -9,7 +9,7 @@ import yaml from "js-yaml";
 import * as _ from "lodash";
 import { Cache } from "./cache";
 import { createActionGraphs } from "./graph";
-import {getToggledProjects} from "./toggle_projects";
+import { getToggledProjects } from "./toggle_projects";
 
 export async function loadConfig(cwd: string, needs = true, shouldDisableProjects = true): Promise<Config> {
 	const cnfPath = path.join(cwd, `.gitte.yml`);
@@ -69,21 +69,23 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 
 	assert(validateYaml(yml), "Invalid .gitte.yml file");
 
-	const toggledProjects = getToggledProjects({...yml, cwd});
+	const toggledProjects = getToggledProjects({ ...yml, cwd });
 
-	const disabledProjects = shouldDisableProjects ? Object.entries(yml.projects).reduce((acc, [projectName, project]) => {
-		const toggledState: boolean | undefined = toggledProjects[projectName];
-
-		if ((project.defaultDisabled && toggledProjects[projectName] !== true) || toggledProjects[projectName] === false) {
-			acc.push(projectName);
-		}
-		return acc;
-	}, [] as string[]) : [];
-
+	const disabledProjects = shouldDisableProjects
+		? Object.entries(yml.projects).reduce((acc, [projectName, project]) => {
+				if (
+					(project.defaultDisabled && toggledProjects[projectName] !== true) ||
+					toggledProjects[projectName] === false
+				) {
+					acc.push(projectName);
+				}
+				return acc;
+		  }, [] as string[])
+		: [];
 
 	// Unset default disabled projects unless they are toggled
-	if(shouldDisableProjects) {
-		Object.entries(yml.projects).forEach(([projectName, project]) => {
+	if (shouldDisableProjects) {
+		Object.keys(yml.projects).forEach((projectName) => {
 			if (disabledProjects.includes(projectName)) {
 				_.unset(yml.projects, projectName);
 			}
