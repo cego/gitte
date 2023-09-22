@@ -130,3 +130,13 @@ Ignore dependencies.
 Default: CPU/2
 
 Set this to limit the number of parallel processes when running tasks.
+
+## How to publish debian packages to [gitte-ppa.cego.dk](gitte-ppa.cego.dk)
+Run `./publish-os-packages` and upload the ppa/ppa.zip file to cego's cloudflare pages
+
+A gpg signing key is needed to sign the debian packages.
+
+## How to publish npmjs.com
+Run `npm publish` to upload to npmjs.com
+
+You need proper permissions in the `@cego` organization on [npmjs.com](npmjs.com)
