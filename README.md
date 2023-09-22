@@ -11,6 +11,12 @@ Tool to help keep a range of projects up to date with git version control, and a
 
 # Installation
 
+## Install using bun
+Requires [bun](https://bun.sh/) version 1.0.0 or higher
+```
+bun install -g @cego/gitte
+```
+
 ## Install using npm
 
 Requires npm and node version 16 or higher.
