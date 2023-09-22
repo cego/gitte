@@ -43,7 +43,6 @@ sudo apt-get install gitte
 Note that the path `/etc/apt/sources.list.d/gitte.list` is used in the file `gitte.list`.
 If you change it in these commands you must also change it in `/etc/apt/sources.list.d/gitte.list`.
 
-
 # Basic usage
 
 In a terminal in a folder with a gitte configuration, or a subfolder thereof, run:
