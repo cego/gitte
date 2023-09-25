@@ -41,7 +41,7 @@
 		"yargs": "17.7.2"
 	},
 	"devDependencies": {
-		"@types/ansi-escape-sequences": "4.0.0",
+		"@types/ansi-escape-sequences": "4.0.1",
 		"@types/cli-progress": "3.11.2",
 		"@types/death": "1.1.2",
 		"@types/fs-extra": "9.0.13",
