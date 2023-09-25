@@ -43,7 +43,7 @@
 	"devDependencies": {
 		"@types/ansi-escape-sequences": "4.0.0",
 		"@types/cli-progress": "3.11.2",
-		"@types/death": "1.1.2",
+		"@types/death": "1.1.3",
 		"@types/fs-extra": "9.0.13",
 		"@types/jest": "29.5.5",
 		"@types/jest-when": "3.5.2",
