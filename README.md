@@ -32,7 +32,7 @@ npm install -g @cego/gitte
 Users of Debian-based distributions should prefer the [the Deb822 format][deb822], installed with:
 
 ```bash
-sudo wget -O /etc/apt/sources.list.d/gitte.sources https://gitte.cego.dk/gitte.sources
+sudo wget -O /etc/apt/sources.list.d/gitte.sources https://gitte-ppa.cego.dk/gitte.sources
 sudo apt-get update
 sudo apt-get install gitte
 ```
