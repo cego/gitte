@@ -7,16 +7,15 @@ import { validateYaml } from "./validate_yaml";
 import fs from "fs-extra";
 import yaml from "js-yaml";
 import * as _ from "lodash";
-import { getDisabledProjects, getPreviouslySeenProjectsFromCache } from "./disable_projects";
 import { Cache } from "./cache";
 import { createActionGraphs } from "./graph";
+import { getToggledProjects } from "./toggle_projects";
 
 export async function loadConfig(cwd: string, needs = true, shouldDisableProjects = true): Promise<Config> {
 	const cnfPath = path.join(cwd, `.gitte.yml`);
 	const dotenvPath = path.join(cwd, `.gitte-env`);
 	const overridePath = path.join(cwd, ".gitte-override.yml");
 	const cachePath = path.join(cwd, ".gitte-cache.json");
-	const projectsDisablePath = path.join(cwd, ".gitte-projects-disable");
 
 	let fileContent;
 
@@ -60,8 +59,6 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 		yml = _.merge(yml, overrideYml);
 	}
 
-	const seenProjects = getPreviouslySeenProjectsFromCache(cachePath);
-
 	// Write .gitte-cache.json
 	const cache: Cache = {
 		version: 1,
@@ -70,19 +67,36 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 	};
 	fs.writeJsonSync(cachePath, cache, { spaces: 4 });
 
-	const disabledProjects = getDisabledProjects(seenProjects, projectsDisablePath, yml);
+	assert(validateYaml(yml), "Invalid .gitte.yml file");
+
+	const toggledProjects = getToggledProjects({ ...yml, cwd });
+
+	const disabledProjects = shouldDisableProjects
+		? Object.entries(yml.projects).reduce((acc, [projectName, project]) => {
+				if (
+					(project.defaultDisabled && toggledProjects[projectName] !== true) ||
+					toggledProjects[projectName] === false
+				) {
+					acc.push(projectName);
+				}
+				return acc;
+		  }, [] as string[])
+		: [];
+
+	// Unset default disabled projects unless they are toggled
 	if (shouldDisableProjects) {
-		disabledProjects.forEach((projectName) => {
-			_.unset(yml.projects, projectName);
+		Object.keys(yml.projects).forEach((projectName) => {
+			if (disabledProjects.includes(projectName)) {
+				_.unset(yml.projects, projectName);
+			}
 		});
 	}
-
-	assert(validateYaml(yml), "Invalid .gitte.yml file");
 
 	// For any action, replace needs with an empty array if undefined.
 	Object.entries(yml.projects).forEach(([, project]) => {
 		Object.entries(project.actions).forEach(([, action]) => {
-			action.needs = action.needs?.filter((need) => !disabledProjects.includes(need)) ?? [];
+			action.needs = action.needs || [];
+			action.needs = action.needs.filter((need) => !disabledProjects.includes(need));
 			action.priority = action.priority || null;
 			action.searchFor = action.searchFor || [];
 		});

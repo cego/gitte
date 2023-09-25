@@ -7,6 +7,10 @@ import { loadConfig } from "../src/config_loader";
 import { ExecaReturnValue } from "execa";
 import { Config } from "../src/types/config";
 import * as _ from "lodash";
+import path from "path";
+import { projectsToggleFileName } from "../src/toggle_projects";
+
+const projectsToggleMockName = path.join(cwdStub, projectsToggleFileName);
 
 let spawnSpy: ((...args: any[]) => any) | jest.MockInstance<any, any[]>;
 let readSpy: jest.MockInstance<any, any[]>;
@@ -48,8 +52,7 @@ beforeEach(() => {
 	// @ts-ignore
 	when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(true);
 
-	// @ts-ignore
-	when(readSpySync).calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8").mockResolvedValue(``);
+	when(readSpySync).calledWith(projectsToggleMockName, "utf8").mockReturnValue(`projectd`);
 
 	// @ts-ignore
 	when(readSpySync).calledWith(`${cwdStub}/.gitte-cache.json`, "utf8").mockResolvedValue(``);
@@ -141,7 +144,7 @@ describe("Config loader", () => {
 		expect(config.projects.example.actions.up.priority).toEqual(null);
 	});
 
-	test("It removed projects from .gitte-projects-disable", async () => {
+	test("It removed projects from .gitte-projects-toggled", async () => {
 		const fileCnt = `---\n${yaml.dump({
 			startup: startupStub,
 			projects: {
@@ -177,19 +180,37 @@ describe("Config loader", () => {
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(true);
 		// @ts-ignore
-		when(readSpySync).calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8").mockReturnValue(`example1\nexample3`);
+		when(readSpySync).calledWith(projectsToggleMockName, "utf8").mockReturnValue(`example1:false\nexample3:false`);
 
 		const config = await loadConfig(cwdStub);
 
 		expect(Object.keys(config.projects)).toEqual(["example2"]);
 	});
-	test("It creates empty .gitte-projects-disable if not exists", async () => {
+	test("It added projects from .gitte-projects-toggled", async () => {
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-override.yml`).mockResolvedValue(false);
+
+		const cnfYaml = `---\n${yaml.dump(cnfStub)}`;
+		// @ts-ignore
+		when(fs.readFile).calledWith(`${cwdStub}/.gitte.yml`, "utf8").mockResolvedValue(cnfYaml);
+		// @ts-ignore
+		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(true);
+		// @ts-ignore
+		when(readSpySync).calledWith(projectsToggleMockName, "utf8").mockReturnValue(`disabledProject:true`);
+
+		const config = await loadConfig(cwdStub);
+
+		expect(Object.keys(config.projects)).toEqual(["projecta", "projectd", "projecte", "disabledProject"]);
+	});
+	test("It creates empty .gitte-projects-toggled if not exists", async () => {
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(false);
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-override.yml`).mockResolvedValue(false);
 		// @ts-ignore
-		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-projects-disable`).mockResolvedValue(false);
+		when(fs.pathExists).calledWith(projectsToggleMockName).mockResolvedValue(false);
 
 		const writeSpy = jest.spyOn(fs, "writeFileSync").mockImplementation(() => {
 			return;
@@ -197,9 +218,9 @@ describe("Config loader", () => {
 
 		await loadConfig(cwdStub);
 
-		expect(writeSpy).toHaveBeenCalledWith(`${cwdStub}/.gitte-projects-disable`, "", "utf8");
+		expect(writeSpy).toHaveBeenCalledWith(projectsToggleMockName, "", "utf8");
 	});
-	test("It does not remove any projects if .gitte-projects-disable is empty", async () => {
+	test("It does not remove any projects if .gitte-projects-toggled is empty", async () => {
 		const fileCnt = `---\n${yaml.dump({
 			startup: startupStub,
 			projects: {
@@ -244,7 +265,7 @@ describe("Config loader", () => {
 
 		const cnf: Config = _.cloneDeep(cnfStub);
 
-		cnf.projects.projecta.actions.start.needs = ["example2", "example3"];
+		cnf.projects.projecta.actions.start.needs = ["projecte"];
 		// @ts-ignore
 		when(fs.readFile)
 			// @ts-ignore
@@ -253,9 +274,7 @@ describe("Config loader", () => {
 			.mockResolvedValue(`---\n${yaml.dump(cnf)}`);
 
 		// @ts-ignore
-		when(fs.readFileSync)
-			.calledWith(`${cwdStub}/.gitte-projects-disable`, "utf8")
-			.mockReturnValue(`example2\nexample3`);
+		when(fs.readFileSync).calledWith(projectsToggleMockName, "utf8").mockReturnValue(`projecte:false`);
 
 		const result = await loadConfig(cwdStub);
 

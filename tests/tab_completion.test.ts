@@ -14,6 +14,7 @@ import { cnfStub, cwdStub } from "./utils/stubs";
 import fs from "fs-extra";
 import { when } from "jest-when";
 import path from "path";
+import { projectsToggleFileName } from "../src/toggle_projects";
 
 let config: Config = _.cloneDeep(cnfStub);
 beforeEach(() => {
@@ -21,12 +22,15 @@ beforeEach(() => {
 
 	fs.readJsonSync = jest.fn();
 	fs.pathExistsSync = jest.fn();
+	fs.readFileSync = jest.fn();
 
 	when(fs.readJsonSync).calledWith(path.join(cwdStub, ".gitte-cache.json")).mockReturnValue({
 		config,
 		version: 1,
 		seenProjects: [],
 	});
+
+	when(fs.readFileSync).calledWith(path.join(cwdStub, projectsToggleFileName), "utf8").mockReturnValue(``);
 
 	when(fs.pathExistsSync).calledWith(path.join(cwdStub, ".gitte-cache.json")).mockReturnValue(true);
 });
@@ -80,7 +84,7 @@ describe("Toggle tab completion", () => {
 	test("tabCompleteToggle", () => {
 		const res = tabCompleteToggle({ _: ["tab_completion", "start", ""], cwd: cwdStub });
 
-		expect(res).toEqual(["projecta", "projectd", "projecte"]);
+		expect(res).toEqual(["projecta", "projectd", "projecte", "disabledProject"]);
 	});
 });
 

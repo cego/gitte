@@ -1,7 +1,7 @@
 import { loadConfig } from "../../src/config_loader";
 import { Argv } from "yargs";
 import { errorHandler } from "../../src/error_handler";
-import { resetDisabledProjects, logDisabledProjects, toggleProjectDisable } from "../../src/disable_projects";
+import { logProjectStatus, resetToggledProjects, toggleProject } from "../../src/toggle_projects";
 import { tabCompleteToggle } from "../../src/tab_completion";
 
 // noinspection JSUnusedGlobalSymbols
@@ -19,14 +19,14 @@ export async function handler(argv: any) {
 		switch (argv.project) {
 			case "status":
 				// give a status of disabled projects
-				logDisabledProjects(config);
+				logProjectStatus(config);
 				break;
 			case "reset":
 				// set disabled projects to projects which defaultDisabled
-				resetDisabledProjects(config);
+				resetToggledProjects(config);
 				break;
 			default:
-				toggleProjectDisable(config, argv.project);
+				toggleProject(config, argv.project);
 		}
 	} catch (e) {
 		errorHandler(e);

@@ -58,6 +58,12 @@ export const cnfStub: any = {
 				},
 			},
 		},
+		disabledProject: {
+			defaultDisabled: true,
+			default_branch: "main",
+			remote: "git@gitlab.com:cego/disabled-project.git",
+			actions: {},
+		},
 	},
 	searchFor: [],
 };
