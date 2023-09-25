@@ -2,17 +2,16 @@
 	"extends": ["config:js-app", ":disableDependencyDashboard"],
 	"packageRules": [
 		{
-		  "matchManagers": ["npm"],
-		  "matchDepTypes": ["dependencies"],
-		  "matchUpdateTypes": ["minor", "patch"],
-		  "groupName": "All npm dependencies"
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["dependencies"],
+			"matchUpdateTypes": ["minor", "patch"],
+			"groupName": "All npm dependencies"
 		},
 		{
-		  "matchManagers": ["npm"],
-		  "matchDepTypes": ["devDependencies"],
-		  "matchUpdateTypes": ["minor", "patch"],
-		  "groupName": "All npm devDependencies"
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["devDependencies"],
+			"matchUpdateTypes": ["minor", "patch"],
+			"groupName": "All npm devDependencies"
 		}
 	]
-	
 }
