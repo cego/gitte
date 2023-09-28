@@ -27,14 +27,29 @@ Requires npm and node version 16 or higher.
 npm install -g @cego/gitte
 ```
 
-## Linux binaries
+### Linux based on Debian
+
+Users of Debian-based distributions should prefer the [the Deb822 format][deb822], installed with:
 
 ```bash
-curl -s "https://cego.github.io/gitte/ppa/pubkey.gpg" | sudo apt-key add -
-sudo curl -s -o /etc/apt/sources.list.d/gitte.list "https://cego.github.io/gitte/ppa/gitte.list"
+sudo wget -O /etc/apt/sources.list.d/gitte.sources https://gitte-ppa.cego.dk/gitte.sources
 sudo apt-get update
 sudo apt-get install gitte
 ```
+
+[deb822]: https://repolib.readthedocs.io/en/latest/deb822-format.html#deb822-format
+
+If your distribution does not support this, you can run these commands:
+
+```bash
+curl -s "https://gitte-ppa.cego.dk/pubkey.gpg" | sudo apt-key add -
+echo "deb https://gitte-ppa.cego.dk ./" | sudo tee /etc/apt/sources.list.d/gitte.list
+sudo apt-get update
+sudo apt-get install gitte
+```
+
+Note that the path `/etc/apt/sources.list.d/gitte.list` is used in the file `gitte.list`.
+If you change it in these commands you must also change it in `/etc/apt/sources.list.d/gitte.list`.
 
 # Basic usage
 
@@ -123,3 +138,15 @@ Ignore dependencies.
 Default: CPU/2
 
 Set this to limit the number of parallel processes when running tasks.
+
+## How to publish debian packages to [gitte-ppa.cego.dk](gitte-ppa.cego.dk)
+
+Run `./publish-os-packages` and upload the ppa/ppa.zip file to cego's cloudflare pages
+
+A gpg signing key is needed to sign the debian packages.
+
+## How to publish npmjs.com
+
+Run `npm publish` to upload to npmjs.com
+
+You need proper permissions in the `@cego` organization on [npmjs.com](npmjs.com)
