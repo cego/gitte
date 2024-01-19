@@ -10,7 +10,7 @@ export const describe = "List all projects and their actions";
 export async function handler(argv: any) {
 	try {
 		const config = await loadConfig(argv.cwd as string, argv.needs, false);
-		let action_obj: Record<string, Record<string, string[]>> = {};
+		const action_obj: Record<string, Record<string, string[]>> = {};
 
 		for (const [name, project] of Object.entries(config.projects)) {
 			const groups = Object.keys(project.actions);
