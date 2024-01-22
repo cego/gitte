@@ -16,7 +16,6 @@ function actionToPrettyString(actions: [string, ProjectAction]) {
 export async function handler(argv: any) {
 	try {
 		const config = await loadConfig(argv.cwd as string, argv.needs, false);
-		// const action_obj: Record<string, Record<string, string[]>> = {};
 
 		for (const [name, project] of Object.entries(config.projects)) {
 			console.log(chalk`{bold ${name}:} ${Object.entries(project.actions).map(actionToPrettyString)}`);
