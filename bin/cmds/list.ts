@@ -9,7 +9,7 @@ export const command = "list";
 export const describe = "List all projects and their actions";
 
 function actionToPrettyString(actions: [string, ProjectAction]) {
-		return chalk`{cyan <${actions[0]}>} {magenta <${Object.keys(actions[1].groups)}>}`;
+	return chalk`{cyan <${actions[0]}>} {magenta <${Object.keys(actions[1].groups)}>}`;
 }
 
 // noinspection JSUnusedGlobalSymbols
