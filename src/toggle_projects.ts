@@ -31,7 +31,7 @@ export function logProjectStatus(cfg: Config): void {
 
 	Object.entries(cfg.projects).forEach(([projectName, project]) => {
 		let enabled = !project.defaultDisabled;
-		if (toggledProjects[projectName]) {
+		if (projectName in toggledProjects) {
 			enabled = toggledProjects[projectName];
 		}
 
