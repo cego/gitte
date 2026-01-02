@@ -80,7 +80,7 @@ export async function loadConfig(cwd: string, needs = true, shouldDisableProject
 					acc.push(projectName);
 				}
 				return acc;
-		  }, [] as string[])
+			}, [] as string[])
 		: [];
 
 	// Unset default disabled projects unless they are toggled

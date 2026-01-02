@@ -20,10 +20,13 @@ export function getToggledProjects(cfg: Config): { [key: string]: boolean } {
 		.split("\n")
 		.filter((x) => x.length > 0)
 		.map((x) => x.split(":"))
-		.reduce((carry, [projectName, enabled]) => {
-			carry[projectName] = enabled === "true";
-			return carry;
-		}, {} as { [key: string]: boolean });
+		.reduce(
+			(carry, [projectName, enabled]) => {
+				carry[projectName] = enabled === "true";
+				return carry;
+			},
+			{} as { [key: string]: boolean },
+		);
 }
 
 export function logProjectStatus(cfg: Config): void {

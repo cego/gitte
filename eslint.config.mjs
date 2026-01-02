@@ -9,29 +9,32 @@ import { FlatCompat } from "@eslint/eslintrc";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const compat = new FlatCompat({
-    baseDirectory: __dirname,
-    recommendedConfig: js.configs.recommended,
-    allConfig: js.configs.all
+	baseDirectory: __dirname,
+	recommendedConfig: js.configs.recommended,
+	allConfig: js.configs.all,
 });
 
-export default defineConfig([globalIgnores(["**/coverage/", "**/*.js", "**/test"]), {
-    extends: compat.extends(
-        "eslint:recommended",
-        "plugin:@typescript-eslint/eslint-recommended",
-        "plugin:@typescript-eslint/recommended",
-        "prettier",
-    ),
+export default defineConfig([
+	globalIgnores(["**/coverage/", "**/*.js", "**/test"]),
+	{
+		extends: compat.extends(
+			"eslint:recommended",
+			"plugin:@typescript-eslint/eslint-recommended",
+			"plugin:@typescript-eslint/recommended",
+			"prettier",
+		),
 
-    plugins: {
-        "@typescript-eslint": typescriptEslint,
-    },
+		plugins: {
+			"@typescript-eslint": typescriptEslint,
+		},
 
-    languageOptions: {
-        parser: tsParser,
-    },
+		languageOptions: {
+			parser: tsParser,
+		},
 
-    rules: {
-        "@typescript-eslint/no-explicit-any": ["off"],
-        "@typescript-eslint/ban-ts-comment": ["off"],
-    },
-}]);
+		rules: {
+			"@typescript-eslint/no-explicit-any": ["off"],
+			"@typescript-eslint/ban-ts-comment": ["off"],
+		},
+	},
+]);

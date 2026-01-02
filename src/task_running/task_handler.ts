@@ -32,7 +32,12 @@ class TaskHandler {
 	private plan: Task[];
 	private actions: string[];
 
-	constructor(cfg: Config, plan: Task[], actions: string[], private maxTaskParallelization: number) {
+	constructor(
+		cfg: Config,
+		plan: Task[],
+		actions: string[],
+		private maxTaskParallelization: number,
+	) {
 		this.config = cfg;
 		this.plan = plan;
 		this.actions = actions;

@@ -28,7 +28,11 @@ enum TaskState {
 }
 
 class Task {
-	constructor(public key: GroupKey, public context: ActionContext, public needs: GroupKey[]) {
+	constructor(
+		public key: GroupKey,
+		public context: ActionContext,
+		public needs: GroupKey[],
+	) {
 		if (needs.length > 0) {
 			this.state = TaskState.BLOCKED;
 		}
