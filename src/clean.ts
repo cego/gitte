@@ -31,7 +31,7 @@ class GitteCleaner {
 		for (const project of gitFolders) {
 			try {
 				await utils.spawn("git", ["clean", "-fdx"], { cwd: project.cwd });
-			} catch (e) {
+			} catch {
 				console.error(
 					chalk`{red Failed to clean untracked files in {cyan ${tildify(
 						project.cwd,
@@ -53,7 +53,7 @@ class GitteCleaner {
 				) {
 					try {
 						await utils.spawn("git", ["reset", "--hard"], { cwd: project.cwd });
-					} catch (e) {
+					} catch {
 						console.error(
 							chalk`{red Failed to clean local changes in {cyan ${tildify(
 								project.cwd,
@@ -71,7 +71,7 @@ class GitteCleaner {
 		for (const project of gitFolders) {
 			try {
 				await utils.spawn("git", ["checkout", project.defaultBranch], { cwd: project.cwd });
-			} catch (e) {
+			} catch {
 				console.error(
 					chalk`{red Failed to checkout ${project.defaultBranch} in {cyan ${tildify(
 						project.cwd,
