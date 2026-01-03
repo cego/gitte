@@ -9,13 +9,10 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"strings"
 
 	"github.com/joho/godotenv"
+	"go.yaml.in/yaml/v3"
 )
-
-type GitteConfig struct {
-}
 
 type GitteContext struct {
 	config *GitteConfig
@@ -24,13 +21,12 @@ type GitteContext struct {
 
 const ConfigPath = ".gitte.yml"
 const DotEnvPath = ".gitte-env"
-const OverridePath = ".gitte.override.yml"
-const CacheDir = ".gitte" // TODO maybe make migration from .gitte-cache.json
+const OverridePath = ".gitte.override.yml" // TODO
+const CacheDir = ".gitte"                  // TODO maybe make migration from .gitte-cache.json
 
 func LoadConfig(fd FileDefinition) (*GitteConfig, error) {
-	content := fd.ConfigContent
 	if fd.IsEnv {
-		dotenv, err := godotenv.Parse(strings.NewReader(content))
+		dotenv, err := godotenv.Parse(bytes.NewReader(fd.ConfigContent))
 		if err != nil {
 			return nil, err
 		}
@@ -83,15 +79,15 @@ func LoadConfig(fd FileDefinition) (*GitteConfig, error) {
 		if fileContent == nil {
 			return nil, fmt.Errorf("file %s not found in tar archive", remoteGitFile)
 		}
-
-		content = string(fileContent)
+		return LoadGitteConfigFromYAML(fileContent)
 	}
 
-	return &GitteConfig{}, nil // TODO parse and validate
+	// Load YAML content into GitteConfig struct
+	return LoadGitteConfigFromYAML(fd.ConfigContent)
 }
 
 type FileDefinition struct {
-	ConfigContent string
+	ConfigContent []byte
 	IsEnv         bool
 }
 
@@ -106,7 +102,7 @@ func ResolveGitteDir(fs fs.FS) (FileDefinition, error) {
 		if err != nil {
 			return FileDefinition{}, err
 		}
-		return FileDefinition{ConfigContent: string(content), IsEnv: true}, nil
+		return FileDefinition{ConfigContent: content, IsEnv: true}, nil
 	}
 
 	if f, err := fs.Open(ConfigPath); err == nil {
@@ -115,7 +111,7 @@ func ResolveGitteDir(fs fs.FS) (FileDefinition, error) {
 		if err != nil {
 			return FileDefinition{}, err
 		}
-		return FileDefinition{ConfigContent: string(content), IsEnv: false}, nil
+		return FileDefinition{ConfigContent: content, IsEnv: false}, nil
 	}
 
 	parentDir := os.DirFS("..")
@@ -124,4 +120,14 @@ func ResolveGitteDir(fs fs.FS) (FileDefinition, error) {
 	}
 
 	return FileDefinition{}, ErrGitteConfigNotFound
+}
+
+func LoadGitteConfigFromYAML(content []byte) (*GitteConfig, error) {
+	var config GitteConfig
+	err := yaml.Unmarshal([]byte(content), &config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
 }
