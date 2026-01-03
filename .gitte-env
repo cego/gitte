@@ -1,0 +1,3 @@
+REMOTE_GIT_FILE="gitte.yml"
+REMOTE_GIT_REPO="git@gitlab.cego.dk:cego/local-helper-configs.git"
+REMOTE_GIT_REF="master"
