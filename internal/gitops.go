@@ -6,16 +6,22 @@ import (
 	"gitte/config"
 	"gitte/executor"
 	"os"
+	"path/filepath"
 	"regexp"
 )
 
 func GitOps(ctx context.Context, cwd string, gitteConfig config.GitteConfig) error {
-	for _, pc := range gitteConfig.Projects {
-		if err := gitopsProject(ctx, cwd, pc); err != nil {
-			return err
-		}
+	tasks := []executor.Task{}
+	for name, pc := range gitteConfig.Projects {
+		tasks = append(tasks, executor.Task{
+			Name: fmt.Sprintf("gitops-%s", name),
+			ExecuteFn: func() error {
+				return gitopsProject(ctx, cwd, pc)
+			},
+		})
 	}
-	return nil
+
+	return executor.NewExecutor(tasks).Execute()
 }
 
 func gitopsProject(ctx context.Context, cwd string, pc config.ProjectConfig) error {
@@ -24,7 +30,7 @@ func gitopsProject(ctx context.Context, cwd string, pc config.ProjectConfig) err
 		return err
 	}
 
-	projectPath := fmt.Sprintf("%s/%s", cwd, relativeDirectory) // TODO join prettier
+	projectPath := filepath.Join(cwd, relativeDirectory)
 
 	// Check if directory exists
 	if _, err := os.Stat(projectPath); os.IsNotExist(err) {

@@ -1,5 +1,7 @@
 package config
 
+import "context"
+
 type GitteConfig struct {
 	StartupChecks   map[string]StartupCheck   `yaml:"startup,omitempty"`
 	Projects        map[string]ProjectConfig  `yaml:"projects,omitempty"`
@@ -39,4 +41,31 @@ type ProjectAction struct {
 
 type ActionOverride struct {
 	maxParallelization int `yaml:"maxParallelization"`
+}
+
+const configContextKey = "gitteConfig"
+const cwdContextKey = "cwd"
+
+func ConfigFromContext(ctx context.Context) *GitteConfig {
+	if cfg, ok := ctx.Value(configContextKey).(*GitteConfig); ok {
+		return cfg
+	}
+
+	panic("gitte config not in context where expected. This is a bug.")
+}
+
+func ContextWithConfig(ctx context.Context, cfg *GitteConfig) context.Context {
+	return context.WithValue(ctx, configContextKey, cfg)
+}
+
+func CwdFromContext(ctx context.Context) string {
+	if cwd, ok := ctx.Value("cwd").(string); ok {
+		return cwd
+	}
+
+	panic("cwd not in context where expected. This is a bug.")
+}
+
+func ContextWithCwd(ctx context.Context, cwd string) context.Context {
+	return context.WithValue(ctx, cwdContextKey, cwd)
 }

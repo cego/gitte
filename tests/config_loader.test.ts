@@ -74,7 +74,7 @@ describe("Config loader", () => {
 		await expect(loadConfig(cwdStub));
 	});
 
-	test(".gitte-env exists", async () => {
+	test(".gitte-env.example exists", async () => {
 		const envFileCnt = `REMOTE_GIT_FILE="gitte.yml"\nREMOTE_GIT_REPO="git@gitlab.cego.dk:cego/local-helper-configs.git"\nREMOTE_GIT_REF="master"\n`;
 		// @ts-ignore
 		when(fs.pathExists).calledWith(`${cwdStub}/.gitte-env`).mockResolvedValue(true);
