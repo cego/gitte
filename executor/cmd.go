@@ -12,8 +12,14 @@ type ExecuteResult struct {
 	Stderr   []byte
 }
 
-func ExecuteSync(command string, args ...string) (*ExecuteResult, error) {
+// ExecuteSyncInDir executes a command synchronously in the specified directory (cwd).
+// If cwd is an empty string, it executes in the current working directory.
+// It returns an ExecuteResult containing the exit code, stdout, and stderr.
+// It will only return an error if there was a problem starting or running the command itself. Not if the command exits with a non-zero exit code.
+func ExecuteSyncInDir(cwd string, command string, args ...string) (*ExecuteResult, error) {
 	cmd := exec.Command(command, args...)
+
+	cmd.Dir = cwd
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
@@ -41,4 +47,8 @@ func ExecuteSync(command string, args ...string) (*ExecuteResult, error) {
 		Stdout:   stdout.Bytes(),
 		Stderr:   stderr.Bytes(),
 	}, nil
+}
+
+func ExecuteSync(command string, args ...string) (*ExecuteResult, error) {
+	return ExecuteSyncInDir("", command, args...)
 }
