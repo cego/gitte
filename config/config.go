@@ -3,20 +3,10 @@ package config
 import "context"
 
 type GitteConfig struct {
-	StartupChecks   map[string]StartupCheck   `yaml:"startup,omitempty"`
+	StartupChecks   StartupCheckMap           `yaml:"startup,omitempty"`
 	Projects        map[string]ProjectConfig  `yaml:"projects,omitempty"`
 	SearchFor       []SearchFor               `yaml:"searchFor,omitempty"`
 	ActionOverrides map[string]ActionOverride `yaml:"actionOverride,omitempty"`
-}
-
-type StartupCheck struct {
-	// TODO
-	//export type Action = {
-	//	hint?: string;
-	//};
-	//export type CmdAction = Action & { cmd: [string, ...string[]] };
-	//export type ShellAction = Action & { shell: string; script: string };
-
 }
 
 type ProjectConfig struct {

@@ -10,3 +10,4 @@ tests/**/*.js
 test
 cego-gitte-*.tgz
 ppa/
+main
