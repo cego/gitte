@@ -3,7 +3,11 @@ package config
 import (
 	"context"
 	"fmt"
+	goyaml "github.com/goccy/go-yaml"
 	"gitte/executor"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -79,7 +83,33 @@ type YamlPathPresentStartupCheck struct {
 }
 
 func (s *YamlPathPresentStartupCheck) Check(ctx context.Context, cwd string) error {
-	return nil
+	path, err := goyaml.PathString(s.Path)
+	if err != nil {
+		return fmt.Errorf("invalid yaml path: %w", err)
+	}
+	if strings.HasPrefix(s.File, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to resolve home directory: %w", err)
+		}
+		s.File = strings.Replace(s.File, "~/", homeDir+string(os.PathSeparator), 1)
+	}
+
+	file, err := filepath.Abs(s.File)
+	if err != nil {
+		return fmt.Errorf("invalid file path: %w", err)
+	}
+
+	// make a file reader
+	f, err := os.Open(file)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer f.Close()
+
+	_, err = path.ReadNode(f)
+
+	return err
 }
 
 type StartupCheckMap map[string]StartupCheck
