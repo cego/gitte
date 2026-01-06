@@ -11,12 +11,14 @@ import (
 type StartupCheck interface {
 	GetType() string
 	GetHint() string
+	GetNeeds() []string
 	Check(ctx context.Context, cwd string) error
 }
 
 type BaseStartupCheck struct {
-	Type string `yaml:"type"`
-	Hint string `yaml:"hint,omitempty"`
+	Type  string   `yaml:"type"`
+	Hint  string   `yaml:"hint,omitempty"`
+	Needs []string `yaml:"needs,omitempty"`
 }
 
 func (b *BaseStartupCheck) GetHint() string {
@@ -25,6 +27,10 @@ func (b *BaseStartupCheck) GetHint() string {
 
 func (b *BaseStartupCheck) GetType() string {
 	return b.Type
+}
+
+func (b *BaseStartupCheck) GetNeeds() []string {
+	return []string{}
 }
 
 type ShellStartupCheck struct {
