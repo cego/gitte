@@ -87,7 +87,6 @@ func LoadCachedGitteConfigFromEnvAndAsyncRefresh(ctx context.Context, fd FileDef
 		if settingsCache.Save() != nil {
 			fmt.Println("Error saving refreshed gitte config to cache:", err)
 		}
-		fmt.Println("Successfully refreshed remote gitte config")
 	}()
 
 	return settingsCache.GitteConfig, nil
