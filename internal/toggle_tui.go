@@ -257,23 +257,25 @@ func (m *toggleModel) View() string {
 	// Project list - only visible items
 	for i := start; i < end; i++ {
 		proj := m.projects[i]
-		cursor := "  "
-		if i == m.cursor {
-			cursor = cursorStyle.Render("▸ ")
-		}
+		isSelected := i == m.cursor
 
-		// Project name
-		name := proj.Name
-		if i == m.cursor {
-			name = selectedStyle.Render(name)
-		}
+		// Format the base line first (without styles) to ensure proper spacing
+		baseLine := fmt.Sprintf("%s%-40s", "  ", proj.Name)
 
 		// Status indicator
 		status := ""
 		if proj.CurrentState {
-			status = enabledStyle.Render("✓ enabled")
+			if isSelected {
+				status = enabledStyle.Underline(true).Render("✓ enabled")
+			} else {
+				status = enabledStyle.Render("✓ enabled")
+			}
 		} else {
-			status = disabledStyle.Render("✗ disabled")
+			if isSelected {
+				status = disabledStyle.Underline(true).Render("✗ disabled")
+			} else {
+				status = disabledStyle.Render("✗ disabled")
+			}
 		}
 
 		// Custom indicator
@@ -282,7 +284,12 @@ func (m *toggleModel) View() string {
 			customIndicator = customStyle.Render(" [custom]")
 		}
 
-		line := fmt.Sprintf("%s%-40s %s%s", cursor, name, status, customIndicator)
+		// Apply cursor and selection style to the base line
+		if isSelected {
+			baseLine = cursorStyle.Render("▸ ") + selectedStyle.Render(fmt.Sprintf("%-40s", proj.Name))
+		}
+
+		line := baseLine + " " + status + customIndicator
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
