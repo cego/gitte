@@ -11,12 +11,12 @@ func PerformStartupChecks(ctx context.Context, cwd string, gitteConfig config.Gi
 	for name, check := range gitteConfig.StartupChecks {
 		tasks = append(tasks, executor.Task{
 			Name: name,
-			ExecuteFn: func() error {
+			ExecuteFn: func(ctx context.Context, name string, oh executor.OutputHandler) error {
 				return check.Check(ctx, cwd)
 			},
 			Needs: check.GetNeeds(),
 		})
 	}
 
-	return executor.NewExecutor(tasks).Execute()
+	return executor.NewExecutor(tasks).Execute(ctx)
 }

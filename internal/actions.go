@@ -1,23 +1,37 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"gitte/config"
 	"gitte/executor"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/samber/lo"
 )
 
-func CreateActionExecutor(cfg config.GitteConfig, withNeeds bool, actionString string, groupString string, projectString string) *executor.Executor {
+type ActionExecutor struct {
+	Action   string
+	Executor *executor.Executor
+}
+
+func CreateActionExecutors(cfg config.GitteConfig, withNeeds bool, actionString string, groupString string, projectString string) []ActionExecutor {
 	actions := parseGitteString(actionString)
 	groups := parseGitteString(groupString)
 	projects := parseGitteString(projectString)
 
-	tasks := findGitteTasks(cfg, withNeeds, actions, groups, projects)
+	result := make([]ActionExecutor, 0, len(actions))
+	for _, action := range actions {
+		exec := findGitteTasks(cfg, withNeeds, []string{action}, groups, projects)
+		result = append(result, ActionExecutor{
+			Action:   action,
+			Executor: executor.NewExecutor(exec).WithOutputHandler(executor.LogOutputHandler{}),
+		})
+	}
 
-	return executor.NewExecutor(tasks)
+	return result
 }
 
 func groupKeyToTask(cfg config.GitteConfig, key GroupKey) executor.Task {
@@ -38,8 +52,16 @@ func groupKeyToTask(cfg config.GitteConfig, key GroupKey) executor.Task {
 
 	return executor.Task{
 		Name: fmt.Sprintf("%s-%s-%s", key.Project, key.Action, key.Group),
-		ExecuteFn: func() error {
-			res, err := executor.ExecuteSyncInDir("", groupTasks[0], groupTasks[1:]...)
+		ExecuteFn: func(ctx context.Context, name string, oh executor.OutputHandler) error {
+			dir, err := getProjectDirFromRemote(projectConfig)
+
+			if err != nil {
+				return err
+			}
+
+			cwd := config.CwdFromContext(ctx)
+
+			res, err := executor.ExecuteSyncInDirWithOutputHandler(ctx, name, filepath.Join(cwd, dir), oh, groupTasks[0], groupTasks[1:]...)
 			if err != nil {
 				return err
 			}
@@ -47,6 +69,8 @@ func groupKeyToTask(cfg config.GitteConfig, key GroupKey) executor.Task {
 			if res.ExitCode != 0 {
 				return fmt.Errorf("command failed with exit code %d: %s", res.ExitCode, string(res.Stderr))
 			}
+
+			fmt.Printf("Ran %s %s %s successfully (%s) in %s\n", key.Project, key.Action, key.Group, strings.Join(groupTasks, " "), filepath.Join(cwd, dir))
 
 			return nil
 		},
@@ -62,7 +86,11 @@ func findGitteTasks(cfg config.GitteConfig, withNeeds bool, actionsStr, groupsSt
 		projectActionGroups = addProjectDependencies(cfg, projectActionGroups)
 	}
 
+	fmt.Println("Count of project action groups before removing unrunnable:", len(projectActionGroups))
+
 	projectActionGroups = removeUnrunnableGroups(projectActionGroups)
+
+	fmt.Println("Count of project action groups after removing unrunnable:", len(projectActionGroups))
 
 	// Deduplicate using compareGroupKeys
 	projectActionGroups = lo.UniqBy(projectActionGroups, func(a GroupKeyWithDependencies) string {
@@ -331,7 +359,7 @@ func addProjectDependenciesHelper(cfg config.GitteConfig, key GroupKeyWithDepend
 
 func removeUnrunnableGroups(keys []GroupKeyWithDependencies) []GroupKeyWithDependencies {
 	var runnableKeys []GroupKeyWithDependencies
-	copy(keys, runnableKeys)
+	runnableKeys = append(runnableKeys, keys...)
 
 	for _, key := range keys {
 		// If any of the needs has group "!", this group is unrunnable

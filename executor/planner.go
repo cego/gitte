@@ -1,13 +1,14 @@
 package executor
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
 
 type Task struct {
 	Name      string
-	ExecuteFn func() error
+	ExecuteFn func(ctx context.Context, name string, handler OutputHandler) error
 	Cwd       string
 	Needs     []string
 }
@@ -26,8 +27,40 @@ type CommandRun struct {
 	status
 }
 
+type StreamType string
+
+const (
+	StderrStream StreamType = "stderr"
+	StdoutStream StreamType = "stdout"
+)
+
+type Output struct {
+	Output  []byte
+	CmdName string
+	Stream  StreamType
+}
+
+type OutputHandler interface {
+	HandleOutput(ctx context.Context, output Output) error
+}
+
+type NoopOutputHandler struct{}
+
+func (n NoopOutputHandler) HandleOutput(ctx context.Context, output Output) error {
+	return nil
+}
+
+type LogOutputHandler struct{}
+
+func (l LogOutputHandler) HandleOutput(ctx context.Context, output Output) error {
+	prefix := fmt.Sprintf("[%s][%s]: ", output.CmdName, output.Stream)
+	fmt.Printf("%s%s", prefix, string(output.Output))
+	return nil
+}
+
 type Executor struct {
-	tasks map[string]*CommandRun
+	tasks         map[string]*CommandRun
+	outputHandler OutputHandler
 }
 
 type CommandResult struct {
@@ -50,12 +83,18 @@ func NewExecutor(commands []Task) *Executor {
 	}
 }
 
-func (e *Executor) Execute() error {
+func (e *Executor) WithOutputHandler(handler OutputHandler) *Executor {
+	e.outputHandler = handler
+	return e
+}
+
+func (e *Executor) Execute(ctx context.Context) error {
 	// Make channel for receiving command completion notifications
 	completionCh := make(chan CommandResult)
+	outputChannel := make(chan Output, 1000) // Buffered channel to avoid blocking
 
 	// Find all tasks without dependencies, and start executing them
-	err := e.triggerExecutionOfReadyCommands(completionCh)
+	err := e.triggerExecutionOfReadyCommands(ctx, completionCh, outputChannel)
 	if err != nil {
 		return err
 	}
@@ -63,6 +102,8 @@ func (e *Executor) Execute() error {
 	if err := e.ensureAtLeastOneCommandRunning(); err != nil {
 		return err
 	}
+
+	go e.listenForOutput(ctx, outputChannel)
 
 	// Wait for any command to finish. If a command finishes, check for new tasks that can be executed until all tasks are done.
 	finishedCommands := 0
@@ -90,7 +131,7 @@ func (e *Executor) Execute() error {
 		}
 
 		// Check for new tasks that can be executed
-		err := e.triggerExecutionOfReadyCommands(completionCh)
+		err := e.triggerExecutionOfReadyCommands(ctx, completionCh, outputChannel)
 		if err != nil {
 			return err
 		}
@@ -107,8 +148,36 @@ func (e *Executor) Execute() error {
 	return errors.Join(errs...)
 }
 
+func (e *Executor) listenForOutput(ctx context.Context, outputCh <-chan Output) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case output, ok := <-outputCh:
+			if !ok {
+				return
+			}
+			if e.outputHandler.HandleOutput != nil {
+				err := e.outputHandler.HandleOutput(ctx, output)
+				if err != nil {
+					fmt.Printf("error handling output for command %s: %v\n", output.CmdName, err)
+				}
+			}
+		}
+	}
+}
+
+type ToChannelOutputHandler struct {
+	OutputCh chan<- Output
+}
+
+func (h ToChannelOutputHandler) HandleOutput(ctx context.Context, output Output) error {
+	h.OutputCh <- output
+	return nil
+}
+
 // triggerExecutionOfReadyCommands finds and starts execution of all tasks whose dependencies are met.
-func (e *Executor) triggerExecutionOfReadyCommands(completionCh chan<- CommandResult) error {
+func (e *Executor) triggerExecutionOfReadyCommands(ctx context.Context, completionCh chan<- CommandResult, outputCh chan<- Output) error {
 	for name, cmdRun := range e.tasks {
 		if cmdRun.status != pending {
 			continue
@@ -131,7 +200,9 @@ func (e *Executor) triggerExecutionOfReadyCommands(completionCh chan<- CommandRe
 			// Start executing the command
 			cmdRun.status = running
 			go func(cmd Task) {
-				err := cmd.ExecuteFn()
+				outputHandler := ToChannelOutputHandler{OutputCh: outputCh}
+				err := cmd.ExecuteFn(ctx, cmd.Name, outputHandler)
+
 				if err != nil {
 					completionCh <- CommandResult{
 						CommandName: cmd.Name,

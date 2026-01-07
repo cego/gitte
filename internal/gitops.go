@@ -15,13 +15,13 @@ func GitOps(ctx context.Context, cwd string, gitteConfig config.GitteConfig) err
 	for name, pc := range gitteConfig.Projects {
 		tasks = append(tasks, executor.Task{
 			Name: fmt.Sprintf("gitops-%s", name),
-			ExecuteFn: func() error {
+			ExecuteFn: func(ctx context.Context, name string, oh executor.OutputHandler) error {
 				return gitopsProject(ctx, cwd, pc)
 			},
 		})
 	}
 
-	return executor.NewExecutor(tasks).Execute()
+	return executor.NewExecutor(tasks).Execute(ctx)
 }
 
 func gitopsProject(ctx context.Context, cwd string, pc config.ProjectConfig) error {
@@ -127,8 +127,6 @@ func pull(ctx context.Context, cwd string) error {
 }
 
 func getProjectDirFromRemote(pc config.ProjectConfig) (string, error) {
-	// 	const match = remote.match(/git@.*?:.*?\.git/);
-
 	regex := regexp.MustCompile(`git@.*?:(.*)?\.git`)
 	match := regex.FindStringSubmatch(pc.Remote)
 
