@@ -230,11 +230,11 @@ func (e *Executor) ensureAtLeastOneCommandRunning() error {
 		}
 	}
 
-	return fmt.Errorf("no tasks are running, potential deadlock detected. Pending tasks: %v", e.getPendingCommands())
+	return fmt.Errorf("no tasks are running, potential deadlock detected. Pending tasks: %v", e.GetPendingCommands())
 }
 
-// getPendingCommands returns a list of names of tasks that are still pending.
-func (e *Executor) getPendingCommands() []string {
+// GetPendingCommands returns a list of names of tasks that are still pending.
+func (e *Executor) GetPendingCommands() []string {
 	var pendingTasks []string
 	for name, cmdRun := range e.tasks {
 		if cmdRun.status == pending {
