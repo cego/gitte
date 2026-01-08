@@ -11,7 +11,8 @@ import (
 var toggleCmd = &cobra.Command{
 	Use: "toggle",
 	Annotations: map[string]string{
-		"need-config": "true",
+		"need-config":    "true",
+		"filter-toggles": "false",
 	},
 	Short: "Toggle projects on/off with an interactive TUI. Navigate with arrow keys and toggle with space.",
 	Long: `Opens an interactive terminal UI where you can:

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"gitte/config"
+	"gitte/internal"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -55,6 +56,14 @@ Gitte also contain other sub commands for utilities managing such a setup.
 			return fmt.Errorf("error loading gitte config: %w", err)
 		}
 
+		// if attribute filter-toggles is not set to "false", we filter the toggles based on the toggle file
+		if val, ok := cmd.Annotations["filter-toggles"]; !ok || val != "false" {
+			toggledProjects, err := internal.ReadToggledProjects(cwd)
+			if err != nil {
+				return fmt.Errorf("error reading toggled projects: %w", err)
+			}
+			gitteConfig.FilterToggles(toggledProjects)
+		}
 		cmd.SetContext(config.ContextWithConfig(ctx, gitteConfig))
 
 		return nil

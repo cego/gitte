@@ -1,17 +1,15 @@
 package internal
 
 import (
+	"gitte/config"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-// ToggledProjects contain a map of project keys that have been explicitly toggled.
-type ToggledProjects = map[string]bool
-
 const toggleFileName = ".gitte-projects-toggled"
 
-func SaveToggledProjects(cwd string, toggledProjects ToggledProjects) error {
+func SaveToggledProjects(cwd string, toggledProjects config.ToggledProjects) error {
 	var lines []string
 	for project, toggled := range toggledProjects {
 		line := project + ":"
@@ -31,18 +29,18 @@ func getToggleFilePath(cwd string) string {
 	return filepath.Join(cwd, toggleFileName)
 }
 
-func ReadToggledProjects(cwd string) (ToggledProjects, error) {
+func ReadToggledProjects(cwd string) (config.ToggledProjects, error) {
 
 	filePath := getToggleFilePath(cwd)
 	return parseToggleFile(filePath)
 }
 
-func parseToggleFile(filePath string) (ToggledProjects, error) {
+func parseToggleFile(filePath string) (config.ToggledProjects, error) {
 	content, err := os.ReadFile(filePath)
 
 	if err != nil {
 		if os.IsNotExist(err) {
-			return ToggledProjects{}, nil
+			return config.ToggledProjects{}, nil
 		}
 		return nil, err
 	}
@@ -50,8 +48,8 @@ func parseToggleFile(filePath string) (ToggledProjects, error) {
 	return parseToggleFileContent(content)
 }
 
-func parseToggleFileContent(content []byte) (ToggledProjects, error) {
-	toggledProjects := make(ToggledProjects)
+func parseToggleFileContent(content []byte) (config.ToggledProjects, error) {
+	toggledProjects := make(config.ToggledProjects)
 	// The file is parsed a each newline being project:(true|false)
 	// for example my-project:true
 	lines := strings.Split(string(content), "\n")

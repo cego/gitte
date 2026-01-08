@@ -1,6 +1,8 @@
 package config
 
-import "context"
+import (
+	"context"
+)
 
 type GitteConfig struct {
 	StartupChecks   StartupCheckMap           `yaml:"startup,omitempty"`
@@ -58,4 +60,28 @@ func CwdFromContext(ctx context.Context) string {
 
 func ContextWithCwd(ctx context.Context, cwd string) context.Context {
 	return context.WithValue(ctx, cwdContextKey, cwd)
+}
+
+// ToggledProjects contain a map of project keys that have been explicitly toggled.
+type ToggledProjects = map[string]bool
+
+// FilterToggles filters the projects in the GitteConfig based on the provided toggled projects.
+// It removes projects that are default disabled and not toggled on,
+// as well as projects that are default enabled and toggled off.
+func (cfg *GitteConfig) FilterToggles(toggledProjects ToggledProjects) {
+	filteredProjects := make(map[string]ProjectConfig)
+	for key, project := range cfg.Projects {
+		enabled, isToggled := toggledProjects[key]
+		if project.DefaultDisabled {
+			if isToggled && enabled {
+				filteredProjects[key] = project
+			}
+		} else {
+			if !isToggled || enabled {
+				filteredProjects[key] = project
+			}
+		}
+	}
+
+	cfg.Projects = filteredProjects
 }

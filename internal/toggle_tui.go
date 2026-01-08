@@ -23,7 +23,7 @@ type toggleModel struct {
 	cursor          int
 	viewportOffset  int // For scrolling large lists
 	cwd             string
-	toggledProjects ToggledProjects
+	toggledProjects config.ToggledProjects
 	cfg             *config.GitteConfig
 	width           int
 	height          int
@@ -31,29 +31,29 @@ type toggleModel struct {
 
 var (
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("170")).
-		MarginBottom(1)
+			Bold(true).
+			Foreground(lipgloss.Color("170")).
+			MarginBottom(1)
 
 	selectedStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("170")).
-		Bold(true)
+			Foreground(lipgloss.Color("170")).
+			Bold(true)
 
 	cursorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("170"))
+			Foreground(lipgloss.Color("170"))
 
 	enabledStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("42"))
+			Foreground(lipgloss.Color("42"))
 
 	disabledStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("196"))
+			Foreground(lipgloss.Color("196"))
 
 	customStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("226"))
+			Foreground(lipgloss.Color("226"))
 
 	helpStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		MarginTop(1)
+			Foreground(lipgloss.Color("241")).
+			MarginTop(1)
 )
 
 func newToggleModel(cfg *config.GitteConfig, cwd string) (*toggleModel, error) {
@@ -342,7 +342,7 @@ func (m *toggleModel) resetAllProjects() {
 		proj.CurrentState = proj.DefaultState
 		proj.IsCustom = false
 	}
-	m.toggledProjects = make(ToggledProjects)
+	m.toggledProjects = make(config.ToggledProjects)
 }
 
 // updateViewport adjusts the viewport offset to keep the cursor visible
