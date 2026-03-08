@@ -1,0 +1,241 @@
+package startup
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// View handles startup check output in either plain or TUI mode.
+type View interface {
+	// OnStart is called when a check begins.
+	OnStart(name string)
+	// OnFinish is called when a check completes. err is nil on success.
+	OnFinish(name string, err error, elapsed time.Duration)
+	// Wait blocks until the view has finished rendering all output.
+	Wait()
+}
+
+// ---- Plain view --------------------------------------------------------
+
+type plainView struct {
+	mu sync.Mutex
+}
+
+func newPlainView() *plainView { return &plainView{} }
+
+func (v *plainView) OnStart(name string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	fmt.Fprintf(os.Stdout, "[startup:%s] RUNNING\n", name)
+}
+
+func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if err != nil {
+		fmt.Fprintf(os.Stdout, "[startup:%s] FAILED (%s): %s\n", name, fmtDuration(elapsed), err)
+	} else {
+		fmt.Fprintf(os.Stdout, "[startup:%s] OK (%s)\n", name, fmtDuration(elapsed))
+	}
+}
+
+func (v *plainView) Wait() {}
+
+// ---- TUI view ----------------------------------------------------------
+
+type checkState int
+
+const (
+	checkPending checkState = iota
+	checkRunning
+	checkOK
+	checkFailed
+)
+
+type checkEntry struct {
+	name    string
+	state   checkState
+	elapsed time.Duration
+	err     error
+}
+
+// tuiUpdateMsg carries a state change for a single check.
+type tuiUpdateMsg struct {
+	name    string
+	state   checkState
+	elapsed time.Duration
+	err     error
+}
+
+// allDoneMsg is sent when msgCh is closed (all updates delivered).
+type allDoneMsg struct{}
+
+type tuiTickMsg time.Time
+
+type tuiView struct {
+	program *tea.Program
+	msgCh   chan tuiUpdateMsg
+	doneCh  chan error
+}
+
+func newTUIView(checkNames []string) *tuiView {
+	msgCh := make(chan tuiUpdateMsg, 100)
+	m := newStartupModel(checkNames, msgCh)
+	// No alt-screen: startup checks render inline so the output stays visible.
+	p := tea.NewProgram(m)
+
+	v := &tuiView{
+		program: p,
+		msgCh:   msgCh,
+		doneCh:  make(chan error, 1),
+	}
+
+	go func() {
+		finalModel, err := p.Run()
+		// BubbleTea clears its inline output on exit, so reprint the final state.
+		fmt.Fprint(os.Stdout, finalModel.View())
+		v.doneCh <- err
+	}()
+
+	return v
+}
+
+func (v *tuiView) OnStart(name string) {
+	v.msgCh <- tuiUpdateMsg{name: name, state: checkRunning}
+}
+
+func (v *tuiView) OnFinish(name string, err error, elapsed time.Duration) {
+	state := checkOK
+	if err != nil {
+		state = checkFailed
+	}
+	v.msgCh <- tuiUpdateMsg{name: name, state: state, elapsed: elapsed, err: err}
+}
+
+// Wait closes the message channel (signalling no more updates) then blocks
+// until the BubbleTea program has exited.
+func (v *tuiView) Wait() {
+	close(v.msgCh)
+	<-v.doneCh
+}
+
+// ---- BubbleTea model ---------------------------------------------------
+
+var (
+	pendingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	runningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
+	okStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	failStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	labelStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170"))
+	dimStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+)
+
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+type startupModel struct {
+	checks      []*checkEntry
+	index       map[string]int
+	msgCh       <-chan tuiUpdateMsg
+	spinnerTick int
+}
+
+func newStartupModel(names []string, msgCh <-chan tuiUpdateMsg) *startupModel {
+	checks := make([]*checkEntry, len(names))
+	idx := make(map[string]int, len(names))
+	for i, n := range names {
+		checks[i] = &checkEntry{name: n, state: checkPending}
+		idx[n] = i
+	}
+	return &startupModel{checks: checks, index: idx, msgCh: msgCh}
+}
+
+func (m *startupModel) Init() tea.Cmd {
+	return tea.Batch(
+		tea.Tick(80*time.Millisecond, func(t time.Time) tea.Msg { return tuiTickMsg(t) }),
+		m.listen(),
+	)
+}
+
+// listen waits for the next message on msgCh.
+// When the channel is closed it returns allDoneMsg so the model can quit.
+func (m *startupModel) listen() tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-m.msgCh
+		if !ok {
+			return allDoneMsg{}
+		}
+		return msg
+	}
+}
+
+func (m *startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+
+	case tuiTickMsg:
+		m.spinnerTick++
+		return m, tea.Tick(80*time.Millisecond, func(t time.Time) tea.Msg { return tuiTickMsg(t) })
+
+	case tuiUpdateMsg:
+		if i, ok := m.index[msg.name]; ok {
+			m.checks[i].state = msg.state
+			m.checks[i].elapsed = msg.elapsed
+			m.checks[i].err = msg.err
+		}
+		// Always re-queue listen so we drain the channel completely.
+		return m, m.listen()
+
+	case allDoneMsg:
+		return m, tea.Quit
+	}
+
+	return m, nil
+}
+
+func (m *startupModel) View() string {
+	var b strings.Builder
+	b.WriteString(titleStyle.Render("Startup checks") + "\n\n")
+
+	for _, c := range m.checks {
+		var icon, nameStr, extra string
+		switch c.state {
+		case checkPending:
+			icon = pendingStyle.Render("○")
+			nameStr = dimStyle.Render(c.name)
+		case checkRunning:
+			frame := spinnerFrames[m.spinnerTick%len(spinnerFrames)]
+			icon = runningStyle.Render(frame)
+			nameStr = labelStyle.Render(c.name)
+		case checkOK:
+			icon = okStyle.Render("✓")
+			nameStr = okStyle.Render(c.name)
+			extra = dimStyle.Render("  " + fmtDuration(c.elapsed))
+		case checkFailed:
+			icon = failStyle.Render("✗")
+			nameStr = failStyle.Render(c.name)
+			extra = failStyle.Render("  FAILED: " + c.err.Error())
+		}
+		b.WriteString(fmt.Sprintf("  %s  %-30s%s\n", icon, nameStr, extra))
+	}
+
+	return b.String()
+}
+
+// ---- helpers -----------------------------------------------------------
+
+func fmtDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%.0fms", float64(d.Milliseconds()))
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
+}

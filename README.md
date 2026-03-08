@@ -1,144 +1,128 @@
 # gitte
 
-[![quality](https://img.shields.io/github/actions/workflow/status/cego/gitte/quality.yml?branch=main)](https://github.com/cego/gitte/actions)
-[![license](https://img.shields.io/github/license/cego/gitte)](https://npmjs.org/package/gitte)
-[![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=cego_gitte&metric=alert_status)](https://sonarcloud.io/dashboard?id=cego_gitte)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cego_gitte&metric=coverage)](https://sonarcloud.io/dashboard?id=cego_gitte)
-[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=cego_gitte&metric=code_smells)](https://sonarcloud.io/dashboard?id=cego_gitte)
+[![license](https://img.shields.io/github/license/cego/gitte)](https://github.com/cego/gitte)
 
-Tool to help keep a range of projects up to date with git version control, and also help execute commands and scripts across projects. For configuration options please refer to [config documentation](./docs/config.md).
+Gitte is a developer environment orchestration tool for teams working across many git repositories. It keeps all your repos in sync, runs startup checks to verify your local machine is ready, and executes ordered actions (build, up, down, etc.) across projects with dependency resolution.
 
-# Installation
+## Features
 
-## Install using npm
+- **Startup checks** — verify tools, versions, and credentials before doing anything
+- **Git sync** — clone and pull all configured repositories in parallel
+- **Ordered actions** — run commands across projects with `needs`-based dependency ordering and parallel execution
+- **Project toggles** — interactively enable/disable projects per machine
+- **Template inheritance** — share action definitions across similar projects
+- **Feature gates** — toggle environment-variable-based features per machine
+- **Auto-discovery** — discover and sync repositories from GitLab groups or GitHub orgs
+- **TTY-aware output** — spinner TUI in a terminal, structured plain-text output in CI/non-TTY
 
-Requires npm and node version 16 or higher.
+## Installation
 
-```
-npm install -g @cego/gitte
-```
+Download the latest binary from the [releases page](https://github.com/cego/gitte/releases) and place it on your `PATH`.
 
-### Linux based on Debian
+### Build from source
 
-Users of Debian-based distributions should prefer the [the Deb822 format][deb822], installed with:
-
-```bash
-sudo wget -O /etc/apt/sources.list.d/gitte.sources https://gitte-ppa.cego.dk/gitte.sources
-sudo apt-get update
-sudo apt-get install gitte
-```
-
-[deb822]: https://repolib.readthedocs.io/en/latest/deb822-format.html#deb822-format
-
-If your distribution does not support this, you can run these commands:
+Requires Go 1.24 or later.
 
 ```bash
-curl -s "https://gitte-ppa.cego.dk/pubkey.gpg" | sudo apt-key add -
-echo "deb https://gitte-ppa.cego.dk ./" | sudo tee /etc/apt/sources.list.d/gitte.list
-sudo apt-get update
-sudo apt-get install gitte
+go install github.com/cego/gitte@latest
 ```
 
-Note that the path `/etc/apt/sources.list.d/gitte.list` is used in the file `gitte.list`.
-If you change it in these commands you must also change it in `/etc/apt/sources.list.d/gitte.list`.
+## Quick start
 
-# Basic usage
+Create a `.gitte.yml` in the root of your workspace:
 
-In a terminal in a folder with a gitte configuration, or a subfolder thereof, run:
+```yaml
+startup:
+  git-present:
+    type: command
+    cmd: ["git", "--version"]
+    hint: "git is not installed"
 
-```
-$ gitte run <actions> <groups> [projects]`
-```
-
-Gitte will then do the following
-
-1. Run all specified startup checks. If any fail, exit.
-2. Try to update all projects with git pull. Will inform the user if update is not possible. Gitte should never overwrite local changes.
-3. Execute the desired action with the given group. The optional project parameter can be used to limit the projects the action and group will run in.
-
-> An optional option `--auto-merge` can be supplied, that will automatically merge origin/<default_branch> into each project, if you are on a non-default branch without local changes or conflicts. This can also be set by the env variable `GITTE_AUTO_MERGE=true`.
-
-If configured, gitte is able to switch automatically between groups. Switching between groups involve downing all other groups than specified, then upping the specified group.
-
-```
-$ gitte switch <group>
-```
-
-## Wildcards and lists
-
-All three parameters support the wildcard '\*' which will run all action, groups or projects. For example one might want to run all actions in all groups, which can be accomplished with
-
-```
-gitte run '*' '*'
+projects:
+  myservice:
+    remote: git@github.com:example/myservice.git
+    default_branch: main
+    actions:
+      up:
+        groups:
+          prod: ["docker", "compose", "up", "-d"]
+      down:
+        groups:
+          prod: ["docker", "compose", "down"]
 ```
 
-If you want to specify multiple actions, groups or project, please use the `+` operator.
+Then run:
 
+```bash
+gitte run up prod
 ```
-gitte run build+deploy example.com
+
+Gitte will run startup checks, pull all repos, then execute the `up` action for group `prod` on all enabled projects.
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `gitte run [action] [projects] [group]` | Full pipeline: startup checks → git sync → actions |
+| `gitte actions [action] [projects] [group]` | Run actions only (skip startup and git sync) |
+| `gitte startup` | Run startup checks only |
+| `gitte gitops [--discover]` | Clone/pull all repos; `--discover` also fetches from configured sources |
+| `gitte toggle` | Interactive TUI to enable/disable projects |
+| `gitte features list` | List all feature gates and their enabled state |
+| `gitte features enable <gate>` | Enable a feature gate |
+| `gitte features disable <gate>` | Disable a feature gate |
+| `gitte validate` | Validate config: schema, cycles, missing references |
+| `gitte clean [flags]` | Cleanup repos (see below) |
+
+### Argument syntax
+
+Arguments to `run` and `actions` are positional: `action [projects] [group]`.
+
+```bash
+gitte run up                      # up on all enabled projects, all groups
+gitte run up myservice            # up on myservice only, all groups
+gitte run up myservice prod       # up on myservice, group prod only
+gitte run up frontend+backend prod  # up on frontend and backend, group prod
+gitte run up * prod               # up on all enabled projects, group prod
+gitte run up+build                # run up then build on all projects
 ```
 
-## Disabling projects
+Use `*` or `all` as a wildcard. Combine multiple values with `+`.
 
-It is possible to disable projects completely. This can be done using the `toggle` command.
+### clean flags
 
-To see a current list of enabled/disabled projects:
+```bash
+gitte clean --untracked        # git clean -fdx in all repos
+gitte clean --local-changes    # discard uncommitted changes (prompts for confirmation)
+gitte clean --master           # checkout default branch in all repos
+gitte clean --non-gitte        # remove directories not managed by gitte (prompts)
+```
 
-`gitte toggle`
+## Configuration
 
-To toggle a project:
-
-`gitte toggle <project>`
-
-To reset to default state:
-
-`gitte toggle reset`
-
-## Other commands
-
-For other usage, such as running startup, git operations or actions seperately, please refer to [commands documentation](./docs/commands.md), or see `gitte --help`.
-
-## Override and exclude projects
-
-If the file `.gitte-override.yml` exist in the same folder as `.gitte.yml` or `.gitte-env` it will automatically be merged.
-
-If the file `.gitte-projects-disable` exist, projects, seperated by a newline, will be excluded from gitte.
+See [docs/config.md](./docs/config.md) for the full configuration reference.
 
 ## Environment variables
 
-### GITTE_AUTO_MERGE
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GITTE_CWD` | process cwd | Override the working directory |
+| `GITTE_NO_TTY` | `0` | Set to `1` to force plain-text output (no TUI) |
+| `GITTE_NO_NEEDS` | `0` | Set to `1` to ignore `needs` dependencies |
+| `GITTE_MAX_TASK_PARALLELIZATION` | unlimited | Cap the number of concurrent tasks |
 
-Default: false
+## Global flags
 
-Gitte will automatically merge default branch into custom branches if this is set to true.
+```
+--config <path>    Path to .gitte.yml (default: auto-detected by walking up)
+--cwd <path>       Override working directory
+--no-tty           Force plain-text output
+```
 
-### GITTE_CWD
+## State file
 
-Default: cwd of the current process
+Gitte stores per-machine state (project toggles, feature gate overrides, remote config cache) in `.gitte-state.yml` next to your `.gitte.yml`. This file is automatically added to `.gitignore`.
 
-Gitte will use this as the current working directory.
+## Override file
 
-### GITTE_NO_NEEDS
-
-Default: false (false = needs are enabled)
-
-Ignore dependencies.
-
-### GITTE_MAX_TASK_PARALLELIZATION
-
-Default: CPU/2
-
-Set this to limit the number of parallel processes when running tasks.
-
-## How to publish debian packages to [gitte-ppa.cego.dk](gitte-ppa.cego.dk)
-
-Run `./publish-os-packages` and upload the ppa/ppa.zip file to cego's cloudflare pages
-
-A gpg signing key is needed to sign the debian packages.
-
-## How to publish npmjs.com
-
-Run `npm publish` to upload to npmjs.com
-
-You need proper permissions in the `@cego` organization on [npmjs.com](npmjs.com)
+If `.gitte-override.yml` exists alongside `.gitte.yml`, it is deep-merged on top. Use this for local machine overrides that should not be committed.
