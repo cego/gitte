@@ -13,20 +13,18 @@ linters:
     - noctx          # http requests without context
     - bodyclose      # unclosed http response bodies
     - exhaustive     # missing switch cases on enums
+  exclusions:
+    rules:
+      # Test files get a bit more latitude
+      - path: _test\.go
+        linters: [errcheck]
 
 formatters:
   enable:
     - gofmt          # formatting
     - goimports      # import ordering
-
-formatters-settings:
-  gofmt:
-    simplify: true
-  goimports:
-    local-prefixes: gitte
-
-issues:
-  exclude-rules:
-    # Test files get a bit more latitude
-    - path: _test\.go
-      linters: [errcheck]
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes: gitte
