@@ -3,15 +3,16 @@ package actions
 import (
 	"context"
 	"fmt"
-	"gitte/config"
-	"gitte/executor"
-	"gitte/output"
-	"gitte/state"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"gitte/config"
+	"gitte/executor"
+	"gitte/output"
+	"gitte/state"
 )
 
 // RunActions executes planned action tasks.

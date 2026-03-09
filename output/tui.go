@@ -178,6 +178,8 @@ func (m *runModel) applyUpdate(msg TUIMsg) {
 	if msg.Status != 0 || (msg.Status == 0 && msg.Line == "") {
 		task.Status = msg.Status
 		switch msg.Status {
+		case TaskPending:
+			// no time to record
 		case TaskRunning:
 			task.StartTime = time.Now()
 		case TaskSuccess, TaskFailed:
@@ -201,14 +203,14 @@ func (m *runModel) applyUpdate(msg TUIMsg) {
 }
 
 var (
-	tuiPendingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	tuiRunningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
-	tuiSuccessStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	tuiFailedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	tuiPendingStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	tuiRunningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
+	tuiSuccessStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	tuiFailedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	tuiSelectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
-	tuiHelpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	tuiHeaderStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170"))
-	tuiLogStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	tuiHelpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	tuiHeaderStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170"))
+	tuiLogStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 )
 
 func (m *runModel) View() string {
@@ -222,6 +224,8 @@ func (m *runModel) View() string {
 	running, success, failed, total := 0, 0, 0, len(m.tasks)
 	for _, t := range m.tasks {
 		switch t.Status {
+		case TaskPending:
+			// pending tasks not counted in running/success/failed
 		case TaskRunning:
 			running++
 		case TaskSuccess:

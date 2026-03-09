@@ -5,9 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitte/config"
-	"gitte/executor"
-	"gitte/output"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +14,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gitte/config"
+	"gitte/executor"
+	"gitte/output"
 )
 
 // CheckoutPrompt is raised for each project that the user may want to act on
@@ -26,8 +27,8 @@ type CheckoutPrompt struct {
 	ProjectName    string
 	ProjectPath    string // absolute path to the local checkout
 	DefaultBranch  string
-	Reason         string // human-readable description of the problem
-	Recommendation string // git command(s) that resolve the problem
+	Reason         string       // human-readable description of the problem
+	Recommendation string       // git command(s) that resolve the problem
 	retryFn        func() error // re-syncs the project after a successful checkout
 }
 
@@ -294,7 +295,7 @@ func syncProject(
 				DefaultBranch:  defaultBranch,
 				Reason:         fmt.Sprintf("rebase conflicts with %s (has local work)", defaultBranch),
 				Recommendation: fmt.Sprintf("git -C %s rebase origin/%s", projectPath, defaultBranch),
-			retryFn:        retryFn,
+				retryFn:        retryFn,
 			})
 			return nil
 		}

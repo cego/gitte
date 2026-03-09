@@ -2,10 +2,11 @@ package toggle
 
 import (
 	"fmt"
-	"gitte/config"
-	"gitte/state"
 	"sort"
 	"strings"
+
+	"gitte/config"
+	"gitte/state"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,7 +24,7 @@ type ProjectItem struct {
 type rowKind int
 
 const (
-	rowKindHost    rowKind = iota
+	rowKindHost rowKind = iota
 	rowKindGroup
 	rowKindProject
 )

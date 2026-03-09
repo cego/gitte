@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitte/executor"
-	"gitte/output"
 	"os"
 	"os/exec"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"gitte/executor"
+	"gitte/output"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -58,28 +59,28 @@ func newPlainActionsView() *plainActionsView { return &plainActionsView{} }
 func (v *plainActionsView) OnStart(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	fmt.Fprintf(os.Stdout, "[action:%s] RUNNING\n", name)
+	_, _ = fmt.Fprintf(os.Stdout, "[action:%s] RUNNING\n", name)
 }
 
 func (v *plainActionsView) OnReset(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	fmt.Fprintf(os.Stdout, "[action:%s] RETRY\n", name)
+	_, _ = fmt.Fprintf(os.Stdout, "[action:%s] RETRY\n", name)
 }
 
 func (v *plainActionsView) OnFinish(name string, err error, elapsed time.Duration) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "[action:%s] FAILED (%s): %s\n", name, fmtActionDuration(elapsed), err)
+		_, _ = fmt.Fprintf(os.Stdout, "[action:%s] FAILED (%s): %s\n", name, fmtActionDuration(elapsed), err)
 	} else {
-		fmt.Fprintf(os.Stdout, "[action:%s] OK (%s)\n", name, fmtActionDuration(elapsed))
+		_, _ = fmt.Fprintf(os.Stdout, "[action:%s] OK (%s)\n", name, fmtActionDuration(elapsed))
 	}
 }
 
-func (v *plainActionsView) Handler() executor.OutputHandler                                    { return &plainActionsHandler{mu: &v.mu} }
-func (v *plainActionsView) WaitAndGetRetry() []string                                          { return nil }
-func (v *plainActionsView) PrepareRetry(_ []string, _ chan []string, _ context.CancelFunc)     {}
+func (v *plainActionsView) Handler() executor.OutputHandler                                { return &plainActionsHandler{mu: &v.mu} }
+func (v *plainActionsView) WaitAndGetRetry() []string                                      { return nil }
+func (v *plainActionsView) PrepareRetry(_ []string, _ chan []string, _ context.CancelFunc) {}
 
 type plainActionsHandler struct{ mu *sync.Mutex }
 
@@ -90,7 +91,7 @@ func (h *plainActionsHandler) HandleOutput(_ context.Context, out executor.Outpu
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	fmt.Fprintf(os.Stdout, "[action:%s] %s\n", out.CmdName, line)
+	_, _ = fmt.Fprintf(os.Stdout, "[action:%s] %s\n", out.CmdName, line)
 	return nil
 }
 
@@ -255,11 +256,11 @@ type actionPrepareRetryMsg struct {
 }
 
 type tuiActionsView struct {
-	program          *tea.Program
-	msgCh            chan actionUpdateMsg
-	drainedCh        chan struct{}
-	postDoneRetryCh  chan []string // model writes retry names here when allDone=true
-	doneCh           chan struct{} // closed when p.Run() returns (program fully exited)
+	program         *tea.Program
+	msgCh           chan actionUpdateMsg
+	drainedCh       chan struct{}
+	postDoneRetryCh chan []string // model writes retry names here when allDone=true
+	doneCh          chan struct{} // closed when p.Run() returns (program fully exited)
 }
 
 func newTUIActionsView(tasks []TaskInfo, actionOrder []string, cancel context.CancelFunc, retryCh chan []string) *tuiActionsView {
@@ -396,7 +397,7 @@ const (
 type actionsModel struct {
 	rows       []treeRow
 	cursorTask string // task name the cursor is on
-	treeOffset int   // viewport scroll offset (into visibleRows)
+	treeOffset int    // viewport scroll offset (into visibleRows)
 
 	taskState map[string]*taskEntry
 	taskLogs  map[string][]string // per-task log lines
@@ -410,8 +411,8 @@ type actionsModel struct {
 	msgCh           <-chan actionUpdateMsg
 	drainedCh       chan struct{}
 	drainOnce       sync.Once
-	retryCh         chan []string      // send retry task names here when Execute is running (inline retry)
-	postDoneRetryCh chan<- []string    // send retry task names here when allDone=true (new run)
+	retryCh         chan []string   // send retry task names here when Execute is running (inline retry)
+	postDoneRetryCh chan<- []string // send retry task names here when allDone=true (new run)
 
 	allDone    bool
 	cancelling bool // context was cancelled; waiting for tasks to stop
@@ -675,7 +676,7 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toggleFocus()
 		case "c":
 			if m.focusTask != "" {
-				if err := copyToClipboard(strings.Join(m.taskLogs[m.focusTask], "\n")); err != nil {
+				if err := copyToClipboard(context.Background(), strings.Join(m.taskLogs[m.focusTask], "\n")); err != nil {
 					m.clipboardMsg = err.Error()
 					m.clipboardOK = false
 				} else {
@@ -831,6 +832,8 @@ func (m *actionsModel) View() string {
 	running, success, failed, skipped := 0, 0, 0, 0
 	for _, e := range m.taskState {
 		switch e.state {
+		case actionPending:
+			// not yet started, not counted
 		case actionRunning:
 			running++
 		case actionOK:
@@ -976,6 +979,8 @@ func (m *actionsModel) renderTree(width, height int) []string {
 			extra := ""
 			if e != nil {
 				switch e.state {
+				case actionPending, actionSkipped:
+					// no extra text
 				case actionRunning:
 					if !e.startedAt.IsZero() {
 						extra = actDimStyle.Render("  " + fmtActionDuration(time.Since(e.startedAt)))
@@ -1012,6 +1017,8 @@ func (m *actionsModel) actionSummary(action string) string {
 			continue
 		}
 		switch e.state {
+		case actionPending, actionSkipped:
+			// not counted in done/failed/running
 		case actionOK:
 			done++
 		case actionFailed:
@@ -1039,6 +1046,8 @@ func (m *actionsModel) taskIconStyle(e *taskEntry) (string, lipgloss.Style) {
 		return "○", actPendStyle
 	}
 	switch e.state {
+	case actionPending:
+		return "○", actPendStyle
 	case actionRunning:
 		return actSpinFrames[m.spinTick%len(actSpinFrames)], actRunStyle
 	case actionOK:
@@ -1146,7 +1155,7 @@ func stripActANSI(s string) string {
 
 // copyToClipboard writes text to the system clipboard.
 // Tries stdin-based tools first, then KDE klipper via qdbus.
-func copyToClipboard(text string) error {
+func copyToClipboard(ctx context.Context, text string) error {
 	// Tools that read from stdin.
 	stdinTools := [][]string{
 		{"wl-copy"},
@@ -1160,7 +1169,7 @@ func copyToClipboard(text string) error {
 		if err != nil {
 			continue
 		}
-		c := exec.Command(cmd, args[1:]...) //nolint:gosec
+		c := exec.CommandContext(ctx, cmd, args[1:]...) //nolint:gosec
 		c.Stdin = strings.NewReader(text)
 		if err := c.Run(); err == nil {
 			return nil
@@ -1171,7 +1180,7 @@ func copyToClipboard(text string) error {
 
 	// KDE klipper via qdbus (available on KDE Plasma without extra packages).
 	if qdbus, err := exec.LookPath("qdbus"); err == nil {
-		c := exec.Command(qdbus, "org.kde.klipper", "/klipper", //nolint:gosec
+		c := exec.CommandContext(ctx, qdbus, "org.kde.klipper", "/klipper", //nolint:gosec
 			"org.kde.klipper.klipper.setClipboardContents", text)
 		if err := c.Run(); err == nil {
 			return nil

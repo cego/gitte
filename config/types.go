@@ -27,12 +27,12 @@ type Template struct {
 
 // ProjectConfig represents a single project in the config
 type ProjectConfig struct {
-	Remote        string                   `yaml:"remote"`
-	DefaultBranch string                   `yaml:"default_branch,omitempty"`
-	Actions       map[string]ProjectAction `yaml:"actions,omitempty"`
-	DefaultDisabled bool                   `yaml:"defaultDisabled,omitempty"`
-	Extends       string                   `yaml:"extends,omitempty"`
-	Vars          map[string]string        `yaml:"vars,omitempty"`
+	Remote          string                   `yaml:"remote"`
+	DefaultBranch   string                   `yaml:"default_branch,omitempty"`
+	Actions         map[string]ProjectAction `yaml:"actions,omitempty"`
+	DefaultDisabled bool                     `yaml:"defaultDisabled,omitempty"`
+	Extends         string                   `yaml:"extends,omitempty"`
+	Vars            map[string]string        `yaml:"vars,omitempty"`
 }
 
 // ProjectAction represents an action (build/up/down/purge) for a project
@@ -57,7 +57,7 @@ type ActionOverride struct {
 // RetryConfig defines retry behavior for a task
 type RetryConfig struct {
 	Attempts int    `yaml:"attempts"`
-	Delay    string `yaml:"delay,omitempty"`  // e.g. "5s", "10s"
+	Delay    string `yaml:"delay,omitempty"`   // e.g. "5s", "10s"
 	Backoff  string `yaml:"backoff,omitempty"` // "none", "linear", "exponential"
 }
 
@@ -68,9 +68,9 @@ type RetryDefaults struct {
 
 // FeatureGate defines a feature that can be enabled/disabled per machine
 type FeatureGate struct {
-	Description string          `yaml:"description,omitempty"`
-	Effects     FeatureEffects  `yaml:"effects,omitempty"`
-	Scope       FeatureScope    `yaml:"scope,omitempty"`
+	Description string         `yaml:"description,omitempty"`
+	Effects     FeatureEffects `yaml:"effects,omitempty"`
+	Scope       FeatureScope   `yaml:"scope,omitempty"`
 }
 
 // FeatureEffects defines what a feature gate does when enabled
@@ -117,8 +117,10 @@ type GithubSource struct {
 	Orgs     []string `yaml:"orgs,omitempty"`
 }
 
-const configContextKey = "gitteConfig"
-const cwdContextKey = "cwd"
+type contextKey string
+
+const configContextKey contextKey = "gitteConfig"
+const cwdContextKey contextKey = "cwd"
 
 // ConfigFromContext retrieves the GitteConfig from context
 func ConfigFromContext(ctx context.Context) *GitteConfig {

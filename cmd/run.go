@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"os"
+
 	"gitte/gitops"
 	"gitte/startup"
-	"os"
 
 	"github.com/spf13/cobra"
 )

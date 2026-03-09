@@ -19,7 +19,7 @@ type ExecuteResult struct {
 
 // ExecuteSyncInDir runs a command synchronously in the given directory
 func ExecuteSyncInDir(cwd string, command string, args ...string) (*ExecuteResult, error) {
-	cmd := exec.Command(command, args...) //nolint:gosec
+	cmd := exec.CommandContext(context.Background(), command, args...) //nolint:gosec
 	cmd.Dir = cwd
 
 	var stdout, stderr bytes.Buffer

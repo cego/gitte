@@ -11,7 +11,7 @@ import (
 )
 
 type gitlabProject struct {
-	SSHURLToRepo string `json:"ssh_url_to_repo"`
+	SSHURLToRepo      string `json:"ssh_url_to_repo"`
 	PathWithNamespace string `json:"path_with_namespace"`
 }
 
@@ -35,21 +35,10 @@ func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string) ([]
 			req.Header.Set("PRIVATE-TOKEN", token)
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		projects, nextPage, err := fetchGitlabPage(req, group)
 		if err != nil {
-			return nil, fmt.Errorf("gitlab API request failed: %w", err)
+			return nil, err
 		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("gitlab API returned %d for group %s", resp.StatusCode, group)
-		}
-
-		var projects []gitlabProject
-		if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
-			return nil, fmt.Errorf("failed to decode gitlab response: %w", err)
-		}
-
 		for _, p := range projects {
 			repos = append(repos, DiscoveredRepo{
 				Remote: p.SSHURLToRepo,
@@ -57,8 +46,6 @@ func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string) ([]
 				Path:   p.PathWithNamespace,
 			})
 		}
-
-		nextPage := resp.Header.Get("X-Next-Page")
 		if nextPage == "" {
 			break
 		}
@@ -70,4 +57,27 @@ func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string) ([]
 	}
 
 	return repos, nil
+}
+
+func fetchGitlabPage(req *http.Request, group string) ([]gitlabProject, string, error) {
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("gitlab API request failed: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to close gitlab response body: %v\n", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("gitlab API returned %d for group %s", resp.StatusCode, group)
+	}
+
+	var projects []gitlabProject
+	if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+		return nil, "", fmt.Errorf("failed to decode gitlab response: %w", err)
+	}
+
+	return projects, resp.Header.Get("X-Next-Page"), nil
 }

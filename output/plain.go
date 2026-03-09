@@ -29,7 +29,7 @@ func (w *PlainWriter) TaskStarted(prefix, name string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.starts[prefix+":"+name] = time.Now()
-	fmt.Fprintf(w.out, "[%s:%s] RUNNING\n", prefix, name)
+	_, _ = fmt.Fprintf(w.out, "[%s:%s] RUNNING\n", prefix, name)
 }
 
 // TaskLine prints a log line for the given task
@@ -38,7 +38,7 @@ func (w *PlainWriter) TaskLine(prefix, name, line string) {
 	defer w.mu.Unlock()
 	line = strings.TrimRight(line, "\n\r")
 	if line != "" {
-		fmt.Fprintf(w.out, "[%s:%s] %s\n", prefix, name, line)
+		_, _ = fmt.Fprintf(w.out, "[%s:%s] %s\n", prefix, name, line)
 	}
 }
 
@@ -47,7 +47,7 @@ func (w *PlainWriter) TaskDone(prefix, name string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	elapsed := w.elapsed(prefix, name)
-	fmt.Fprintf(w.out, "[%s:%s] SUCCESS (%s)\n", prefix, name, elapsed)
+	_, _ = fmt.Fprintf(w.out, "[%s:%s] SUCCESS (%s)\n", prefix, name, elapsed)
 }
 
 // TaskFailed prints a FAILED line with optional retry info
@@ -55,10 +55,10 @@ func (w *PlainWriter) TaskFailed(prefix, name string, attempt, maxAttempts int, 
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if attempt < maxAttempts {
-		fmt.Fprintf(w.out, "[ERROR] %s:%s FAILED (attempt %d/%d, retrying in %s)\n",
+		_, _ = fmt.Fprintf(w.out, "[ERROR] %s:%s FAILED (attempt %d/%d, retrying in %s)\n",
 			prefix, name, attempt, maxAttempts, retryIn)
 	} else {
-		fmt.Fprintf(w.out, "[ERROR] %s:%s FAILED (attempt %d/%d, no more retries)\n",
+		_, _ = fmt.Fprintf(w.out, "[ERROR] %s:%s FAILED (attempt %d/%d, no more retries)\n",
 			prefix, name, attempt, maxAttempts)
 	}
 }
@@ -67,7 +67,7 @@ func (w *PlainWriter) TaskFailed(prefix, name string, attempt, maxAttempts int, 
 func (w *PlainWriter) Summary(succeeded, failed int, elapsed time.Duration) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	fmt.Fprintf(w.out, "[INFO] Run complete: %d succeeded, %d failed (%s)\n",
+	_, _ = fmt.Fprintf(w.out, "[INFO] Run complete: %d succeeded, %d failed (%s)\n",
 		succeeded, failed, formatDuration(elapsed))
 }
 

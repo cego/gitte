@@ -1,8 +1,9 @@
 package actions
 
 import (
-	"gitte/config"
 	"testing"
+
+	"gitte/config"
 )
 
 func testConfig() *config.GitteConfig {

@@ -107,7 +107,7 @@ func (e *Executor) Execute(ctx context.Context) error {
 	var errs []error
 
 	for finished < total {
-		var retryReqCh <-chan []string = e.retryReqCh // nil disables the select case
+		retryReqCh := e.retryReqCh // nil disables the select case
 
 		select {
 		case result := <-completionCh:

@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitte/config"
-	"gitte/output"
-	"gitte/state"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"gitte/config"
+	"gitte/output"
+	"gitte/state"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -206,6 +207,8 @@ func maxParallelization() int {
 		return 0
 	}
 	n := 0
-	fmt.Sscanf(v, "%d", &n)
+	if _, err := fmt.Sscanf(v, "%d", &n); err != nil {
+		return 0
+	}
 	return n
 }

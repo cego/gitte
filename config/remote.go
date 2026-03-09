@@ -60,7 +60,7 @@ func LoadRemoteConfig(ctx context.Context, envContent []byte, cache *RemoteConfi
 
 	if !cacheValid {
 		logf("[remote config] no cache — fetching from %s\n", repo)
-		newCache, err := fetchRemoteConfig(repo, ref, file)
+		newCache, err := fetchRemoteConfig(ctx, repo, ref, file)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -79,7 +79,7 @@ func LoadRemoteConfig(ctx context.Context, envContent []byte, cache *RemoteConfi
 	}
 
 	go func() {
-		newCache, err := fetchRemoteConfig(repo, ref, file)
+		newCache, err := fetchRemoteConfig(context.Background(), repo, ref, file)
 		if err != nil {
 			logf("[remote config] background refresh failed: %v\n", err)
 			return
@@ -94,8 +94,8 @@ func LoadRemoteConfig(ctx context.Context, envContent []byte, cache *RemoteConfi
 	return cfg, nil, nil
 }
 
-func fetchRemoteConfig(repo, ref, file string) (*RemoteConfigCache, error) {
-	cmd := exec.Command("git", "archive", "--remote="+repo, ref, file) //nolint:gosec
+func fetchRemoteConfig(ctx context.Context, repo, ref, file string) (*RemoteConfigCache, error) {
+	cmd := exec.CommandContext(ctx, "git", "archive", "--remote="+repo, ref, file) //nolint:gosec
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -134,4 +134,3 @@ func fetchRemoteConfig(repo, ref, file string) (*RemoteConfigCache, error) {
 func MarshalYAMLRemoteCache(cache *RemoteConfigCache) ([]byte, error) {
 	return yaml.Marshal(cache)
 }
-

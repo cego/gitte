@@ -3,10 +3,11 @@ package cmd
 import (
 	"bufio"
 	"fmt"
-	"gitte/gitops"
-	"gitte/output"
 	"os"
 	"strings"
+
+	"gitte/gitops"
+	"gitte/output"
 
 	"github.com/spf13/cobra"
 )

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+
 	"gitte/output"
 	"gitte/toggle"
 

@@ -33,16 +33,16 @@ func newPlainView() *plainView { return &plainView{} }
 func (v *plainView) OnStart(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	fmt.Fprintf(os.Stdout, "[startup:%s] RUNNING\n", name)
+	_, _ = fmt.Fprintf(os.Stdout, "[startup:%s] RUNNING\n", name)
 }
 
 func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "[startup:%s] FAILED (%s): %s\n", name, fmtDuration(elapsed), err)
+		_, _ = fmt.Fprintf(os.Stdout, "[startup:%s] FAILED (%s): %s\n", name, fmtDuration(elapsed), err)
 	} else {
-		fmt.Fprintf(os.Stdout, "[startup:%s] OK (%s)\n", name, fmtDuration(elapsed))
+		_, _ = fmt.Fprintf(os.Stdout, "[startup:%s] OK (%s)\n", name, fmtDuration(elapsed))
 	}
 }
 
@@ -239,7 +239,7 @@ func (m *startupModel) View() string {
 			nameStr = failStyle.Render(c.name)
 			extra = failStyle.Render("  FAILED: " + c.err.Error())
 		}
-		b.WriteString(fmt.Sprintf("  %s  %-30s%s\n", icon, nameStr, extra))
+		fmt.Fprintf(&b, "  %s  %-30s%s\n", icon, nameStr, extra)
 	}
 
 	return b.String()

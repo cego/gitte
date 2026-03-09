@@ -3,10 +3,11 @@ package startup
 import (
 	"context"
 	"fmt"
+	"sort"
+
 	"gitte/config"
 	"gitte/executor"
 	"gitte/output"
-	"sort"
 )
 
 // Run executes all startup checks and streams status to stdout.

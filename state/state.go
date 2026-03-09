@@ -21,7 +21,7 @@ type GitteState struct {
 
 // FeatureState holds the enabled status and optional scope override for a feature gate
 type FeatureState struct {
-	Enabled       bool          `yaml:"enabled"`
+	Enabled       bool           `yaml:"enabled"`
 	OverrideScope *ScopeOverride `yaml:"override_scope,omitempty"`
 }
 
@@ -101,9 +101,11 @@ func EnsureGitignored(dir string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	_, err = f.WriteString("\n" + StateFileName + "\n")
+	if closeErr := f.Close(); closeErr != nil && err == nil {
+		return closeErr
+	}
 	return err
 }
 

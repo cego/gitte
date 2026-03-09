@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
 	"gitte/output"
 )
 
@@ -42,7 +43,7 @@ type plainView struct {
 func (v *plainView) OnStart(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	fmt.Fprintf(os.Stdout, "[%s] RUNNING\n", name)
+	_, _ = fmt.Fprintf(os.Stdout, "[%s] RUNNING\n", name)
 }
 
 func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {
@@ -51,22 +52,22 @@ func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {
 	v.mu.Unlock()
 
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "[%s] FAILED (%s): %s\n", name, fmtDuration(elapsed), err)
+		_, _ = fmt.Fprintf(os.Stdout, "[%s] FAILED (%s): %s\n", name, fmtDuration(elapsed), err)
 		return
 	}
 	switch {
 	case detail == "skipped":
-		fmt.Fprintf(os.Stdout, "[%s] SKIPPED: local changes\n", name)
+		_, _ = fmt.Fprintf(os.Stdout, "[%s] SKIPPED: local changes\n", name)
 	case strings.HasPrefix(detail, "detached:"):
-		fmt.Fprintf(os.Stdout, "[%s] WARNING (%s): %s\n", name, fmtDuration(elapsed), strings.TrimSpace(strings.TrimPrefix(detail, "detached:")))
+		_, _ = fmt.Fprintf(os.Stdout, "[%s] WARNING (%s): %s\n", name, fmtDuration(elapsed), strings.TrimSpace(strings.TrimPrefix(detail, "detached:")))
 	case strings.HasPrefix(detail, "stale:"):
-		fmt.Fprintf(os.Stdout, "[%s] OK (%s) — WARNING: %s\n", name, fmtDuration(elapsed), strings.TrimSpace(strings.TrimPrefix(detail, "stale:")))
+		_, _ = fmt.Fprintf(os.Stdout, "[%s] OK (%s) — WARNING: %s\n", name, fmtDuration(elapsed), strings.TrimSpace(strings.TrimPrefix(detail, "stale:")))
 	default:
 		d := detail
 		if d == "" {
 			d = "ok"
 		}
-		fmt.Fprintf(os.Stdout, "[%s] OK (%s) %s\n", name, fmtDuration(elapsed), d)
+		_, _ = fmt.Fprintf(os.Stdout, "[%s] OK (%s) %s\n", name, fmtDuration(elapsed), d)
 	}
 }
 
@@ -83,7 +84,7 @@ func (v *plainView) Wait() {}
 type goState int
 
 const (
-	goStatePending  goState = iota
+	goStatePending goState = iota
 	goStateRunning
 	goStateOK       // cloned / pulled / up to date
 	goStateSkipped  // local changes — pull skipped
@@ -321,7 +322,7 @@ func (m *gitopsModel) View() string {
 			nameStr = goFailStyle.Render(label)
 			extra = goFailStyle.Render("  " + e.detail)
 		}
-		b.WriteString(fmt.Sprintf("  %s  %-30s%s\n", icon, nameStr, extra))
+		fmt.Fprintf(&b, "  %s  %-30s%s\n", icon, nameStr, extra)
 	}
 
 	return b.String()

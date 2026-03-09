@@ -44,8 +44,8 @@ type ShellStartupCheck struct {
 	Script           string `yaml:"script"`
 }
 
-func (s *ShellStartupCheck) Check(_ context.Context, cwd string) error {
-	cmd := exec.Command(s.Shell, "-c", s.Script) //nolint:gosec
+func (s *ShellStartupCheck) Check(ctx context.Context, cwd string) error {
+	cmd := exec.CommandContext(ctx, s.Shell, "-c", s.Script) //nolint:gosec
 	cmd.Dir = cwd
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -64,11 +64,11 @@ type CommandStartupCheck struct {
 	Command          []string `yaml:"cmd"`
 }
 
-func (s *CommandStartupCheck) Check(_ context.Context, cwd string) error {
+func (s *CommandStartupCheck) Check(ctx context.Context, cwd string) error {
 	if len(s.Command) == 0 {
 		return fmt.Errorf("command check has no command")
 	}
-	cmd := exec.Command(s.Command[0], s.Command[1:]...) //nolint:gosec
+	cmd := exec.CommandContext(ctx, s.Command[0], s.Command[1:]...) //nolint:gosec
 	cmd.Dir = cwd
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -110,10 +110,12 @@ func (s *YamlPathPresentStartupCheck) Check(_ context.Context, _ string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
-	defer f.Close()
 
-	_, err = path.ReadNode(f)
-	return err
+	_, readErr := path.ReadNode(f)
+	if closeErr := f.Close(); closeErr != nil && readErr == nil {
+		return closeErr
+	}
+	return readErr
 }
 
 // StartupCheckMap is a map of startup checks with custom YAML unmarshaling

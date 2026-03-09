@@ -1,8 +1,9 @@
 package actions
 
 import (
-	"gitte/config"
 	"strings"
+
+	"gitte/config"
 
 	"github.com/samber/lo"
 )

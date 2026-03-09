@@ -8,8 +8,9 @@ import (
 
 // ParseRemoteURL parses a git remote URL and returns (host, namespacedPath, localDir)
 // Supports:
-//   git@gitlab.example.com:org/services/myrepo.git  -> gitlab.example.com/org/services/myrepo
-//   https://github.com/example/myrepo.git           -> github.com/example/myrepo
+//
+//	git@gitlab.example.com:org/services/myrepo.git  -> gitlab.example.com/org/services/myrepo
+//	https://github.com/example/myrepo.git           -> github.com/example/myrepo
 func ParseRemoteURL(remote string) (host, path, localDir string, err error) {
 	remote = strings.TrimSpace(remote)
 

@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"gitte/config"
-	"gitte/executor"
 	"os"
 	"path/filepath"
+
+	"gitte/config"
+	"gitte/executor"
 
 	"github.com/spf13/cobra"
 )

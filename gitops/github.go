@@ -31,25 +31,13 @@ func ListGithubOrgRepos(ctx context.Context, host, org, tokenEnv string) ([]Disc
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		ghRepos, err := fetchGithubPage(req, org)
 		if err != nil {
-			return nil, fmt.Errorf("github API request failed: %w", err)
+			return nil, err
 		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("github API returned %d for org %s", resp.StatusCode, org)
-		}
-
-		var ghRepos []githubRepo
-		if err := json.NewDecoder(resp.Body).Decode(&ghRepos); err != nil {
-			return nil, fmt.Errorf("failed to decode github response: %w", err)
-		}
-
 		if len(ghRepos) == 0 {
 			break
 		}
-
 		for _, r := range ghRepos {
 			repos = append(repos, DiscoveredRepo{
 				Remote: r.SSHURL,
@@ -57,9 +45,30 @@ func ListGithubOrgRepos(ctx context.Context, host, org, tokenEnv string) ([]Disc
 				Path:   r.FullName,
 			})
 		}
-
 		page++
 	}
 
 	return repos, nil
+}
+
+func fetchGithubPage(req *http.Request, org string) ([]githubRepo, error) {
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("github API request failed: %w", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to close github response body: %v\n", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github API returned %d for org %s", resp.StatusCode, org)
+	}
+
+	var ghRepos []githubRepo
+	if err := json.NewDecoder(resp.Body).Decode(&ghRepos); err != nil {
+		return nil, fmt.Errorf("failed to decode github response: %w", err)
+	}
+	return ghRepos, nil
 }

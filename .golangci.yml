@@ -11,6 +11,9 @@ linters:
     - noctx          # http requests without context
     - bodyclose      # unclosed http response bodies
     - exhaustive     # missing switch cases on enums
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
   exclusions:
     rules:
       # Test files get a bit more latitude

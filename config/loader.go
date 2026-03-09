@@ -34,20 +34,24 @@ func ResolveGitteDir(cwd string) (FileDefinition, error) {
 func resolveGitteDirFrom(dir string) (FileDefinition, error) {
 	// Check for .gitte-env first (remote config)
 	if f, err := os.Open(filepath.Join(dir, DotEnvPath)); err == nil {
-		defer f.Close()
-		content, err := io.ReadAll(f)
-		if err != nil {
-			return FileDefinition{}, err
+		content, readErr := io.ReadAll(f)
+		if closeErr := f.Close(); closeErr != nil && readErr == nil {
+			return FileDefinition{}, closeErr
+		}
+		if readErr != nil {
+			return FileDefinition{}, readErr
 		}
 		return FileDefinition{ConfigContent: content, IsEnv: true, Directory: dir}, nil
 	}
 
 	// Check for .gitte.yml
 	if f, err := os.Open(filepath.Join(dir, ConfigPath)); err == nil {
-		defer f.Close()
-		content, err := io.ReadAll(f)
-		if err != nil {
-			return FileDefinition{}, err
+		content, readErr := io.ReadAll(f)
+		if closeErr := f.Close(); closeErr != nil && readErr == nil {
+			return FileDefinition{}, closeErr
+		}
+		if readErr != nil {
+			return FileDefinition{}, readErr
 		}
 		return FileDefinition{ConfigContent: content, IsEnv: false, Directory: dir}, nil
 	}
