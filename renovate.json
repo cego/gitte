@@ -1,0 +1,15 @@
+{
+	"extends": ["config:base", ":disableDependencyDashboard"],
+	"packageRules": [
+		{
+			"matchManagers": ["gomod"],
+			"matchUpdateTypes": ["minor", "patch"],
+			"groupName": "All Go dependencies"
+		},
+		{
+			"matchManagers": ["github-actions"],
+			"matchUpdateTypes": ["minor", "patch"],
+			"groupName": "All GitHub Actions"
+		}
+	]
+}
