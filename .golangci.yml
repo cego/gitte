@@ -4,11 +4,9 @@ linters:
   default: none
   enable:
     - errcheck       # unchecked errors
-    - gosimple       # simplification suggestions
     - govet          # go vet checks
     - ineffassign    # unused assignments
-    - staticcheck    # static analysis
-    - unused         # unused code
+    - staticcheck    # static analysis (includes gosimple + unused)
     - misspell       # spelling in comments/strings
     - noctx          # http requests without context
     - bodyclose      # unclosed http response bodies
