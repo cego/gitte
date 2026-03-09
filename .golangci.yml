@@ -1,7 +1,5 @@
-version: "2"
-
 linters:
-  default: none
+  disable-all: true
   enable:
     - errcheck       # unchecked errors
     - gosimple       # simplification suggestions
@@ -13,13 +11,10 @@ linters:
     - noctx          # http requests without context
     - bodyclose      # unclosed http response bodies
     - exhaustive     # missing switch cases on enums
-
-formatters:
-  enable:
     - gofmt          # formatting
     - goimports      # import ordering
 
-formatters-settings:
+linters-settings:
   gofmt:
     simplify: true
   goimports:
