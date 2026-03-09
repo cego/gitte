@@ -9,7 +9,9 @@ import (
 	"gitte/state"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -47,7 +49,8 @@ var errorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196")
 
 // Execute adds all child commands and runs
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	err := rootCmd.Execute()
+	if err != nil {
 		if output.DetectMode(flagNoTTY) == output.ModePlain {
 			fmt.Fprintln(os.Stderr, "error:", err)
 		} else {
@@ -75,33 +78,25 @@ func init() {
 }
 
 func initGlobals() error {
-	// Determine cwd: flag > GITTE_CWD env > process cwd
-	cwd := flagCwd
-	if cwd == "" {
-		cwd = os.Getenv("GITTE_CWD")
+	// Determine starting search dir: flag > GITTE_CWD env > process cwd
+	searchDir := flagCwd
+	if searchDir == "" {
+		searchDir = os.Getenv("GITTE_CWD")
 	}
-	if cwd == "" {
+	if searchDir == "" {
 		var err error
-		cwd, err = os.Getwd()
+		searchDir, err = os.Getwd()
 		if err != nil {
 			return fmt.Errorf("failed to determine working directory: %w", err)
 		}
 	}
-	globalCwd = cwd
 	globalCtx, _ = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
-	// Load state
-	st, err := state.Load(cwd)
-	if err != nil {
-		return fmt.Errorf("failed to load state: %w", err)
-	}
-	globalSt = st
-
-	// Load config
-	cfg, err := loadConfig(cwd)
+	// loadConfig resolves the config directory, sets globalCwd, loads state, then loads config
+	cfg, err := loadConfig(searchDir)
 	if err != nil {
 		if errors.Is(err, config.ErrGitteConfigNotFound) {
-			return fmt.Errorf("no .gitte.yml found (searched from %s)", cwd)
+			return fmt.Errorf("no .gitte.yml found (searched from %s)", searchDir)
 		}
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -113,50 +108,49 @@ func initGlobals() error {
 
 	// Keep the full config before toggle filtering (needed by the toggle TUI).
 	globalRawCfg = cfg
-	globalCfg = cfg.WithTogglesApplied(st.Toggles)
+	globalCfg = cfg.WithTogglesApplied(globalSt.Toggles)
 	return nil
 }
 
-func loadConfig(cwd string) (*config.GitteConfig, error) {
+func loadConfig(searchDir string) (*config.GitteConfig, error) {
 	if flagConfigPath != "" {
 		data, err := os.ReadFile(flagConfigPath)
 		if err != nil {
 			return nil, err
 		}
+		globalCwd = filepath.Dir(flagConfigPath)
+		if err := loadState(); err != nil {
+			return nil, err
+		}
 		return config.LoadGitteConfigFromYAML(data)
 	}
 
-	fd, err := config.ResolveGitteDir(cwd)
+	fd, err := config.ResolveGitteDir(searchDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if fd.IsEnv {
-		// Load remote config
-		var cacheEntry *state.RemoteConfigCacheEntry
-		if globalSt.Cache.RemoteConfig != nil {
-			cacheEntry = globalSt.Cache.RemoteConfig
-		}
+	// globalCwd is the directory containing the config — state lives here too
+	globalCwd = fd.Directory
+	if err := loadState(); err != nil {
+		return nil, err
+	}
 
-		// Convert state cache to config.RemoteConfigCache
+	if fd.IsEnv {
 		var remoteCache *config.RemoteConfigCache
-		if cacheEntry != nil {
+		if globalSt.Cache.RemoteConfig != nil {
+			c := globalSt.Cache.RemoteConfig
 			remoteCache = &config.RemoteConfigCache{
-				RemoteGitRepo: cacheEntry.RemoteGitRepo,
-				RemoteGitFile: cacheEntry.RemoteGitFile,
-				RemoteGitRef:  cacheEntry.RemoteGitRef,
-				FetchedAt:     cacheEntry.FetchedAt,
-				Content:       cacheEntry.Content,
+				RemoteGitRepo: c.RemoteGitRepo,
+				RemoteGitFile: c.RemoteGitFile,
+				RemoteGitRef:  c.RemoteGitRef,
+				FetchedAt:     c.FetchedAt,
+				Content:       c.Content,
 			}
 		}
 
-		cfg, newCache, err := config.LoadRemoteConfig(globalCtx, fd.ConfigContent, remoteCache)
-		if err != nil {
-			return nil, err
-		}
-
-		// Update state cache
-		if newCache != nil {
+		verbose := outputMode() == output.ModePlain
+		saveCache := func(newCache *config.RemoteConfigCache) {
 			globalSt.Cache.RemoteConfig = &state.RemoteConfigCacheEntry{
 				RemoteGitRepo: newCache.RemoteGitRepo,
 				RemoteGitFile: newCache.RemoteGitFile,
@@ -164,13 +158,35 @@ func loadConfig(cwd string) (*config.GitteConfig, error) {
 				FetchedAt:     newCache.FetchedAt,
 				Content:       newCache.Content,
 			}
-			_ = state.Save(cwd, globalSt)
+			stateFile := filepath.Join(globalCwd, state.StateFileName)
+			if err := state.Save(globalCwd, globalSt); err != nil {
+				fmt.Fprintf(os.Stderr, "[remote config] failed to save cache to %s: %v\n", stateFile, err)
+			} else if verbose {
+				fmt.Fprintf(os.Stderr, "[remote config] saved cache to %s (fetched_at=%s)\n", stateFile, newCache.FetchedAt.Format(time.RFC3339))
+			}
+		}
+
+		cfg, newCache, err := config.LoadRemoteConfig(globalCtx, fd.ConfigContent, remoteCache, saveCache, verbose)
+		if err != nil {
+			return nil, err
+		}
+		if newCache != nil {
+			saveCache(newCache)
 		}
 
 		return cfg, nil
 	}
 
 	return config.LoadAndMergeConfig(fd)
+}
+
+func loadState() error {
+	st, err := state.Load(globalCwd)
+	if err != nil {
+		return fmt.Errorf("failed to load state: %w", err)
+	}
+	globalSt = st
+	return nil
 }
 
 // outputMode returns the current output mode

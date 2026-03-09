@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
-	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -24,11 +24,11 @@ type RemoteConfigCache struct {
 	Content       string    `yaml:"content"`
 }
 
-var remoteMu sync.Mutex
-
-// LoadRemoteConfig fetches remote config via git archive and caches it
-// If a valid cache entry exists, it returns the cached config and refreshes async
-func LoadRemoteConfig(ctx context.Context, envContent []byte, cache *RemoteConfigCache) (*GitteConfig, *RemoteConfigCache, error) {
+// LoadRemoteConfig fetches remote config via git archive.
+// If a valid cache entry exists it is returned immediately and a background
+// goroutine is started to refresh the cache. onRefreshed is called with the
+// new cache entry when the refresh completes (use it to persist the cache).
+func LoadRemoteConfig(ctx context.Context, envContent []byte, cache *RemoteConfigCache, onRefreshed func(*RemoteConfigCache), verbose bool) (*GitteConfig, *RemoteConfigCache, error) {
 	dotenv, err := godotenv.Parse(bytes.NewReader(envContent))
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse .gitte-env: %w", err)
@@ -53,8 +53,13 @@ func LoadRemoteConfig(ctx context.Context, envContent []byte, cache *RemoteConfi
 		cache.RemoteGitRef == ref &&
 		cache.Content != ""
 
+	logf := func(format string, args ...any) {}
+	if verbose {
+		logf = func(format string, args ...any) { fmt.Fprintf(os.Stderr, format, args...) }
+	}
+
 	if !cacheValid {
-		// Synchronous fetch
+		logf("[remote config] no cache — fetching from %s\n", repo)
 		newCache, err := fetchRemoteConfig(repo, ref, file)
 		if err != nil {
 			return nil, nil, err
@@ -63,10 +68,11 @@ func LoadRemoteConfig(ctx context.Context, envContent []byte, cache *RemoteConfi
 		if err != nil {
 			return nil, nil, err
 		}
+		logf("[remote config] fetched at %s\n", newCache.FetchedAt.Format(time.RFC3339))
 		return cfg, newCache, nil
 	}
 
-	// Use cache, refresh async
+	logf("[remote config] using cache from %s (len=%d) — refreshing in background\n", cache.FetchedAt.Format(time.RFC3339), len(cache.Content))
 	cfg, err := LoadGitteConfigFromYAML([]byte(cache.Content))
 	if err != nil {
 		return nil, nil, err
@@ -75,15 +81,17 @@ func LoadRemoteConfig(ctx context.Context, envContent []byte, cache *RemoteConfi
 	go func() {
 		newCache, err := fetchRemoteConfig(repo, ref, file)
 		if err != nil {
-			fmt.Printf("warning: async remote config refresh failed: %v\n", err)
+			logf("[remote config] background refresh failed: %v\n", err)
 			return
 		}
-		remoteMu.Lock()
-		*cache = *newCache
-		remoteMu.Unlock()
+		logf("[remote config] background refresh done — saving cache\n")
+		if onRefreshed != nil {
+			onRefreshed(newCache)
+		}
+		logf("[remote config] cache saved\n")
 	}()
 
-	return cfg, cache, nil
+	return cfg, nil, nil
 }
 
 func fetchRemoteConfig(repo, ref, file string) (*RemoteConfigCache, error) {
@@ -122,7 +130,8 @@ func fetchRemoteConfig(repo, ref, file string) (*RemoteConfigCache, error) {
 	return nil, fmt.Errorf("file %q not found in git archive", file)
 }
 
-// MarshalYAMLRemoteCache serializes cache to YAML bytes
+// MarshalYAMLRemoteCache serializes cache to YAML bytes.
 func MarshalYAMLRemoteCache(cache *RemoteConfigCache) ([]byte, error) {
 	return yaml.Marshal(cache)
 }
+

@@ -9,14 +9,17 @@ linters:
     - ineffassign    # unused assignments
     - staticcheck    # static analysis
     - unused         # unused code
-    - gofmt          # formatting
-    - goimports      # import ordering
     - misspell       # spelling in comments/strings
     - noctx          # http requests without context
     - bodyclose      # unclosed http response bodies
     - exhaustive     # missing switch cases on enums
 
-linters-settings:
+formatters:
+  enable:
+    - gofmt          # formatting
+    - goimports      # import ordering
+
+formatters-settings:
   gofmt:
     simplify: true
   goimports:
