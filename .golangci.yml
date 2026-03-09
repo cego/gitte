@@ -27,4 +27,5 @@ formatters:
     gofmt:
       simplify: true
     goimports:
-      local-prefixes: gitte
+      local-prefixes:
+        - gitte
