@@ -41,7 +41,7 @@ func testConfig() *config.GitteConfig {
 
 func TestPlanActions_AllProjects(t *testing.T) {
 	cfg := testConfig()
-	keys := PlanActions(cfg, "up", "*", "*", false)
+	keys, _ := PlanActions(cfg, "up", "*", "*", false)
 
 	if len(keys) == 0 {
 		t.Fatal("expected keys, got none")
@@ -63,7 +63,7 @@ func TestPlanActions_AllProjects(t *testing.T) {
 
 func TestPlanActions_SpecificProject(t *testing.T) {
 	cfg := testConfig()
-	keys := PlanActions(cfg, "up", "database", "*", false)
+	keys, _ := PlanActions(cfg, "up", "database", "*", false)
 
 	if len(keys) == 0 {
 		t.Fatal("expected keys, got none")
@@ -78,7 +78,7 @@ func TestPlanActions_SpecificProject(t *testing.T) {
 
 func TestPlanActions_SpecificGroup(t *testing.T) {
 	cfg := testConfig()
-	keys := PlanActions(cfg, "up", "*", "prod", false)
+	keys, _ := PlanActions(cfg, "up", "*", "prod", false)
 
 	for _, k := range keys {
 		if k.Group != "prod" {
@@ -89,7 +89,7 @@ func TestPlanActions_SpecificGroup(t *testing.T) {
 
 func TestPlanActions_WithNeeds(t *testing.T) {
 	cfg := testConfig()
-	keys := PlanActions(cfg, "up", "backend", "*", true)
+	keys, _ := PlanActions(cfg, "up", "backend", "*", true)
 
 	// Should include backend and its dependency database
 	found := map[string]bool{}
@@ -107,7 +107,7 @@ func TestPlanActions_WithNeeds(t *testing.T) {
 
 func TestPlanActions_MultipleActions(t *testing.T) {
 	cfg := testConfig()
-	keys := PlanActions(cfg, "up+build", "backend", "*", false)
+	keys, _ := PlanActions(cfg, "up+build", "backend", "*", false)
 
 	found := map[string]bool{}
 	for _, k := range keys {

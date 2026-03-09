@@ -1,6 +1,7 @@
 package startup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -79,27 +80,28 @@ type allDoneMsg struct{}
 type tuiTickMsg time.Time
 
 type tuiView struct {
-	program *tea.Program
-	msgCh   chan tuiUpdateMsg
-	doneCh  chan error
+	program   *tea.Program
+	msgCh     chan tuiUpdateMsg
+	doneCh    chan error
+	drainedCh chan struct{} // closed by listen() after the last buffered message is consumed
 }
 
-func newTUIView(checkNames []string) *tuiView {
+func newTUIView(checkNames []string, cancel context.CancelFunc) *tuiView {
 	msgCh := make(chan tuiUpdateMsg, 100)
-	m := newStartupModel(checkNames, msgCh)
+	drainedCh := make(chan struct{})
+	m := newStartupModel(checkNames, msgCh, drainedCh, cancel)
 	// No alt-screen: startup checks render inline so the output stays visible.
 	p := tea.NewProgram(m)
 
 	v := &tuiView{
-		program: p,
-		msgCh:   msgCh,
-		doneCh:  make(chan error, 1),
+		program:   p,
+		msgCh:     msgCh,
+		doneCh:    make(chan error, 1),
+		drainedCh: drainedCh,
 	}
 
 	go func() {
-		finalModel, err := p.Run()
-		// BubbleTea clears its inline output on exit, so reprint the final state.
-		fmt.Fprint(os.Stdout, finalModel.View())
+		_, err := p.Run()
 		v.doneCh <- err
 	}()
 
@@ -118,10 +120,13 @@ func (v *tuiView) OnFinish(name string, err error, elapsed time.Duration) {
 	v.msgCh <- tuiUpdateMsg{name: name, state: state, elapsed: elapsed, err: err}
 }
 
-// Wait closes the message channel (signalling no more updates) then blocks
-// until the BubbleTea program has exited.
+// Wait closes the message channel (signalling no more updates), waits until
+// the listen goroutine has delivered the last buffered message to BubbleTea
+// (ensuring the final frame is rendered), then quits the program.
 func (v *tuiView) Wait() {
 	close(v.msgCh)
+	<-v.drainedCh    // last message consumed → renderer has the final frame
+	v.program.Quit() // safe to quit now
 	<-v.doneCh
 }
 
@@ -144,16 +149,19 @@ type startupModel struct {
 	index       map[string]int
 	msgCh       <-chan tuiUpdateMsg
 	spinnerTick int
+	drainedCh   chan struct{}
+	drainOnce   sync.Once
+	cancel      context.CancelFunc
 }
 
-func newStartupModel(names []string, msgCh <-chan tuiUpdateMsg) *startupModel {
+func newStartupModel(names []string, msgCh <-chan tuiUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *startupModel {
 	checks := make([]*checkEntry, len(names))
 	idx := make(map[string]int, len(names))
 	for i, n := range names {
 		checks[i] = &checkEntry{name: n, state: checkPending}
 		idx[n] = i
 	}
-	return &startupModel{checks: checks, index: idx, msgCh: msgCh}
+	return &startupModel{checks: checks, index: idx, msgCh: msgCh, drainedCh: drainedCh, cancel: cancel}
 }
 
 func (m *startupModel) Init() tea.Cmd {
@@ -164,11 +172,14 @@ func (m *startupModel) Init() tea.Cmd {
 }
 
 // listen waits for the next message on msgCh.
-// When the channel is closed it returns allDoneMsg so the model can quit.
+// When the channel is closed (and drained) it signals drainedCh so that
+// Wait() knows the final frame has been handed to BubbleTea, then returns
+// allDoneMsg so the model can quit.
 func (m *startupModel) listen() tea.Cmd {
 	return func() tea.Msg {
 		msg, ok := <-m.msgCh
 		if !ok {
+			m.drainOnce.Do(func() { close(m.drainedCh) })
 			return allDoneMsg{}
 		}
 		return msg
@@ -179,7 +190,10 @@ func (m *startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
-			return m, tea.Quit
+			if m.cancel != nil {
+				m.cancel()
+			}
+			return m, nil // wait for tasks to finish, then allDoneMsg quits
 		}
 
 	case tuiTickMsg:

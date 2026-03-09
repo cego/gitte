@@ -16,6 +16,9 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 		return nil
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	tasks := make([]executor.Task, 0, len(cfg.StartupChecks))
 	for name, check := range cfg.StartupChecks {
 		name := name
@@ -37,7 +40,7 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	}
 
 	// Build the view before creating the executor so we can pass hook closures.
-	view := newView(mode, tasks)
+	view := newView(mode, tasks, cancel)
 
 	exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
 		OnTaskStart:  view.OnStart,
@@ -53,7 +56,7 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 }
 
 // newView picks the right view implementation based on output mode.
-func newView(mode output.OutputMode, tasks []executor.Task) View {
+func newView(mode output.OutputMode, tasks []executor.Task, cancel context.CancelFunc) View {
 	if mode == output.ModePlain {
 		return newPlainView()
 	}
@@ -65,5 +68,5 @@ func newView(mode output.OutputMode, tasks []executor.Task) View {
 	}
 	sort.Strings(names)
 
-	return newTUIView(names)
+	return newTUIView(names, cancel)
 }

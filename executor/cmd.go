@@ -61,7 +61,7 @@ func ExecuteSyncInDirWithOutputHandler(
 	command string,
 	args ...string,
 ) (*ExecuteResult, error) {
-	cmd := exec.Command(command, args...) //nolint:gosec
+	cmd := exec.CommandContext(ctx, command, args...) //nolint:gosec
 	cmd.Dir = cwd
 
 	if len(env) > 0 {
@@ -96,6 +96,10 @@ func ExecuteSyncInDirWithOutputHandler(
 
 	wg.Wait()
 	err = cmd.Wait()
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 
 	exitCode := 0
 	if err != nil {

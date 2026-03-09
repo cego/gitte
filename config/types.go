@@ -13,11 +13,14 @@ type GitteConfig struct {
 	SearchFor      []SearchFor               `yaml:"searchFor,omitempty"`
 	ActionOverride map[string]ActionOverride `yaml:"actionOverride,omitempty"`
 	Retry          RetryDefaults             `yaml:"retry,omitempty"`
+	GroupIncludes  map[string][]string       `yaml:"groupIncludes,omitempty"`
 	Projects       map[string]ProjectConfig  `yaml:"projects,omitempty"`
 }
 
-// Template is a reusable project configuration template
+// Template is a reusable project configuration template.
+// Extends lists parent template names (resolved left-to-right, self applied last).
 type Template struct {
+	Extends []string                 `yaml:"extends,omitempty"`
 	Vars    map[string]string        `yaml:"vars,omitempty"`
 	Actions map[string]ProjectAction `yaml:"actions,omitempty"`
 }
@@ -162,4 +165,26 @@ func (cfg *GitteConfig) FilterToggles(toggledProjects ToggledProjects) {
 		}
 	}
 	cfg.Projects = filteredProjects
+}
+
+// WithTogglesApplied returns a shallow copy of the config with toggles applied,
+// leaving the receiver unmodified. Used by the toggle command which needs the
+// full (unfiltered) project list.
+func (cfg *GitteConfig) WithTogglesApplied(toggledProjects ToggledProjects) *GitteConfig {
+	filtered := make(map[string]ProjectConfig, len(cfg.Projects))
+	for key, project := range cfg.Projects {
+		enabled, isToggled := toggledProjects[key]
+		if project.DefaultDisabled {
+			if isToggled && enabled {
+				filtered[key] = project
+			}
+		} else {
+			if !isToggled || enabled {
+				filtered[key] = project
+			}
+		}
+	}
+	copy := *cfg
+	copy.Projects = filtered
+	return &copy
 }

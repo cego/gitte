@@ -10,7 +10,13 @@ import (
 // and performs Go text/template variable substitution.
 // It modifies cfg.Projects in place and removes cfg.Templates when done.
 func ResolveTemplates(cfg *GitteConfig) error {
-	// Check for extends references even if Templates is nil
+	if cfg.Templates != nil {
+		if err := resolveTemplateInheritance(cfg.Templates); err != nil {
+			return err
+		}
+	}
+
+	// Validate project extends references
 	for projName, proj := range cfg.Projects {
 		if proj.Extends == "" {
 			continue
@@ -47,6 +53,126 @@ func ResolveTemplates(cfg *GitteConfig) error {
 	// Strip templates section from config
 	cfg.Templates = nil
 	return nil
+}
+
+// resolveTemplateInheritance resolves extends within templates themselves,
+// modifying the map in place. Templates are processed in topological order
+// so parents are fully resolved before their children.
+func resolveTemplateInheritance(templates map[string]Template) error {
+	// Validate all extends references
+	for name, tmpl := range templates {
+		for _, parent := range tmpl.Extends {
+			if _, ok := templates[parent]; !ok {
+				return fmt.Errorf("template %q extends unknown template %q", name, parent)
+			}
+		}
+	}
+
+	// Topological sort (Kahn's algorithm)
+	inDegree := make(map[string]int, len(templates))
+	dependents := make(map[string][]string) // parent → children
+	for name := range templates {
+		inDegree[name] = 0
+	}
+	for name, tmpl := range templates {
+		for _, parent := range tmpl.Extends {
+			inDegree[name]++
+			dependents[parent] = append(dependents[parent], name)
+		}
+	}
+
+	queue := make([]string, 0, len(templates))
+	for name, degree := range inDegree {
+		if degree == 0 {
+			queue = append(queue, name)
+		}
+	}
+	order := make([]string, 0, len(templates))
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		order = append(order, name)
+		for _, child := range dependents[name] {
+			inDegree[child]--
+			if inDegree[child] == 0 {
+				queue = append(queue, child)
+			}
+		}
+	}
+	if len(order) != len(templates) {
+		return fmt.Errorf("cycle detected in template extends")
+	}
+
+	// Resolve each template in topological order (parents guaranteed resolved first)
+	for _, name := range order {
+		tmpl := templates[name]
+		if len(tmpl.Extends) == 0 {
+			continue
+		}
+		// Merge parents left to right, then apply own definitions on top
+		merged := Template{}
+		for _, parentName := range tmpl.Extends {
+			merged = mergeTemplates(merged, templates[parentName])
+		}
+		merged = mergeTemplates(merged, Template{Vars: tmpl.Vars, Actions: tmpl.Actions})
+		merged.Extends = nil
+		templates[name] = merged
+	}
+
+	return nil
+}
+
+// mergeTemplates merges src on top of dst: src vars/groups override dst for the same key,
+// src needs replaces dst needs if src needs is non-nil (including empty slice).
+func mergeTemplates(dst, src Template) Template {
+	vars := make(map[string]string)
+	for k, v := range dst.Vars {
+		vars[k] = v
+	}
+	for k, v := range src.Vars {
+		vars[k] = v
+	}
+
+	actions := make(map[string]ProjectAction)
+	for k, v := range dst.Actions {
+		actions[k] = v
+	}
+	for actionName, srcAction := range src.Actions {
+		if dstAction, exists := actions[actionName]; exists {
+			mergedGroups := make(map[string][]string)
+			for k, v := range dstAction.Groups {
+				mergedGroups[k] = v
+			}
+			for k, v := range srcAction.Groups {
+				mergedGroups[k] = v
+			}
+			needs := dstAction.Needs
+			if srcAction.Needs != nil {
+				needs = srcAction.Needs
+			}
+			retry := dstAction.Retry
+			if srcAction.Retry != nil {
+				retry = srcAction.Retry
+			}
+			actions[actionName] = ProjectAction{
+				SearchFors: srcAction.SearchFors,
+				Needs:      needs,
+				Groups:     mergedGroups,
+				Retry:      retry,
+			}
+		} else {
+			actions[actionName] = srcAction
+		}
+	}
+
+	result := Template{}
+	if len(vars) > 0 {
+		result.Vars = vars
+	}
+	if len(actions) > 0 {
+		result.Actions = actions
+	}
+	return result
 }
 
 // applyTemplate merges a template into a project config and applies variable substitution
@@ -90,9 +216,9 @@ func applyTemplate(projName string, proj ProjectConfig, tmpl Template) (ProjectC
 				mergedGroups[k] = v
 			}
 
-			// Project's needs replaces template's needs if specified
+			// Project's needs replaces template's needs if non-nil (including empty slice)
 			needs := tmplAction.Needs
-			if len(projAction.Needs) > 0 {
+			if projAction.Needs != nil {
 				needs = projAction.Needs
 			}
 

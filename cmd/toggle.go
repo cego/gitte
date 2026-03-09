@@ -16,7 +16,7 @@ func newToggleCmd() *cobra.Command {
 			if outputMode() == output.ModePlain {
 				return fmt.Errorf("toggle requires a TTY (cannot run in --no-tty mode)")
 			}
-			return toggle.Run(globalCfg, globalCwd, globalSt)
+			return toggle.Run(globalRawCfg, globalCwd, globalSt)
 		},
 	}
 }

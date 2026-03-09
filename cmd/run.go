@@ -3,23 +3,25 @@ package cmd
 import (
 	"gitte/gitops"
 	"gitte/startup"
+	"os"
 
 	"github.com/spf13/cobra"
 )
 
 func newRunCmd() *cobra.Command {
 	var discover bool
+	var noRebase bool
 
 	cmd := &cobra.Command{
-		Use:   "run [action] [projects] [group]",
+		Use:   "run [action] [group] [projects]",
 		Short: "Full pipeline: startup checks + git sync + actions",
 		Long: `Run the full pipeline: startup checks, git sync, then actions.
 
 Examples:
   gitte run up
-  gitte run up frontend+backend prod
-  gitte run up * prod
-  gitte run up+build`,
+  gitte run up sn
+  gitte run up+build sn
+  gitte run up sn evolution+promotion`,
 		Args: cobra.RangeArgs(0, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Step 1: Startup checks
@@ -35,7 +37,9 @@ Examples:
 			}
 
 			// Step 3: Git sync
-			if err := gitops.Sync(globalCtx, globalCfg, globalCwd); err != nil {
+			mode := outputMode()
+			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
+			if err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode)); err != nil {
 				return err
 			}
 
@@ -48,5 +52,6 @@ Examples:
 	}
 
 	cmd.Flags().BoolVar(&discover, "discover", false, "discover and sync repos from configured sources before actions")
+	cmd.Flags().BoolVar(&noRebase, "no-rebase", false, "skip auto-rebase onto default branch (also: GITTE_NO_REBASE=true)")
 	return cmd
 }

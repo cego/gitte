@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+// ErrTaskSkipped is wrapped in the error passed to OnTaskFinish when a task is
+// skipped because one of its dependencies failed (the task itself never ran).
+var ErrTaskSkipped = errors.New("dependency failed")
+
 // ExecutorOptions configures the executor
 type ExecutorOptions struct {
 	MaxParallelization int // 0 = unlimited
@@ -19,13 +23,18 @@ type ExecutorOptions struct {
 	// OnTaskFinish is called when a task succeeds, fails, or is skipped.
 	// err is nil on success.
 	OnTaskFinish func(name string, err error, elapsed time.Duration)
+
+	// OnTaskReset is called when a task is re-queued for retry via RetryChannel.
+	OnTaskReset func(name string)
 }
 
 // Executor runs tasks with dependency resolution, parallelization, and retry
 type Executor struct {
 	tasks         map[string]*taskRun
+	dependents    map[string][]string // task name → names of tasks that depend on it
 	outputHandler OutputHandler
 	opts          ExecutorOptions
+	retryReqCh    <-chan []string // receives batches of task names to re-queue mid-run
 }
 
 // NewExecutor creates an Executor from a list of tasks
@@ -35,19 +44,31 @@ func NewExecutor(tasks []Task, opts ExecutorOptions) (*Executor, error) {
 	}
 
 	runs := make(map[string]*taskRun, len(tasks))
+	deps := make(map[string][]string, len(tasks))
 	for _, t := range tasks {
 		runs[t.Name] = &taskRun{
 			task:    t,
 			status:  statusPending,
 			attempt: 0,
 		}
+		for _, need := range t.Needs {
+			deps[need] = append(deps[need], t.Name)
+		}
 	}
 
 	return &Executor{
 		tasks:         runs,
+		dependents:    deps,
 		outputHandler: NoopOutputHandler{},
 		opts:          opts,
 	}, nil
+}
+
+// WithRetryChannel sets a channel the caller can write task names into to re-queue
+// failed tasks while Execute is running. Skipped dependents are re-queued automatically.
+func (e *Executor) WithRetryChannel(ch <-chan []string) *Executor {
+	e.retryReqCh = ch
+	return e
 }
 
 // WithOutputHandler sets the output handler for all tasks
@@ -75,46 +96,57 @@ func (e *Executor) Execute(ctx context.Context) error {
 		return err
 	}
 
-	go e.drainOutput(ctx, outputCh)
+	drainDone := make(chan struct{})
+	go func() {
+		e.drainOutput(ctx, outputCh)
+		close(drainDone)
+	}()
 
 	finished := 0
 	total := len(e.tasks)
 	var errs []error
 
 	for finished < total {
-		result := <-completionCh
+		var retryReqCh <-chan []string = e.retryReqCh // nil disables the select case
 
-		run, exists := e.tasks[result.Name]
-		if !exists {
-			return fmt.Errorf("completion for unknown task: %s", result.Name)
-		}
-
-		if result.Success {
-			run.status = statusSuccess
-			finished++
-		} else {
-			// Check retry
-			maxAttempts := run.task.Retry.Attempts
-			if maxAttempts < 1 {
-				maxAttempts = 1
+		select {
+		case result := <-completionCh:
+			run, exists := e.tasks[result.Name]
+			if !exists {
+				return fmt.Errorf("completion for unknown task: %s", result.Name)
 			}
 
-			run.attempt++
-			if run.attempt < maxAttempts {
-				// Schedule retry
-				delay := parseRetryDelay(run.task.Retry.Delay, run.task.Retry.Backoff, run.attempt)
-				go func(r *taskRun, d time.Duration) {
-					time.Sleep(d)
-					r.status = statusPending
-					_ = e.startReadyTasks(ctx, completionCh, outputCh, semaphore)
-				}(run, delay)
-			} else {
-				run.status = statusFailed
+			if result.Success {
+				run.status = statusSuccess
 				finished++
-				if result.Error != nil {
-					errs = append(errs, result.Error)
+			} else {
+				// Check retry
+				maxAttempts := run.task.Retry.Attempts
+				if maxAttempts < 1 {
+					maxAttempts = 1
+				}
+
+				run.attempt++
+				if run.attempt < maxAttempts {
+					// Schedule retry
+					delay := parseRetryDelay(run.task.Retry.Delay, run.task.Retry.Backoff, run.attempt)
+					go func(r *taskRun, d time.Duration) {
+						time.Sleep(d)
+						r.status = statusPending
+						_ = e.startReadyTasks(ctx, completionCh, outputCh, semaphore)
+					}(run, delay)
+				} else {
+					run.status = statusFailed
+					finished++
+					if result.Error != nil {
+						errs = append(errs, result.Error)
+					}
 				}
 			}
+
+		case names := <-retryReqCh:
+			count := e.resetForRetry(names)
+			finished -= count
 		}
 
 		if finished < total {
@@ -128,6 +160,7 @@ func (e *Executor) Execute(ctx context.Context) error {
 	}
 
 	close(outputCh)
+	<-drainDone // wait for all output to be processed before returning
 	return errors.Join(errs...)
 }
 
@@ -145,7 +178,8 @@ func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- Comm
 		// Check if any dep failed (skip this task permanently)
 		if e.depsHaveFailed(name) {
 			run.status = statusFailed
-			skipErr := fmt.Errorf("task %q skipped: dependency failed", name)
+			run.skipped = true
+			skipErr := fmt.Errorf("task %q skipped: %w", name, ErrTaskSkipped)
 			if e.opts.OnTaskFinish != nil {
 				e.opts.OnTaskFinish(name, skipErr, 0)
 			}
@@ -193,6 +227,46 @@ func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- Comm
 		}(run)
 	}
 	return nil
+}
+
+// resetForRetry re-queues the named failed tasks and cascades to any skipped dependents.
+// Returns the number of tasks reset (caller must decrement its finished counter by this amount).
+func (e *Executor) resetForRetry(names []string) int {
+	toReset := make(map[string]bool, len(names))
+	queue := make([]string, 0, len(names))
+	for _, name := range names {
+		run, ok := e.tasks[name]
+		if ok && run.status == statusFailed && !run.skipped {
+			toReset[name] = true
+			queue = append(queue, name)
+		}
+	}
+	// Cascade: also reset skipped dependents whose dep is being retried.
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		for _, dep := range e.dependents[name] {
+			depRun, ok := e.tasks[dep]
+			if !ok || toReset[dep] || !depRun.skipped {
+				continue
+			}
+			toReset[dep] = true
+			queue = append(queue, dep)
+		}
+	}
+	count := 0
+	for name := range toReset {
+		run := e.tasks[name]
+		run.attempt = 0
+		run.status = statusPending
+		run.skipped = false
+		run.startedAt = time.Time{}
+		count++
+		if e.opts.OnTaskReset != nil {
+			e.opts.OnTaskReset(name)
+		}
+	}
+	return count
 }
 
 func (e *Executor) depsSatisfied(name string) bool {

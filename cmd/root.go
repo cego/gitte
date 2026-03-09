@@ -8,7 +8,10 @@ import (
 	"gitte/output"
 	"gitte/state"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
@@ -19,10 +22,11 @@ var (
 	flagCwd        string
 
 	// Global shared state set during PersistentPreRunE
-	globalCfg *config.GitteConfig
-	globalSt  *state.GitteState
-	globalCwd string
-	globalCtx context.Context
+	globalCfg    *config.GitteConfig // toggle-filtered view
+	globalRawCfg *config.GitteConfig // all projects, pre-filter (used by toggle TUI)
+	globalSt     *state.GitteState
+	globalCwd    string
+	globalCtx    context.Context
 )
 
 // rootCmd is the base command
@@ -39,10 +43,16 @@ with dependency resolution.`,
 	},
 }
 
+var errorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196"))
+
 // Execute adds all child commands and runs
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		if output.DetectMode(flagNoTTY) == output.ModePlain {
+			fmt.Fprintln(os.Stderr, "error:", err)
+		} else {
+			fmt.Fprintln(os.Stderr, errorStyle.Render("error:")+" "+err.Error())
+		}
 		os.Exit(1)
 	}
 }
@@ -78,7 +88,7 @@ func initGlobals() error {
 		}
 	}
 	globalCwd = cwd
-	globalCtx = context.Background()
+	globalCtx, _ = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	// Load state
 	st, err := state.Load(cwd)
@@ -101,10 +111,9 @@ func initGlobals() error {
 		return fmt.Errorf("template resolution failed: %w", err)
 	}
 
-	// Apply toggles
-	cfg.FilterToggles(st.Toggles)
-
-	globalCfg = cfg
+	// Keep the full config before toggle filtering (needed by the toggle TUI).
+	globalRawCfg = cfg
+	globalCfg = cfg.WithTogglesApplied(st.Toggles)
 	return nil
 }
 

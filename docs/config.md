@@ -9,14 +9,15 @@ An optional `.gitte-override.yml` in the same directory is deep-merged on top, u
 ## Top-level structure
 
 ```yaml
-startup:      # startup checks (optional)
-templates:    # reusable project templates (optional)
-projects:     # project definitions (required)
-feature_gates: # feature gates (optional)
-sources:      # auto-discovery sources (optional)
-searchFor:    # global output pattern matching (optional)
+startup:        # startup checks (optional)
+templates:      # reusable project templates (optional)
+projects:       # project definitions (required)
+groupIncludes:  # group inclusion rules — running group X also runs group Y (optional)
+feature_gates:  # feature gates (optional)
+sources:        # auto-discovery sources (optional)
+searchFor:      # global output pattern matching (optional)
 actionOverride: # per-action overrides (optional)
-retry:        # global retry defaults (optional)
+retry:          # global retry defaults (optional)
 ```
 
 ---
@@ -183,6 +184,49 @@ projects:
 ```
 
 When both the template and the project define the same action, the project's group commands take precedence for matching group keys. The project can also add or replace `needs`.
+
+### Template inheritance
+
+Templates can themselves extend other templates using `extends`. This allows building a hierarchy of shared definitions.
+
+```yaml
+templates:
+  base-service:
+    vars:
+      stack: "{{.project}}"
+    actions:
+      down:
+        groups:
+          prod: ["docker", "stack", "rm", "{{.stack}}"]
+
+  php-service:
+    extends: [base-service]    # inherits all of base-service
+    actions:
+      up:
+        needs: [database]
+
+  full-service:
+    extends: [base-service, php-service]   # merge multiple parents left-to-right
+```
+
+Multiple parents are merged left-to-right; the rightmost definition wins for conflicting keys. The template's own definitions are applied last.
+
+---
+
+## groupIncludes
+
+`groupIncludes` lets you declare that running one group should automatically include the tasks of another group. This is useful for shared infrastructure that multiple teams need but should not appear under a wildcard `*` group.
+
+```yaml
+groupIncludes:
+  sn: [cego]      # running group "sn" also runs group "cego"
+  ht: [cego]      # running group "ht" also runs group "cego"
+  cego: [streaming]   # transitive: "sn" and "ht" also pull in "streaming"
+```
+
+Expansion is **transitive** — if `sn` includes `cego` and `cego` includes `streaming`, then running group `sn` automatically includes both `cego` and `streaming` tasks.
+
+This replaces the need for `*` wildcard groups on infrastructure projects. Give an infrastructure project a specific group name and list it in `groupIncludes` for the teams that need it.
 
 ---
 

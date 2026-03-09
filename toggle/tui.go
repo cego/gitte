@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// ProjectItem represents a project with its toggle state
+// ProjectItem holds the mutable toggle state for one project.
 type ProjectItem struct {
 	Name         string
 	DefaultState bool
@@ -19,9 +19,24 @@ type ProjectItem struct {
 	IsCustom     bool
 }
 
+// rowKind distinguishes host headers, group headers, and project rows.
+type rowKind int
+
+const (
+	rowKindHost    rowKind = iota
+	rowKindGroup
+	rowKindProject
+)
+
+type row struct {
+	kind  rowKind
+	label string       // for host/group headers
+	item  *ProjectItem // non-nil for rowKindProject
+}
+
 type toggleModel struct {
-	projects       []ProjectItem
-	cursor         int
+	rows           []row
+	cursor         int // always points at a rowKindProject row
 	viewportOffset int
 	cwd            string
 	st             *state.GitteState
@@ -34,6 +49,13 @@ var (
 			Bold(true).
 			Foreground(lipgloss.Color("170")).
 			MarginBottom(1)
+
+	hostStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("39"))
+
+	groupStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("244"))
 
 	selectedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("170")).
@@ -54,38 +76,107 @@ var (
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")).
 			MarginTop(1)
+
+	dimStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241"))
 )
 
 func newToggleModel(cfg *config.GitteConfig, cwd string, st *state.GitteState) *toggleModel {
-	projects := make([]ProjectItem, 0, len(cfg.Projects))
+	type projEntry struct {
+		name      string
+		proj      config.ProjectConfig
+		host      string
+		namespace string
+	}
+
+	entries := make([]projEntry, 0, len(cfg.Projects))
 	for name, proj := range cfg.Projects {
-		defaultState := !proj.DefaultDisabled
-		currentState := defaultState
-		isCustom := false
-
-		if toggled, exists := st.Toggles[name]; exists {
-			currentState = toggled
-			isCustom = currentState != defaultState
+		host, path, _, err := config.ParseRemoteURL(proj.Remote)
+		if err != nil {
+			host = "unknown"
+			path = name
 		}
+		namespace := path
+		if i := strings.LastIndex(path, "/"); i >= 0 {
+			namespace = path[:i]
+		}
+		entries = append(entries, projEntry{name: name, proj: proj, host: host, namespace: namespace})
+	}
 
-		projects = append(projects, ProjectItem{
-			Name:         name,
-			DefaultState: defaultState,
-			CurrentState: currentState,
-			IsCustom:     isCustom,
+	// Group by host → namespace.
+	type groupKey struct{ host, namespace string }
+	type group struct {
+		key     groupKey
+		entries []projEntry
+	}
+	groupMap := make(map[groupKey]*group)
+	var groupOrder []groupKey
+
+	for _, e := range entries {
+		key := groupKey{e.host, e.namespace}
+		if _, ok := groupMap[key]; !ok {
+			groupMap[key] = &group{key: key}
+			groupOrder = append(groupOrder, key)
+		}
+		groupMap[key].entries = append(groupMap[key].entries, e)
+	}
+
+	sort.Slice(groupOrder, func(i, j int) bool {
+		a, b := groupOrder[i], groupOrder[j]
+		if a.host != b.host {
+			return a.host < b.host
+		}
+		return a.namespace < b.namespace
+	})
+	for _, key := range groupOrder {
+		grp := groupMap[key]
+		sort.Slice(grp.entries, func(i, j int) bool {
+			return grp.entries[i].name < grp.entries[j].name
 		})
 	}
 
-	sort.Slice(projects, func(i, j int) bool {
-		return projects[i].Name < projects[j].Name
-	})
+	// Build flat row list.
+	var rows []row
+	prevHost := ""
+	for _, key := range groupOrder {
+		if key.host != prevHost {
+			rows = append(rows, row{kind: rowKindHost, label: key.host})
+			prevHost = key.host
+		}
+		groupLabel := key.namespace
+		if groupLabel == "" {
+			groupLabel = "(root)"
+		}
+		rows = append(rows, row{kind: rowKindGroup, label: groupLabel})
 
-	return &toggleModel{
-		projects: projects,
-		cursor:   0,
-		cwd:      cwd,
-		st:       st,
+		for _, e := range groupMap[key].entries {
+			defaultState := !e.proj.DefaultDisabled
+			currentState := defaultState
+			isCustom := false
+			if toggled, exists := st.Toggles[e.name]; exists {
+				currentState = toggled
+				isCustom = currentState != defaultState
+			}
+			item := &ProjectItem{
+				Name:         e.name,
+				DefaultState: defaultState,
+				CurrentState: currentState,
+				IsCustom:     isCustom,
+			}
+			rows = append(rows, row{kind: rowKindProject, item: item})
+		}
 	}
+
+	// Initial cursor: first project row.
+	cursor := 0
+	for i, r := range rows {
+		if r.kind == rowKindProject {
+			cursor = i
+			break
+		}
+	}
+
+	return &toggleModel{rows: rows, cursor: cursor, cwd: cwd, st: st}
 }
 
 func (m *toggleModel) Init() tea.Cmd { return nil }
@@ -104,69 +195,36 @@ func (m *toggleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case tea.KeyUp:
-			if m.cursor > 0 {
-				m.cursor--
-				m.updateViewport()
-			}
-
+			m.movePrev()
 		case tea.KeyDown:
-			if m.cursor < len(m.projects)-1 {
-				m.cursor++
-				m.updateViewport()
-			}
-
+			m.moveNext()
 		case tea.KeyPgUp:
-			avail := m.availableHeight()
-			m.cursor -= avail
-			if m.cursor < 0 {
-				m.cursor = 0
-			}
-			m.updateViewport()
-
+			m.movePrevPage()
 		case tea.KeyPgDown:
-			avail := m.availableHeight()
-			m.cursor += avail
-			if m.cursor >= len(m.projects) {
-				m.cursor = len(m.projects) - 1
-			}
-			m.updateViewport()
-
+			m.moveNextPage()
 		case tea.KeyHome:
-			m.cursor = 0
-			m.updateViewport()
-
+			m.moveFirst()
 		case tea.KeyEnd:
-			m.cursor = len(m.projects) - 1
-			m.updateViewport()
-
+			m.moveLast()
 		case tea.KeySpace, tea.KeyEnter:
-			m.toggleProject(m.cursor)
-
+			m.toggleCurrent()
 		default:
 			switch msg.String() {
 			case "q":
 				m.saveState()
 				return m, tea.Quit
 			case "k":
-				if m.cursor > 0 {
-					m.cursor--
-					m.updateViewport()
-				}
+				m.movePrev()
 			case "j":
-				if m.cursor < len(m.projects)-1 {
-					m.cursor++
-					m.updateViewport()
-				}
+				m.moveNext()
 			case "g":
-				m.cursor = 0
-				m.updateViewport()
+				m.moveFirst()
 			case "G":
-				m.cursor = len(m.projects) - 1
-				m.updateViewport()
+				m.moveLast()
 			case "r":
-				m.resetProject(m.cursor)
+				m.resetCurrent()
 			case "R":
-				m.resetAllProjects()
+				m.resetAll()
 			}
 		}
 		return m, nil
@@ -181,22 +239,26 @@ func (m *toggleModel) View() string {
 	b.WriteString(titleStyle.Render("Gitte Project Toggle"))
 	b.WriteString("\n\n")
 
-	enabledCount, customCount := 0, 0
-	for _, p := range m.projects {
-		if p.CurrentState {
-			enabledCount++
+	total, enabled, custom := 0, 0, 0
+	for _, r := range m.rows {
+		if r.kind != rowKindProject {
+			continue
 		}
-		if p.IsCustom {
-			customCount++
+		total++
+		if r.item.CurrentState {
+			enabled++
+		}
+		if r.item.IsCustom {
+			custom++
 		}
 	}
 	b.WriteString(helpStyle.Render(fmt.Sprintf(
 		"Projects: %d total, %d enabled, %d custom",
-		len(m.projects), enabledCount, customCount,
+		total, enabled, custom,
 	)))
 	b.WriteString("\n\n")
 
-	if len(m.projects) == 0 {
+	if total == 0 {
 		b.WriteString(helpStyle.Render("No projects found in configuration."))
 		b.WriteString("\n\n")
 		b.WriteString(helpStyle.Render("Press q/esc to quit"))
@@ -205,64 +267,168 @@ func (m *toggleModel) View() string {
 
 	start, end := m.getVisibleRange()
 	if start > 0 {
-		b.WriteString(helpStyle.Render(fmt.Sprintf("  ^ %d more above...", start)))
-		b.WriteString("\n")
+		// Count hidden project rows above
+		hidden := 0
+		for i := 0; i < start; i++ {
+			if m.rows[i].kind == rowKindProject {
+				hidden++
+			}
+		}
+		if hidden > 0 {
+			b.WriteString(dimStyle.Render(fmt.Sprintf("  ^ %d more above…", hidden)))
+			b.WriteString("\n")
+		}
 	}
 
 	for i := start; i < end; i++ {
-		p := m.projects[i]
-		isSelected := i == m.cursor
+		r := m.rows[i]
+		switch r.kind {
+		case rowKindHost:
+			b.WriteString(hostStyle.Render(r.label))
+			b.WriteString("\n")
+		case rowKindGroup:
+			b.WriteString("  " + groupStyle.Render(r.label))
+			b.WriteString("\n")
+		case rowKindProject:
+			p := r.item
+			isSelected := i == m.cursor
 
-		baseLine := fmt.Sprintf("  %-40s", p.Name)
-
-		var statusStr string
-		if p.CurrentState {
+			cursor := "  "
 			if isSelected {
-				statusStr = enabledStyle.Underline(true).Render("+ enabled")
-			} else {
-				statusStr = enabledStyle.Render("+ enabled")
+				cursor = cursorStyle.Render("> ")
 			}
-		} else {
+
+			var nameStr string
 			if isSelected {
-				statusStr = disabledStyle.Underline(true).Render("- disabled")
+				nameStr = selectedStyle.Render(fmt.Sprintf("%-36s", p.Name))
+			} else {
+				nameStr = fmt.Sprintf("%-36s", p.Name)
+			}
+
+			var statusStr string
+			if p.CurrentState {
+				statusStr = enabledStyle.Render("+ enabled ")
 			} else {
 				statusStr = disabledStyle.Render("- disabled")
 			}
-		}
 
-		customIndicator := ""
-		if p.IsCustom {
-			customIndicator = customStyle.Render(" [custom]")
-		}
+			customIndicator := ""
+			if p.IsCustom {
+				customIndicator = "  " + customStyle.Render("[custom]")
+			}
 
-		if isSelected {
-			baseLine = cursorStyle.Render("> ") + selectedStyle.Render(fmt.Sprintf("%-40s", p.Name))
+			b.WriteString("    " + cursor + nameStr + "  " + statusStr + customIndicator + "\n")
 		}
-
-		b.WriteString(baseLine + " " + statusStr + customIndicator + "\n")
 	}
 
-	if end < len(m.projects) {
-		b.WriteString(helpStyle.Render(fmt.Sprintf("  v %d more below...", len(m.projects)-end)))
-		b.WriteString("\n")
+	if end < len(m.rows) {
+		hidden := 0
+		for i := end; i < len(m.rows); i++ {
+			if m.rows[i].kind == rowKindProject {
+				hidden++
+			}
+		}
+		if hidden > 0 {
+			b.WriteString(dimStyle.Render(fmt.Sprintf("  v %d more below…", hidden)))
+			b.WriteString("\n")
+		}
 	}
 
 	b.WriteString("\n")
 	b.WriteString(helpStyle.Render(
-		"up/down j/k: nav | PgUp/PgDown: page | Home/End g/G: jump | Space: toggle | r: reset | R: reset all | q: quit",
+		"↑↓/jk: nav  PgUp/PgDown: page  g/G: top/bottom  Space: toggle  r: reset  R: reset all  q: quit",
 	))
 
 	return b.String()
 }
 
-func (m *toggleModel) toggleProject(index int) {
-	if index < 0 || index >= len(m.projects) {
+// ── navigation ───────────────────────────────────────────────────────────────
+
+func (m *toggleModel) moveNext() {
+	for i := m.cursor + 1; i < len(m.rows); i++ {
+		if m.rows[i].kind == rowKindProject {
+			m.cursor = i
+			m.updateViewport()
+			return
+		}
+	}
+}
+
+func (m *toggleModel) movePrev() {
+	for i := m.cursor - 1; i >= 0; i-- {
+		if m.rows[i].kind == rowKindProject {
+			m.cursor = i
+			m.updateViewport()
+			return
+		}
+	}
+}
+
+func (m *toggleModel) moveFirst() {
+	for i, r := range m.rows {
+		if r.kind == rowKindProject {
+			m.cursor = i
+			m.updateViewport()
+			return
+		}
+	}
+}
+
+func (m *toggleModel) moveLast() {
+	for i := len(m.rows) - 1; i >= 0; i-- {
+		if m.rows[i].kind == rowKindProject {
+			m.cursor = i
+			m.updateViewport()
+			return
+		}
+	}
+}
+
+func (m *toggleModel) moveNextPage() {
+	avail := m.availableHeight()
+	target := m.cursor + avail
+	if target >= len(m.rows) {
+		target = len(m.rows) - 1
+	}
+	// snap to nearest project row at or before target
+	for i := target; i > m.cursor; i-- {
+		if m.rows[i].kind == rowKindProject {
+			m.cursor = i
+			m.updateViewport()
+			return
+		}
+	}
+	// already at last project; move to absolute last
+	m.moveLast()
+}
+
+func (m *toggleModel) movePrevPage() {
+	avail := m.availableHeight()
+	target := m.cursor - avail
+	if target < 0 {
+		target = 0
+	}
+	// snap to nearest project row at or after target
+	for i := target; i < m.cursor; i++ {
+		if m.rows[i].kind == rowKindProject {
+			m.cursor = i
+			m.updateViewport()
+			return
+		}
+	}
+	m.moveFirst()
+}
+
+// ── toggle / reset ───────────────────────────────────────────────────────────
+
+func (m *toggleModel) toggleCurrent() {
+	r := &m.rows[m.cursor]
+	if r.kind != rowKindProject || r.item == nil {
 		return
 	}
-	p := &m.projects[index]
+	p := r.item
 	p.CurrentState = !p.CurrentState
 	p.IsCustom = p.CurrentState != p.DefaultState
-
 	if p.IsCustom {
 		m.st.Toggles[p.Name] = p.CurrentState
 	} else {
@@ -270,21 +436,24 @@ func (m *toggleModel) toggleProject(index int) {
 	}
 }
 
-func (m *toggleModel) resetProject(index int) {
-	if index < 0 || index >= len(m.projects) {
+func (m *toggleModel) resetCurrent() {
+	r := &m.rows[m.cursor]
+	if r.kind != rowKindProject || r.item == nil {
 		return
 	}
-	p := &m.projects[index]
+	p := r.item
 	p.CurrentState = p.DefaultState
 	p.IsCustom = false
 	delete(m.st.Toggles, p.Name)
 }
 
-func (m *toggleModel) resetAllProjects() {
-	for i := range m.projects {
-		p := &m.projects[i]
-		p.CurrentState = p.DefaultState
-		p.IsCustom = false
+func (m *toggleModel) resetAll() {
+	for i := range m.rows {
+		if m.rows[i].kind == rowKindProject && m.rows[i].item != nil {
+			p := m.rows[i].item
+			p.CurrentState = p.DefaultState
+			p.IsCustom = false
+		}
 	}
 	m.st.Toggles = make(map[string]bool)
 }
@@ -293,9 +462,11 @@ func (m *toggleModel) saveState() {
 	_ = state.Save(m.cwd, m.st)
 }
 
+// ── viewport ─────────────────────────────────────────────────────────────────
+
 func (m *toggleModel) availableHeight() int {
-	h := m.height - 7
-	if h < 1 {
+	h := m.height - 8 // title + blank + stats + blank + help + margins
+	if h < 5 {
 		return 10
 	}
 	return h
@@ -318,13 +489,13 @@ func (m *toggleModel) getVisibleRange() (start, end int) {
 	avail := m.availableHeight()
 	start = m.viewportOffset
 	end = start + avail
-	if end > len(m.projects) {
-		end = len(m.projects)
+	if end > len(m.rows) {
+		end = len(m.rows)
 	}
 	return
 }
 
-// Run starts the toggle TUI
+// Run starts the toggle TUI.
 func Run(cfg *config.GitteConfig, cwd string, st *state.GitteState) error {
 	model := newToggleModel(cfg, cwd, st)
 	p := tea.NewProgram(model, tea.WithAltScreen())

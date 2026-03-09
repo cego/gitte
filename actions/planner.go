@@ -22,8 +22,9 @@ type GroupKeyWithDeps struct {
 
 // PlanActions resolves which tasks to run based on the action/project/group strings
 // and builds a list of GroupKeyWithDeps ready for the executor.
-func PlanActions(cfg *config.GitteConfig, actionStr, projectStr, groupStr string, withNeeds bool) []GroupKeyWithDeps {
-	actions := parseGitteString(actionStr)
+// It also returns the ordered list of action names (preserving the user's input order).
+func PlanActions(cfg *config.GitteConfig, actionStr, projectStr, groupStr string, withNeeds bool) ([]GroupKeyWithDeps, []string) {
+	actionList := parseGitteString(actionStr)
 	projects := parseGitteString(projectStr)
 	groups := parseGitteString(groupStr)
 
@@ -37,7 +38,7 @@ func PlanActions(cfg *config.GitteConfig, actionStr, projectStr, groupStr string
 	}
 
 	selectedProjects := filterProjects(cfg, projects)
-	projectActions := findProjectActions(cfg, selectedProjects, actions)
+	projectActions := findProjectActions(cfg, selectedProjects, actionList)
 	keys := findGroups(cfg, projectActions, groups)
 
 	if withNeeds {
@@ -48,8 +49,44 @@ func PlanActions(cfg *config.GitteConfig, actionStr, projectStr, groupStr string
 	keys = lo.UniqBy(keys, func(k GroupKeyWithDeps) string {
 		return k.Project + "|" + k.Action + "|" + k.Group
 	})
+	keys = addActionOrderDeps(keys, actionList)
 
-	return keys
+	return keys, actionList
+}
+
+// addActionOrderDeps ensures that all tasks of action[i] depend on all tasks of action[i-1].
+// This prevents e.g. "up" from starting before all "build" tasks have succeeded.
+func addActionOrderDeps(keys []GroupKeyWithDeps, actions []string) []GroupKeyWithDeps {
+	if len(actions) <= 1 {
+		return keys
+	}
+	actionTasks := make(map[string][]GroupKey, len(actions))
+	for _, k := range keys {
+		actionTasks[k.Action] = append(actionTasks[k.Action], k.GroupKey)
+	}
+	result := make([]GroupKeyWithDeps, len(keys))
+	copy(result, keys)
+	for i := 1; i < len(actions); i++ {
+		prevTasks := actionTasks[actions[i-1]]
+		if len(prevTasks) == 0 {
+			continue
+		}
+		for j := range result {
+			if result[j].Action != actions[i] {
+				continue
+			}
+			existing := make(map[GroupKey]bool, len(result[j].Needs))
+			for _, n := range result[j].Needs {
+				existing[n] = true
+			}
+			for _, pt := range prevTasks {
+				if !existing[pt] {
+					result[j].Needs = append(result[j].Needs, pt)
+				}
+			}
+		}
+	}
+	return result
 }
 
 func parseGitteString(s string) []string {
@@ -111,7 +148,34 @@ func findProjectActions(cfg *config.GitteConfig, projects []string, actionsStr [
 	return result
 }
 
+// expandGroups transitively adds included groups to the requested group list.
+func expandGroups(groups []string, includes map[string][]string) []string {
+	if len(includes) == 0 {
+		return groups
+	}
+	seen := make(map[string]bool, len(groups))
+	queue := make([]string, len(groups))
+	copy(queue, groups)
+	for _, g := range groups {
+		seen[g] = true
+	}
+	expanded := make([]string, 0, len(groups))
+	for len(queue) > 0 {
+		g := queue[0]
+		queue = queue[1:]
+		expanded = append(expanded, g)
+		for _, inc := range includes[g] {
+			if !seen[inc] {
+				seen[inc] = true
+				queue = append(queue, inc)
+			}
+		}
+	}
+	return expanded
+}
+
 func findGroups(cfg *config.GitteConfig, pas []projectAction, groupsStr []string) []GroupKeyWithDeps {
+	effectiveGroups := expandGroups(groupsStr, cfg.GroupIncludes)
 	var result []GroupKeyWithDeps
 	for _, pa := range pas {
 		proj, ok := cfg.Projects[pa.Project]
@@ -129,7 +193,7 @@ func findGroups(cfg *config.GitteConfig, pas []projectAction, groupsStr []string
 			filtered = groupKeys
 		} else {
 			filtered = lo.Filter(groupKeys, func(g string, _ int) bool {
-				return lo.Contains(groupsStr, g)
+				return lo.Contains(effectiveGroups, g) || g == "*"
 			})
 		}
 
@@ -167,7 +231,7 @@ func addDependencies(cfg *config.GitteConfig, keys []GroupKeyWithDeps) []GroupKe
 			continue
 		}
 
-		all[i].Needs = resolveNeeds(k.GroupKey, action.Needs, all)
+		all[i].Needs = resolveNeeds(k.GroupKey, action.Needs, all, cfg.GroupIncludes)
 	}
 
 	return all
@@ -201,23 +265,28 @@ func findNeedKey(cfg *config.GitteConfig, key GroupKey, need string) GroupKeyWit
 	if !ok {
 		return GroupKeyWithDeps{GroupKey: GroupKey{Project: need, Action: key.Action, Group: "!"}}
 	}
-	// Prefer same group, fallback to "*"
+	// Prefer same group, then "*", then included groups
 	if _, ok := needAction.Groups[key.Group]; ok {
 		return GroupKeyWithDeps{GroupKey: GroupKey{Project: need, Action: key.Action, Group: key.Group}}
 	}
 	if _, ok := needAction.Groups["*"]; ok {
 		return GroupKeyWithDeps{GroupKey: GroupKey{Project: need, Action: key.Action, Group: "*"}}
 	}
+	for _, inc := range cfg.GroupIncludes[key.Group] {
+		if _, ok := needAction.Groups[inc]; ok {
+			return GroupKeyWithDeps{GroupKey: GroupKey{Project: need, Action: key.Action, Group: inc}}
+		}
+	}
 	return GroupKeyWithDeps{GroupKey: GroupKey{Project: need, Action: key.Action, Group: "!"}}
 }
 
-func resolveNeeds(key GroupKey, needs []string, all []GroupKeyWithDeps) []GroupKey {
+func resolveNeeds(key GroupKey, needs []string, all []GroupKeyWithDeps, includes map[string][]string) []GroupKey {
+	effectiveGroups := expandGroups([]string{key.Group}, includes)
 	var result []GroupKey
 	for _, need := range needs {
-		// Find this need in the all list
 		for _, k := range all {
 			if k.Project == need && k.Action == key.Action &&
-				(k.Group == key.Group || k.Group == "*") {
+				(k.Group == "*" || lo.Contains(effectiveGroups, k.Group)) {
 				result = append(result, k.GroupKey)
 				break
 			}

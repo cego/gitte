@@ -5,16 +5,121 @@ import (
 	"fmt"
 	"gitte/config"
 	"gitte/executor"
+	"gitte/output"
 	"gitte/state"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 // RunActions executes planned action tasks.
+// mode controls whether to use plain or TUI output.
 // envMaxParallel is the global parallelization cap from GITTE_MAX_TASK_PARALLELIZATION (0 = unlimited).
-func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps, envMaxParallel int) error {
+func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteState, cwd string, mode output.OutputMode, keys []GroupKeyWithDeps, actionOrder []string, envMaxParallel int) error {
+	runCtx, runCancel := context.WithCancel(ctx)
+
+	// retryCh is shared between the view (writer) and executor (reader).
+	// The user presses r/R while Execute is running → task names written here → executor re-queues inline.
+	retryCh := make(chan []string, 100)
+
+	infos := buildTaskInfos(cfg, keys)
+	view := newView(mode, infos, actionOrder, runCancel, retryCh)
+
+	currentKeys := keys
+	var runErr error
+	for {
+		tasks := buildExecutorTasks(cfg, st, cwd, currentKeys)
+
+		maxParallel := envMaxParallel
+		if len(currentKeys) > 0 {
+			actionName := currentKeys[0].Action
+			if override, ok := cfg.ActionOverride[actionName]; ok && override.MaxParallelization > 0 {
+				maxParallel = override.MaxParallelization
+			}
+		}
+
+		exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
+			MaxParallelization: maxParallel,
+			OnTaskStart:        view.OnStart,
+			OnTaskReset:        view.OnReset,
+			OnTaskFinish:       view.OnFinish,
+		})
+		if err != nil {
+			runCancel()
+			return fmt.Errorf("action planning failed: %w", err)
+		}
+		exec.WithOutputHandler(view.Handler())
+		exec.WithRetryChannel(retryCh)
+
+		runErr = exec.Execute(runCtx)
+		runCancel()
+
+		retryNames := view.WaitAndGetRetry()
+		if retryNames == nil {
+			return runErr
+		}
+
+		// Build retry key set preserving original config, stripping needs (deps already ran).
+		retrySet := make(map[string]struct{}, len(retryNames))
+		for _, n := range retryNames {
+			retrySet[n] = struct{}{}
+		}
+		var retryKeys []GroupKeyWithDeps
+		for _, key := range keys {
+			if _, ok := retrySet[taskName(key.GroupKey)]; ok {
+				rk := key
+				rk.Needs = nil
+				retryKeys = append(retryKeys, rk)
+			}
+		}
+		if len(retryKeys) == 0 {
+			return runErr
+		}
+
+		retryCh = make(chan []string, 100)
+		runCtx, runCancel = context.WithCancel(ctx)
+		view.PrepareRetry(retryNames, retryCh, runCancel)
+		currentKeys = retryKeys
+	}
+}
+
+// buildTaskInfos constructs TaskInfo display metadata for each key.
+func buildTaskInfos(cfg *config.GitteConfig, keys []GroupKeyWithDeps) []TaskInfo {
+	infos := make([]TaskInfo, 0, len(keys))
+	for _, key := range keys {
+		proj, ok := cfg.Projects[key.Project]
+		if !ok {
+			continue
+		}
+		host, path, _, err := config.ParseRemoteURL(proj.Remote)
+		if err != nil {
+			host = "unknown"
+			path = key.Project
+		}
+		segs := strings.Split(path, "/")
+		var pathSegs []string
+		projLeaf := path
+		if len(segs) > 1 {
+			pathSegs = segs[:len(segs)-1]
+			projLeaf = segs[len(segs)-1]
+		}
+		infos = append(infos, TaskInfo{
+			TaskName: taskName(key.GroupKey),
+			Project:  key.Project,
+			Action:   key.Action,
+			Group:    key.Group,
+			Host:     host,
+			PathSegs: pathSegs,
+			ProjLeaf: projLeaf,
+		})
+	}
+	return infos
+}
+
+// buildExecutorTasks constructs executor.Task list from keys.
+func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps) []executor.Task {
 	tasks := make([]executor.Task, 0, len(keys))
 	searchFors := cfg.SearchFor
 
@@ -34,13 +139,11 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			continue
 		}
 
-		// Build needs list for executor
 		needNames := make([]string, 0, len(key.Needs))
 		for _, n := range key.Needs {
 			needNames = append(needNames, taskName(n))
 		}
 
-		// Determine retry config
 		retryConfig := executor.RetryConfig{Attempts: 1}
 		if action.Retry != nil {
 			retryConfig.Attempts = action.Retry.Attempts
@@ -52,7 +155,6 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			retryConfig.Backoff = cfg.Retry.Default.Backoff
 		}
 
-		// Build per-action searchFors (combine global + action-specific)
 		allSearchFors := append(searchFors, action.SearchFors...)
 
 		tasks = append(tasks, executor.Task{
@@ -64,22 +166,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			},
 		})
 	}
-
-	// Determine max parallelization: actionOverride config takes precedence, then env var
-	maxParallel := envMaxParallel
-	if len(keys) > 0 {
-		actionName := keys[0].Action
-		if override, ok := cfg.ActionOverride[actionName]; ok && override.MaxParallelization > 0 {
-			maxParallel = override.MaxParallelization
-		}
-	}
-
-	exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{MaxParallelization: maxParallel})
-	if err != nil {
-		return fmt.Errorf("action planning failed: %w", err)
-	}
-
-	return exec.Execute(ctx)
+	return tasks
 }
 
 func taskName(key GroupKey) string {
@@ -108,10 +195,8 @@ func runGroupTask(
 
 	taskDir := filepath.Join(cwd, localDir)
 
-	// Build environment with feature gate injections
 	env := buildEnv(cfg, st, proj)
 
-	// Use a search-for output handler wrapper
 	wrappedHandler := &searchForHandler{
 		inner:      handler,
 		searchFors: searchFors,
@@ -149,7 +234,6 @@ func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.Project
 			continue
 		}
 
-		// Determine effective scope
 		scope := gate.Scope
 		if fs.OverrideScope != nil {
 			scope = config.FeatureScope{
@@ -168,7 +252,6 @@ func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.Project
 		return base
 	}
 
-	// Merge extra into base (extra wins)
 	envMap := make(map[string]string, len(base))
 	for _, kv := range base {
 		parts := strings.SplitN(kv, "=", 2)
@@ -190,12 +273,8 @@ func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.Project
 // projectMatchesScope checks if a project is within a feature gate's scope
 func projectMatchesScope(proj config.ProjectConfig, scope config.FeatureScope) bool {
 	if len(scope.Projects) == 0 && len(scope.GitlabGroups) == 0 && len(scope.GithubOrgs) == 0 {
-		return true // no scope restriction = applies to all
+		return true
 	}
-
-	// Check direct project name match
-	// (We don't have the project name here; the caller would need to pass it)
-	// For now we check the remote URL against scopes
 
 	host, path, _, err := config.ParseRemoteURL(proj.Remote)
 	if err != nil {
@@ -243,14 +322,41 @@ func (h *searchForHandler) HandleOutput(ctx context.Context, out executor.Output
 		if err != nil {
 			continue
 		}
-		if re.MatchString(line) {
-			hint := fmt.Sprintf("\n[HINT] %s\n", sf.Hint)
-			_ = h.inner.HandleOutput(ctx, executor.Output{
-				CmdName: h.taskName,
-				Stream:  executor.StdoutStream,
-				Output:  []byte(hint),
-			})
+		groups := re.FindStringSubmatch(line)
+		if groups == nil {
+			continue
 		}
+		hint := fmt.Sprintf("\n[HINT] %s\n", expandHint(sf.Hint, groups))
+		_ = h.inner.HandleOutput(ctx, executor.Output{
+			CmdName: h.taskName,
+			Stream:  executor.StdoutStream,
+			Output:  []byte(hint),
+		})
 	}
 	return h.inner.HandleOutput(ctx, out)
+}
+
+// expandHint expands capture group references ({1}, {2}, ...) and strips chalk-style
+// color tags ({cyan text}, {bgYellow text}, etc.) inherited from the TypeScript config.
+func expandHint(hint string, groups []string) string {
+	// Expand {n} capture group references first.
+	groupRef := regexp.MustCompile(`\{(\d+)\}`)
+	hint = groupRef.ReplaceAllStringFunc(hint, func(m string) string {
+		n, _ := strconv.Atoi(m[1 : len(m)-1])
+		if n < len(groups) {
+			return groups[n]
+		}
+		return ""
+	})
+	// Strip chalk-style color tags: {keyword content} → content.
+	// Repeat until no more tags remain (handles nesting).
+	chalkTag := regexp.MustCompile(`\{[a-zA-Z][a-zA-Z0-9]*(?:\s[a-zA-Z0-9]*)*\s([^{}]*)\}`)
+	for {
+		replaced := chalkTag.ReplaceAllString(hint, "$1")
+		if replaced == hint {
+			break
+		}
+		hint = replaced
+	}
+	return strings.TrimSpace(hint)
 }

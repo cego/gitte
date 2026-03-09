@@ -82,6 +82,7 @@ type taskRun struct {
 	status    taskStatus
 	attempt   int // current attempt (1-based)
 	startedAt time.Time
+	skipped   bool // true when the task was skipped due to a failed dependency
 }
 
 // CommandResult is the result of a single task execution
