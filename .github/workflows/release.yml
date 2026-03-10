@@ -92,11 +92,21 @@ jobs:
             ppa/ deploy@gitte-ppa.cego.dk:/var/www/ppa/
           rm /tmp/ppa_key
 
+      - name: Generate Homebrew tap token
+        if: github.ref_type == 'tag' && !contains(github.ref_name, '-rc.')
+        id: tap-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.TAP_APP_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: cego
+          repositories: homebrew-tap
+
       - name: Update Homebrew tap
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' && !contains(github.ref_name, '-rc.')
         env:
           VERSION: ${{ github.ref_name }}
-          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+          TAP_TOKEN: ${{ steps.tap-token.outputs.token }}
         run: |
           SHA_DARWIN_AMD64=$(sha256sum bin/gitte-darwin-amd64.tar.gz | awk '{print $1}')
           SHA_DARWIN_ARM64=$(sha256sum bin/gitte-darwin-arm64.tar.gz | awk '{print $1}')
