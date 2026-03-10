@@ -75,6 +75,7 @@ func init() {
 		newToggleCmd(),
 		newFeaturesCmd(),
 		newCleanCmd(),
+		newListCmd(),
 	)
 }
 
