@@ -349,4 +349,3 @@ func stripANSI(s string) string {
 	}
 	return result
 }
-

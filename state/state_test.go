@@ -105,8 +105,8 @@ func TestState_SaveSetsVersion(t *testing.T) {
 	dir := t.TempDir()
 
 	s := &GitteState{
-		Version: 0, // should be overwritten by Save
-		Toggles: make(map[string]bool),
+		Version:  0, // should be overwritten by Save
+		Toggles:  make(map[string]bool),
 		Features: make(map[string]FeatureState),
 	}
 
