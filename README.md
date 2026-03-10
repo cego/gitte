@@ -37,7 +37,7 @@ sudo apt install gitte
 
 Download the latest binary from the [releases page](https://github.com/cego/gitte/releases) and place it on your `PATH`.
 
-### Build from source
+### Go install
 
 Requires Go 1.24 or later.
 
