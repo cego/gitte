@@ -30,23 +30,15 @@ type NoopOutputHandler struct{}
 
 func (n NoopOutputHandler) HandleOutput(_ context.Context, _ Output) error { return nil }
 
-// LogOutputHandler prints output to stdout with a prefix
-type LogOutputHandler struct{}
-
-func (l LogOutputHandler) HandleOutput(_ context.Context, output Output) error {
-	return nil // replaced by plain/TUI writer
-}
-
-// ToChannelOutputHandler feeds output into a channel
+// ToChannelOutputHandler feeds output into a channel, blocking until sent or ctx is done
 type ToChannelOutputHandler struct {
 	OutputCh chan<- Output
 }
 
-func (h ToChannelOutputHandler) HandleOutput(_ context.Context, output Output) error {
+func (h ToChannelOutputHandler) HandleOutput(ctx context.Context, output Output) error {
 	select {
 	case h.OutputCh <- output:
-	default:
-		// channel full, drop line (shouldn't happen with adequate buffer)
+	case <-ctx.Done():
 	}
 	return nil
 }

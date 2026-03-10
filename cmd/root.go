@@ -30,6 +30,7 @@ var (
 	globalSt     *state.GitteState
 	globalCwd    string
 	globalCtx    context.Context
+	globalCancel context.CancelFunc
 )
 
 // rootCmd is the base command
@@ -48,8 +49,18 @@ with dependency resolution.`,
 
 var errorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196"))
 
+// SetVersion sets the version string shown by --version.
+func SetVersion(v string) {
+	rootCmd.Version = v
+}
+
 // Execute adds all child commands and runs
 func Execute() {
+	defer func() {
+		if globalCancel != nil {
+			globalCancel()
+		}
+	}()
 	err := rootCmd.Execute()
 	if err != nil {
 		if output.DetectMode(flagNoTTY) == output.ModePlain {
@@ -97,7 +108,7 @@ func initGlobals() error {
 			return fmt.Errorf("failed to determine working directory: %w", err)
 		}
 	}
-	globalCtx, _ = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	globalCtx, globalCancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	// loadConfig resolves the config directory, sets globalCwd, loads state, then loads config
 	cfg, err := loadConfig(searchDir)

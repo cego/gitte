@@ -164,7 +164,9 @@ func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd strin
 			retryConfig.Backoff = cfg.Retry.Default.Backoff
 		}
 
-		allSearchFors := append(searchFors, action.SearchFors...)
+		allSearchFors := make([]config.SearchFor, len(searchFors), len(searchFors)+len(action.SearchFors))
+		copy(allSearchFors, searchFors)
+		allSearchFors = append(allSearchFors, action.SearchFors...)
 
 		tasks = append(tasks, executor.Task{
 			Name:  taskName(key.GroupKey),

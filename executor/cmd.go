@@ -18,8 +18,8 @@ type ExecuteResult struct {
 }
 
 // ExecuteSyncInDir runs a command synchronously in the given directory
-func ExecuteSyncInDir(cwd string, command string, args ...string) (*ExecuteResult, error) {
-	cmd := exec.CommandContext(context.Background(), command, args...) //nolint:gosec
+func ExecuteSyncInDir(ctx context.Context, cwd string, command string, args ...string) (*ExecuteResult, error) {
+	cmd := exec.CommandContext(ctx, command, args...) //nolint:gosec
 	cmd.Dir = cwd
 
 	var stdout, stderr bytes.Buffer
@@ -47,8 +47,8 @@ func ExecuteSyncInDir(cwd string, command string, args ...string) (*ExecuteResul
 }
 
 // ExecuteSync runs a command synchronously in the current directory
-func ExecuteSync(command string, args ...string) (*ExecuteResult, error) {
-	return ExecuteSyncInDir("", command, args...)
+func ExecuteSync(ctx context.Context, command string, args ...string) (*ExecuteResult, error) {
+	return ExecuteSyncInDir(ctx, "", command, args...)
 }
 
 // ExecuteSyncInDirWithOutputHandler runs a command, streaming output via the handler

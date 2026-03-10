@@ -8,7 +8,10 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"time"
 )
+
+var gitlabHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 type gitlabProject struct {
 	SSHURLToRepo      string `json:"ssh_url_to_repo"`
@@ -60,7 +63,7 @@ func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string) ([]
 }
 
 func fetchGitlabPage(req *http.Request, group string) ([]gitlabProject, string, error) {
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := gitlabHTTPClient.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("gitlab API request failed: %w", err)
 	}

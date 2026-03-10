@@ -33,27 +33,17 @@ func ResolveGitteDir(cwd string) (FileDefinition, error) {
 
 func resolveGitteDirFrom(dir string) (FileDefinition, error) {
 	// Check for .gitte-env first (remote config)
-	if f, err := os.Open(filepath.Join(dir, DotEnvPath)); err == nil {
-		content, readErr := io.ReadAll(f)
-		if closeErr := f.Close(); closeErr != nil && readErr == nil {
-			return FileDefinition{}, closeErr
-		}
-		if readErr != nil {
-			return FileDefinition{}, readErr
-		}
-		return FileDefinition{ConfigContent: content, IsEnv: true, Directory: dir}, nil
+	if fd, err := tryReadFile(filepath.Join(dir, DotEnvPath)); err != nil {
+		return FileDefinition{}, err
+	} else if fd != nil {
+		return FileDefinition{ConfigContent: fd, IsEnv: true, Directory: dir}, nil
 	}
 
 	// Check for .gitte.yml
-	if f, err := os.Open(filepath.Join(dir, ConfigPath)); err == nil {
-		content, readErr := io.ReadAll(f)
-		if closeErr := f.Close(); closeErr != nil && readErr == nil {
-			return FileDefinition{}, closeErr
-		}
-		if readErr != nil {
-			return FileDefinition{}, readErr
-		}
-		return FileDefinition{ConfigContent: content, IsEnv: false, Directory: dir}, nil
+	if fd, err := tryReadFile(filepath.Join(dir, ConfigPath)); err != nil {
+		return FileDefinition{}, err
+	} else if fd != nil {
+		return FileDefinition{ConfigContent: fd, IsEnv: false, Directory: dir}, nil
 	}
 
 	parent := filepath.Dir(dir)
@@ -61,6 +51,26 @@ func resolveGitteDirFrom(dir string) (FileDefinition, error) {
 		return FileDefinition{}, ErrGitteConfigNotFound
 	}
 	return resolveGitteDirFrom(parent)
+}
+
+// tryReadFile reads a file and returns its contents.
+// Returns (nil, nil) if the file does not exist, (nil, err) on other errors.
+func tryReadFile(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	content, readErr := io.ReadAll(f)
+	if closeErr := f.Close(); closeErr != nil && readErr == nil {
+		return nil, closeErr
+	}
+	if readErr != nil {
+		return nil, readErr
+	}
+	return content, nil
 }
 
 // LoadGitteConfigFromYAML parses raw YAML bytes into a GitteConfig

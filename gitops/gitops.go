@@ -103,7 +103,7 @@ func Sync(
 				continue
 			}
 			if doCheckout {
-				if err := checkoutBranch(p.ProjectPath, p.DefaultBranch); err != nil {
+				if err := checkoutBranch(ctx, p.ProjectPath, p.DefaultBranch); err != nil {
 					promptErrs = append(promptErrs, fmt.Errorf("[%s] checkout failed: %w", p.ProjectName, err))
 				} else if p.retryFn != nil {
 					if err := p.retryFn(); err != nil {
@@ -126,28 +126,28 @@ func SyncTransient(ctx context.Context, remote, cwd string) error {
 	projectPath := filepath.Join(cwd, localDir)
 
 	if _, err := os.Stat(projectPath); os.IsNotExist(err) {
-		return cloneRemote(cwd, remote, localDir)
+		return cloneRemote(ctx, cwd, remote, localDir)
 	}
 
 	if err := fetchOrigin(ctx, projectPath); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: fetch failed for %s: %v\n", localDir, err)
 	}
 
-	dirty, err := hasLocalChanges(projectPath)
+	dirty, err := hasLocalChanges(ctx, projectPath)
 	if err != nil {
 		return err
 	}
 	if dirty {
-		fmt.Printf("warning: skipping pull for %s (local changes present)\n", localDir)
+		fmt.Fprintf(os.Stderr, "warning: skipping pull for %s (local changes present)\n", localDir)
 		return nil
 	}
 
-	branch := getCurrentBranch(projectPath)
+	branch := getCurrentBranch(ctx, projectPath)
 	if branch == "" {
 		return fmt.Errorf("cannot determine current branch in %s", projectPath)
 	}
 
-	_, err = mergeFastForward(projectPath, "origin/"+branch)
+	_, err = mergeFastForward(ctx, projectPath, "origin/"+branch)
 	return err
 }
 
@@ -172,10 +172,10 @@ func syncProject(
 	}
 
 	// retryFn re-syncs the project after a successful checkout.
-	// The TUI is already gone by the time this runs, so we print plain output.
+	// The TUI is already gone by the time this runs, so we print to stderr.
 	retryFn := func() error {
 		return syncProject(ctx, cwd, name, proj, noRebase,
-			func(d string) { fmt.Printf("  [%s] %s\n", name, d) },
+			func(d string) { fmt.Fprintf(os.Stderr, "  [%s] %s\n", name, d) },
 			func(_ CheckoutPrompt) {}, // no further prompts after retry
 		)
 	}
@@ -183,7 +183,7 @@ func syncProject(
 	// Clone if directory does not exist yet.
 	if _, err := os.Stat(projectPath); os.IsNotExist(err) {
 		setDetail("cloning…")
-		if err := cloneRemote(cwd, proj.Remote, localDir); err != nil {
+		if err := cloneRemote(ctx, cwd, proj.Remote, localDir); err != nil {
 			return err
 		}
 		setDetail("cloned")
@@ -197,7 +197,11 @@ func syncProject(
 	}
 
 	// Detached HEAD.
-	if detached, _ := isDetachedHEAD(projectPath); detached {
+	detached, err := isDetachedHEAD(ctx, projectPath)
+	if err != nil {
+		return err
+	}
+	if detached {
 		setDetail("detached: not on a branch")
 		addPrompt(CheckoutPrompt{
 			ProjectName:    name,
@@ -210,24 +214,24 @@ func syncProject(
 		return nil
 	}
 
-	currentBranch := getCurrentBranch(projectPath)
+	currentBranch := getCurrentBranch(ctx, projectPath)
 
 	// Local changes: skip pull/rebase.
-	dirty, err := hasLocalChanges(projectPath)
+	dirty, err := hasLocalChanges(ctx, projectPath)
 	if err != nil {
 		return err
 	}
 	if dirty {
 		setDetail("skipped")
 		if currentBranch != defaultBranch {
-			addStaleIfNeeded(name, projectPath, defaultBranch, retryFn, setDetail, addPrompt)
+			addStaleIfNeeded(ctx, name, projectPath, defaultBranch, retryFn, setDetail, addPrompt)
 		}
 		return nil
 	}
 
 	// ── On default branch ──────────────────────────────────────────────────
 	if currentBranch == defaultBranch {
-		upToDate, err := mergeFastForward(projectPath, "origin/"+defaultBranch)
+		upToDate, err := mergeFastForward(ctx, projectPath, "origin/"+defaultBranch)
 		if err != nil {
 			return err
 		}
@@ -243,7 +247,7 @@ func syncProject(
 	remoteCurrentRef := "origin/" + currentBranch
 
 	// Broken remote: tracking branch configured but no longer exists on origin.
-	if !remoteRefExists(projectPath, remoteCurrentRef) && hasRemoteTrackingConfig(projectPath, currentBranch) {
+	if !remoteRefExists(ctx, projectPath, remoteCurrentRef) && hasRemoteTrackingConfig(ctx, projectPath, currentBranch) {
 		reason := fmt.Sprintf("remote branch '%s' no longer exists", currentBranch)
 		setDetail("detached: " + reason)
 		addPrompt(CheckoutPrompt{
@@ -259,10 +263,10 @@ func syncProject(
 
 	// Pull from remote tracking branch if it has new commits.
 	pulledLabel := ""
-	if remoteRefExists(projectPath, remoteCurrentRef) {
-		ahead := commitsAhead(projectPath, "HEAD", remoteCurrentRef)
+	if remoteRefExists(ctx, projectPath, remoteCurrentRef) {
+		ahead := commitsAhead(ctx, projectPath, "HEAD", remoteCurrentRef)
 		if ahead > 0 {
-			if _, err := mergeFastForward(projectPath, remoteCurrentRef); err != nil {
+			if _, err := mergeFastForward(ctx, projectPath, remoteCurrentRef); err != nil {
 				// Diverged from own remote — warn but don't fail.
 				setDetail(fmt.Sprintf("stale: diverged from origin/%s", currentBranch))
 			} else {
@@ -274,8 +278,8 @@ func syncProject(
 	// Auto-rebase onto default branch (unless disabled).
 	if !noRebase {
 		remoteDefaultRef := "origin/" + defaultBranch
-		if commitsAhead(projectPath, "HEAD", remoteDefaultRef) > 0 {
-			ok, err := tryRebase(projectPath, remoteDefaultRef)
+		if commitsAhead(ctx, projectPath, "HEAD", remoteDefaultRef) > 0 {
+			ok, err := tryRebase(ctx, projectPath, remoteDefaultRef)
 			if err != nil {
 				return err
 			}
@@ -302,7 +306,7 @@ func syncProject(
 	}
 
 	// Stale check for projects not yet brought up to date.
-	if !addStaleIfNeeded(name, projectPath, defaultBranch, retryFn, setDetail, addPrompt) {
+	if !addStaleIfNeeded(ctx, name, projectPath, defaultBranch, retryFn, setDetail, addPrompt) {
 		if pulledLabel != "" {
 			setDetail(pulledLabel)
 		} else {
@@ -316,13 +320,13 @@ func syncProject(
 // addStaleIfNeeded checks whether the project is behind origin/<defaultBranch>
 // by more than one week.  If so it updates the TUI detail and registers a
 // checkout prompt.  Returns true when a prompt was added.
-func addStaleIfNeeded(name, dir, defaultBranch string, retryFn func() error, setDetail func(string), addPrompt func(CheckoutPrompt)) bool {
-	days := staleDays(dir, defaultBranch)
+func addStaleIfNeeded(ctx context.Context, name, dir, defaultBranch string, retryFn func() error, setDetail func(string), addPrompt func(CheckoutPrompt)) bool {
+	days := staleDays(ctx, dir, defaultBranch)
 	if days == 0 {
 		return false
 	}
 
-	hasWork := commitsAhead(dir, "origin/"+defaultBranch, "HEAD") > 0
+	hasWork := commitsAhead(ctx, dir, "origin/"+defaultBranch, "HEAD") > 0
 
 	reason := fmt.Sprintf("%d days behind %s", days, defaultBranch)
 	rec := fmt.Sprintf("git -C %s checkout %s", dir, defaultBranch)
@@ -346,11 +350,11 @@ func addStaleIfNeeded(name, dir, defaultBranch string, retryFn func() error, set
 // staleDays returns how many days behind origin/<defaultBranch> the current
 // branch is, measured at the newest unreachable commit.  Returns 0 when on
 // the default branch, already up-to-date, or when the check cannot run.
-func staleDays(dir, defaultBranch string) int {
+func staleDays(ctx context.Context, dir, defaultBranch string) int {
 	if defaultBranch == "" {
 		defaultBranch = "master"
 	}
-	res, err := executor.ExecuteSyncInDir(dir, "git", "rev-parse", "--abbrev-ref", "HEAD")
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil || res.ExitCode != 0 {
 		return 0
 	}
@@ -359,7 +363,7 @@ func staleDays(dir, defaultBranch string) int {
 	}
 
 	remoteRef := "origin/" + defaultBranch
-	res2, err := executor.ExecuteSyncInDir(dir, "git", "log", "HEAD.."+remoteRef, "--format=%ct", "--max-count=1")
+	res2, err := executor.ExecuteSyncInDir(ctx, dir, "git", "log", "HEAD.."+remoteRef, "--format=%ct", "--max-count=1")
 	if err != nil || res2.ExitCode != 0 {
 		return 0
 	}
@@ -406,27 +410,27 @@ func fetchOrigin(ctx context.Context, dir string) error {
 	return nil
 }
 
-func getCurrentBranch(dir string) string {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "rev-parse", "--abbrev-ref", "HEAD")
+func getCurrentBranch(ctx context.Context, dir string) string {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil || res.ExitCode != 0 {
 		return ""
 	}
 	return strings.TrimSpace(string(res.Stdout))
 }
 
-func remoteRefExists(dir, ref string) bool {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "rev-parse", "--verify", ref)
+func remoteRefExists(ctx context.Context, dir, ref string) bool {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-parse", "--verify", ref)
 	return err == nil && res.ExitCode == 0
 }
 
-func hasRemoteTrackingConfig(dir, branch string) bool {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "config", "--get", "branch."+branch+".remote")
+func hasRemoteTrackingConfig(ctx context.Context, dir, branch string) bool {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "config", "--get", "branch."+branch+".remote")
 	return err == nil && res.ExitCode == 0 && len(strings.TrimSpace(string(res.Stdout))) > 0
 }
 
 // commitsAhead returns the number of commits reachable from target but not from base.
-func commitsAhead(dir, base, target string) int {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "rev-list", "--count", base+".."+target)
+func commitsAhead(ctx context.Context, dir, base, target string) int {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-list", "--count", base+".."+target)
 	if err != nil || res.ExitCode != 0 {
 		return 0
 	}
@@ -437,8 +441,8 @@ func commitsAhead(dir, base, target string) int {
 	return n
 }
 
-func isDetachedHEAD(dir string) (bool, error) {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "rev-parse", "--abbrev-ref", "HEAD")
+func isDetachedHEAD(ctx context.Context, dir string) (bool, error) {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return false, fmt.Errorf("git rev-parse: %w", err)
 	}
@@ -448,8 +452,8 @@ func isDetachedHEAD(dir string) (bool, error) {
 	return strings.TrimSpace(string(res.Stdout)) == "HEAD", nil
 }
 
-func hasLocalChanges(dir string) (bool, error) {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "status", "--porcelain")
+func hasLocalChanges(ctx context.Context, dir string) (bool, error) {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "status", "--porcelain")
 	if err != nil {
 		return false, err
 	}
@@ -459,8 +463,8 @@ func hasLocalChanges(dir string) (bool, error) {
 	return len(strings.TrimSpace(string(res.Stdout))) > 0, nil
 }
 
-func cloneRemote(cwd, remote, localDir string) error {
-	res, err := executor.ExecuteSyncInDir(cwd, "git", "clone", remote, localDir)
+func cloneRemote(ctx context.Context, cwd, remote, localDir string) error {
+	res, err := executor.ExecuteSyncInDir(ctx, cwd, "git", "clone", remote, localDir)
 	if err != nil {
 		return fmt.Errorf("git clone failed: %w", err)
 	}
@@ -475,8 +479,8 @@ func cloneRemote(cwd, remote, localDir string) error {
 
 // mergeFastForward runs git merge --ff-only <ref> and returns whether HEAD was
 // already up-to-date.
-func mergeFastForward(dir, ref string) (upToDate bool, err error) {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "merge", "--ff-only", ref)
+func mergeFastForward(ctx context.Context, dir, ref string) (upToDate bool, err error) {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "merge", "--ff-only", ref)
 	if err != nil {
 		return false, fmt.Errorf("git merge: %w", err)
 	}
@@ -492,8 +496,8 @@ func mergeFastForward(dir, ref string) (upToDate bool, err error) {
 
 // tryRebase attempts git rebase <onto>.  On conflict it aborts the rebase and
 // returns (false, nil).  Returns (true, nil) on success.
-func tryRebase(dir, onto string) (bool, error) {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "rebase", onto)
+func tryRebase(ctx context.Context, dir, onto string) (bool, error) {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rebase", onto)
 	if err != nil {
 		return false, fmt.Errorf("git rebase: %w", err)
 	}
@@ -501,7 +505,7 @@ func tryRebase(dir, onto string) (bool, error) {
 		return true, nil
 	}
 	// Rebase failed — abort to restore pre-rebase state.
-	abort, abortErr := executor.ExecuteSyncInDir(dir, "git", "rebase", "--abort")
+	abort, abortErr := executor.ExecuteSyncInDir(ctx, dir, "git", "rebase", "--abort")
 	if abortErr != nil {
 		return false, fmt.Errorf("rebase failed and abort also failed: %w", abortErr)
 	}
@@ -511,8 +515,8 @@ func tryRebase(dir, onto string) (bool, error) {
 	return false, nil
 }
 
-func checkoutBranch(dir, branch string) error {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "checkout", branch)
+func checkoutBranch(ctx context.Context, dir, branch string) error {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "checkout", branch)
 	if err != nil {
 		return fmt.Errorf("git checkout: %w", err)
 	}

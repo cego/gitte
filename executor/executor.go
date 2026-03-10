@@ -81,6 +81,9 @@ func (e *Executor) WithOutputHandler(h OutputHandler) *Executor {
 func (e *Executor) Execute(ctx context.Context) error {
 	completionCh := make(chan CommandResult, len(e.tasks)*2)
 	outputCh := make(chan Output, 2000)
+	// internalRetryCh receives tasks whose retry delay has elapsed, ready to be re-queued.
+	// Using a channel ensures status mutations only happen on the main goroutine, avoiding data races.
+	internalRetryCh := make(chan *taskRun, len(e.tasks))
 
 	// Semaphore for max parallelization
 	var semaphore chan struct{}
@@ -128,12 +131,12 @@ func (e *Executor) Execute(ctx context.Context) error {
 
 				run.attempt++
 				if run.attempt < maxAttempts {
-					// Schedule retry
+					// Schedule retry: goroutine waits for the delay, then notifies the main loop
+					// via internalRetryCh so all status mutations stay on the main goroutine.
 					delay := parseRetryDelay(run.task.Retry.Delay, run.task.Retry.Backoff, run.attempt)
 					go func(r *taskRun, d time.Duration) {
 						time.Sleep(d)
-						r.status = statusPending
-						_ = e.startReadyTasks(ctx, completionCh, outputCh, semaphore)
+						internalRetryCh <- r
 					}(run, delay)
 				} else {
 					run.status = statusFailed
@@ -142,6 +145,12 @@ func (e *Executor) Execute(ctx context.Context) error {
 						errs = append(errs, result.Error)
 					}
 				}
+			}
+
+		case r := <-internalRetryCh:
+			r.status = statusPending
+			if e.opts.OnTaskReset != nil {
+				e.opts.OnTaskReset(r.task.Name)
 			}
 
 		case names := <-retryReqCh:
@@ -171,11 +180,9 @@ func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- Comm
 			continue
 		}
 
-		if !e.depsSatisfied(name) {
-			continue
-		}
-
-		// Check if any dep failed (skip this task permanently)
+		// Check if any dep failed (skip this task permanently).
+		// This must be checked before depsSatisfied because a failed dep also
+		// causes depsSatisfied to return false, which would leave the task stuck.
 		if e.depsHaveFailed(name) {
 			run.status = statusFailed
 			run.skipped = true
@@ -188,6 +195,10 @@ func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- Comm
 				Success: false,
 				Error:   skipErr,
 			}
+			continue
+		}
+
+		if !e.depsSatisfied(name) {
 			continue
 		}
 
@@ -321,13 +332,25 @@ func (e *Executor) pendingNames() string {
 func (e *Executor) drainOutput(ctx context.Context, outputCh <-chan Output) {
 	for {
 		select {
-		case <-ctx.Done():
-			return
 		case out, ok := <-outputCh:
 			if !ok {
 				return
 			}
 			_ = e.outputHandler.HandleOutput(ctx, out)
+		case <-ctx.Done():
+			// Drain any lines already queued before exiting so the last output of a
+			// failing command is not lost when the context is cancelled.
+			for {
+				select {
+				case out, ok := <-outputCh:
+					if !ok {
+						return
+					}
+					_ = e.outputHandler.HandleOutput(context.Background(), out)
+				default:
+					return
+				}
+			}
 		}
 	}
 }

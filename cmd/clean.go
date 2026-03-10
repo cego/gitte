@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gitte/config"
 	"gitte/executor"
@@ -30,7 +32,7 @@ Flags:
   --master         Show repos on master/main branch
   --non-gitte      Show dirs in root not in gitte config`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runClean(untracked, localChanges, master, nonGitte)
+			return runClean(globalCtx, untracked, localChanges, master, nonGitte)
 		},
 	}
 
@@ -42,7 +44,7 @@ Flags:
 	return cmd
 }
 
-func runClean(untracked, localChanges, master, nonGitte bool) error {
+func runClean(ctx context.Context, untracked, localChanges, master, nonGitte bool) error {
 	for name, proj := range globalCfg.Projects {
 		localDir, err := config.LocalDirForRemote(proj.Remote)
 		if err != nil {
@@ -57,11 +59,11 @@ func runClean(untracked, localChanges, master, nonGitte bool) error {
 		}
 
 		if untracked || localChanges {
-			checkLocalState(name, projectPath, untracked, localChanges)
+			checkLocalState(ctx, name, projectPath, untracked, localChanges)
 		}
 
 		if master {
-			checkBranch(name, projectPath)
+			checkBranch(ctx, name, projectPath)
 		}
 	}
 
@@ -72,15 +74,15 @@ func runClean(untracked, localChanges, master, nonGitte bool) error {
 	return nil
 }
 
-func checkLocalState(name, dir string, checkUntracked, checkLocalChanges bool) {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "status", "--porcelain")
+func checkLocalState(ctx context.Context, name, dir string, checkUntracked, checkLocalChanges bool) {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "status", "--porcelain")
 	if err != nil || res.ExitCode != 0 {
 		return
 	}
 
 	output := string(res.Stdout)
 	if checkUntracked {
-		for _, line := range splitLines(output) {
+		for _, line := range strings.Split(output, "\n") {
 			if len(line) >= 2 && line[0] == '?' && line[1] == '?' {
 				fmt.Printf("[clean] %s: has untracked files\n", name)
 				break
@@ -92,13 +94,12 @@ func checkLocalState(name, dir string, checkUntracked, checkLocalChanges bool) {
 	}
 }
 
-func checkBranch(name, dir string) {
-	res, err := executor.ExecuteSyncInDir(dir, "git", "branch", "--show-current")
+func checkBranch(ctx context.Context, name, dir string) {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "branch", "--show-current")
 	if err != nil || res.ExitCode != 0 {
 		return
 	}
-	branch := string(res.Stdout)
-	branch = trimRight(branch, "\n\r")
+	branch := strings.TrimRight(string(res.Stdout), "\n\r")
 	if branch == "master" || branch == "main" {
 		fmt.Printf("[clean] %s: on default branch (%s)\n", name, branch)
 	}
@@ -115,36 +116,4 @@ func checkNonGitte() {
 		}
 	}
 	fmt.Println("[clean] non-gitte check: not fully implemented yet")
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
-}
-
-func trimRight(s, cutset string) string {
-	for len(s) > 0 {
-		found := false
-		for _, c := range cutset {
-			if rune(s[len(s)-1]) == c {
-				s = s[:len(s)-1]
-				found = true
-				break
-			}
-		}
-		if !found {
-			break
-		}
-	}
-	return s
 }

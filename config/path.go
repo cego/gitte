@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+var (
+	sshRe   = regexp.MustCompile(`^git@([^:]+):(.+?)(?:\.git)?$`)
+	httpsRe = regexp.MustCompile(`^https?://([^/]+)/(.+?)(?:\.git)?$`)
+)
+
 // ParseRemoteURL parses a git remote URL and returns (host, namespacedPath, localDir)
 // Supports:
 //
@@ -15,7 +20,6 @@ func ParseRemoteURL(remote string) (host, path, localDir string, err error) {
 	remote = strings.TrimSpace(remote)
 
 	// SSH format: git@host:path.git
-	sshRe := regexp.MustCompile(`^git@([^:]+):(.+?)(?:\.git)?$`)
 	if m := sshRe.FindStringSubmatch(remote); m != nil {
 		host = m[1]
 		path = m[2]
@@ -24,7 +28,6 @@ func ParseRemoteURL(remote string) (host, path, localDir string, err error) {
 	}
 
 	// HTTPS format: https://host/path.git
-	httpsRe := regexp.MustCompile(`^https?://([^/]+)/(.+?)(?:\.git)?$`)
 	if m := httpsRe.FindStringSubmatch(remote); m != nil {
 		host = m[1]
 		path = m[2]

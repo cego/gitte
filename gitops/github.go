@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 )
+
+var githubHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 type githubRepo struct {
 	SSHURL   string `json:"ssh_url"`
@@ -52,7 +55,7 @@ func ListGithubOrgRepos(ctx context.Context, host, org, tokenEnv string) ([]Disc
 }
 
 func fetchGithubPage(req *http.Request, org string) ([]githubRepo, error) {
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := githubHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("github API request failed: %w", err)
 	}

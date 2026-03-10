@@ -50,27 +50,6 @@ type TUIMsg struct {
 	Line     string // if non-empty, a log line to append
 }
 
-// RunTUI starts the BubbleTea run TUI and returns a channel to send updates to
-// The returned func should be called when execution is complete
-func RunTUI(taskNames []string) (chan<- TUIMsg, func() error) {
-	msgCh := make(chan TUIMsg, 500)
-
-	m := newRunModel(taskNames, msgCh)
-	p := tea.NewProgram(m, tea.WithAltScreen())
-
-	doneCh := make(chan error, 1)
-	go func() {
-		_, err := p.Run()
-		doneCh <- err
-	}()
-
-	waitFn := func() error {
-		return <-doneCh
-	}
-
-	return msgCh, waitFn
-}
-
 type runModel struct {
 	tasks       []*TaskState
 	taskIndex   map[string]int
@@ -371,31 +350,3 @@ func stripANSI(s string) string {
 	return result
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// TUIOutputHandler connects executor output to the TUI
-type TUIOutputHandler struct {
-	msgCh    chan<- TUIMsg
-	taskName string
-}
-
-func NewTUIOutputHandler(msgCh chan<- TUIMsg, taskName string) *TUIOutputHandler {
-	return &TUIOutputHandler{msgCh: msgCh, taskName: taskName}
-}
-
-func (h *TUIOutputHandler) HandleOutput(_ interface{}, output interface{}) error {
-	// This is the adapter between executor.Output and TUIMsg
-	return nil
-}

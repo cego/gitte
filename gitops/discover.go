@@ -3,6 +3,7 @@ package gitops
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"gitte/config"
 )
@@ -41,7 +42,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string) error {
 
 	for _, repo := range repos {
 		if err := SyncTransient(ctx, repo.Remote, cwd); err != nil {
-			fmt.Printf("warning: discovery sync failed for %s: %v\n", repo.Remote, err)
+			fmt.Fprintf(os.Stderr, "warning: discovery sync failed for %s: %v\n", repo.Remote, err)
 		}
 	}
 
