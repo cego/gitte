@@ -71,6 +71,23 @@ func (e *Executor) WithRetryChannel(ch <-chan []string) *Executor {
 	return e
 }
 
+// WithPreCompleted marks tasks as already completed before Execute is called.
+// Succeeded and failed tasks are counted as finished from the start, allowing the
+// executor to be created with a full task set while only running a subset.
+func (e *Executor) WithPreCompleted(succeeded, failed []string) *Executor {
+	for _, name := range succeeded {
+		if run, ok := e.tasks[name]; ok {
+			run.status = statusSuccess
+		}
+	}
+	for _, name := range failed {
+		if run, ok := e.tasks[name]; ok {
+			run.status = statusFailed
+		}
+	}
+	return e
+}
+
 // WithOutputHandler sets the output handler for all tasks
 func (e *Executor) WithOutputHandler(h OutputHandler) *Executor {
 	e.outputHandler = h
@@ -106,6 +123,11 @@ func (e *Executor) Execute(ctx context.Context) error {
 	}()
 
 	finished := 0
+	for _, run := range e.tasks {
+		if run.status == statusSuccess || run.status == statusFailed {
+			finished++
+		}
+	}
 	total := len(e.tasks)
 	var errs []error
 

@@ -267,6 +267,135 @@ func TestExecutor_ParseRetryDelay(t *testing.T) {
 	}
 }
 
+func TestExecutor_PreCompletedSkipsExecution(t *testing.T) {
+	var ran []string
+	var mu sync.Mutex
+
+	tasks := []Task{
+		{
+			Name: "already-done",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error {
+				mu.Lock()
+				ran = append(ran, name)
+				mu.Unlock()
+				return nil
+			},
+		},
+		{
+			Name: "already-failed",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error {
+				mu.Lock()
+				ran = append(ran, name)
+				mu.Unlock()
+				return nil
+			},
+		},
+		{
+			Name: "should-run",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error {
+				mu.Lock()
+				ran = append(ran, name)
+				mu.Unlock()
+				return nil
+			},
+		},
+	}
+
+	exec, err := NewExecutor(tasks, ExecutorOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	exec.WithPreCompleted([]string{"already-done"}, []string{"already-failed"})
+
+	if err := exec.Execute(context.Background()); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if len(ran) != 1 || ran[0] != "should-run" {
+		t.Errorf("expected only should-run to execute, got %v", ran)
+	}
+}
+
+func TestExecutor_PreCompletedRetryViaChannel(t *testing.T) {
+	var ran []string
+	var mu sync.Mutex
+
+	tasks := []Task{
+		{
+			Name: "ok-task",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error {
+				mu.Lock()
+				ran = append(ran, name)
+				mu.Unlock()
+				return nil
+			},
+		},
+		{
+			Name: "failed-task",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error {
+				mu.Lock()
+				ran = append(ran, name)
+				mu.Unlock()
+				return nil
+			},
+		},
+		{
+			Name: "retry-task",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error {
+				mu.Lock()
+				ran = append(ran, name)
+				mu.Unlock()
+				return nil
+			},
+		},
+	}
+
+	retryCh := make(chan []string, 10)
+
+	exec, err := NewExecutor(tasks, ExecutorOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	exec.WithPreCompleted([]string{"ok-task"}, []string{"failed-task"})
+	exec.WithRetryChannel(retryCh)
+
+	// While retry-task runs, send a retry for failed-task.
+	tasks[2].ExecuteFn = func(ctx context.Context, name string, h OutputHandler) error {
+		mu.Lock()
+		ran = append(ran, name)
+		mu.Unlock()
+		retryCh <- []string{"failed-task"}
+		// Give executor time to process the retry.
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	}
+	// Re-create executor with updated task.
+	exec, _ = NewExecutor(tasks, ExecutorOptions{})
+	exec.WithPreCompleted([]string{"ok-task"}, []string{"failed-task"})
+	exec.WithRetryChannel(retryCh)
+
+	if err := exec.Execute(context.Background()); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	// retry-task runs, then failed-task gets retried and runs.
+	found := map[string]bool{}
+	for _, name := range ran {
+		found[name] = true
+	}
+	if !found["retry-task"] {
+		t.Error("retry-task should have run")
+	}
+	if !found["failed-task"] {
+		t.Error("failed-task should have been retried and run")
+	}
+	if found["ok-task"] {
+		t.Error("ok-task was pre-completed and should not have run")
+	}
+}
+
 func TestExecutor_DependencyBlocking(t *testing.T) {
 	// dep must not start before base completes
 	baseDone := make(chan struct{})

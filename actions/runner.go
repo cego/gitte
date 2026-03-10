@@ -2,12 +2,14 @@ package actions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
@@ -28,16 +30,38 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	infos := buildTaskInfos(cfg, cwd, keys)
 	view := newView(mode, infos, actionOrder, runCancel, retryCh, cfg.QuickSolve.GitClean.Exclude)
 
-	currentKeys := keys
+	// Track per-task outcomes so retry runs can pre-complete tasks that already finished.
+	outcomes := make(map[string]taskOutcome)
+	onFinish := func(name string, err error, elapsed time.Duration) {
+		if err == nil {
+			outcomes[name] = outcomeSuccess
+		} else if errors.Is(err, executor.ErrTaskSkipped) {
+			outcomes[name] = outcomeSkipped
+		} else {
+			outcomes[name] = outcomeFailed
+		}
+		view.OnFinish(name, err, elapsed)
+	}
+
+	maxParallel := envMaxParallel
+	if len(keys) > 0 {
+		actionName := keys[0].Action
+		if override, ok := cfg.ActionOverride[actionName]; ok && override.MaxParallelization > 0 {
+			maxParallel = override.MaxParallelization
+		}
+	}
+
+	var retrySet map[string]struct{} // nil on first run
 	var runErr error
 	for {
-		tasks := buildExecutorTasks(cfg, st, cwd, currentKeys)
+		tasks := buildExecutorTasks(cfg, st, cwd, keys)
 
-		maxParallel := envMaxParallel
-		if len(currentKeys) > 0 {
-			actionName := currentKeys[0].Action
-			if override, ok := cfg.ActionOverride[actionName]; ok && override.MaxParallelization > 0 {
-				maxParallel = override.MaxParallelization
+		// Strip needs from explicitly retried tasks so they run immediately.
+		if retrySet != nil {
+			for i, t := range tasks {
+				if _, ok := retrySet[t.Name]; ok {
+					tasks[i].Needs = nil
+				}
 			}
 		}
 
@@ -45,12 +69,32 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			MaxParallelization: maxParallel,
 			OnTaskStart:        view.OnStart,
 			OnTaskReset:        view.OnReset,
-			OnTaskFinish:       view.OnFinish,
+			OnTaskFinish:       onFinish,
 		})
 		if err != nil {
 			runCancel()
 			return fmt.Errorf("action planning failed: %w", err)
 		}
+
+		// On retry runs, pre-complete tasks that aren't being re-run.
+		// This keeps the full task set in the executor so additional retries
+		// submitted via retryCh can find any failed task.
+		if retrySet != nil {
+			pendingSet := computePendingSet(retrySet, keys, outcomes)
+			var succeeded, failed []string
+			for _, t := range tasks {
+				if pendingSet[t.Name] {
+					continue
+				}
+				if outcomes[t.Name] == outcomeSuccess {
+					succeeded = append(succeeded, t.Name)
+				} else {
+					failed = append(failed, t.Name)
+				}
+			}
+			exec.WithPreCompleted(succeeded, failed)
+		}
+
 		exec.WithOutputHandler(view.Handler())
 		exec.WithRetryChannel(retryCh)
 
@@ -62,27 +106,21 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			return runErr
 		}
 
-		// Build retry key set preserving original config, stripping needs (deps already ran).
-		retrySet := make(map[string]struct{}, len(retryNames))
+		retrySet = make(map[string]struct{}, len(retryNames))
 		for _, n := range retryNames {
 			retrySet[n] = struct{}{}
 		}
-		var retryKeys []GroupKeyWithDeps
-		for _, key := range keys {
-			if _, ok := retrySet[taskName(key.GroupKey)]; ok {
-				rk := key
-				rk.Needs = nil
-				retryKeys = append(retryKeys, rk)
-			}
-		}
-		if len(retryKeys) == 0 {
+
+		// Compute all tasks that should be reset to pending: retried tasks
+		// plus skipped tasks that transitively depend on retried tasks.
+		pendingNames := computePendingSetSlice(retrySet, keys, outcomes)
+		if len(pendingNames) == 0 {
 			return runErr
 		}
 
 		retryCh = make(chan []string, 100)
 		runCtx, runCancel = context.WithCancel(ctx)
-		view.PrepareRetry(retryNames, retryCh, runCancel)
-		currentKeys = retryKeys
+		view.PrepareRetry(pendingNames, retryCh, runCancel)
 	}
 }
 
@@ -317,6 +355,65 @@ func ProjectMatchesScopeByName(projName string, proj config.ProjectConfig, scope
 		}
 	}
 	return projectMatchesScope(proj, scope)
+}
+
+type taskOutcome int
+
+const (
+	outcomeUnknown taskOutcome = iota
+	outcomeSuccess
+	outcomeFailed
+	outcomeSkipped
+)
+
+// computePendingSet returns the set of task names that should be left as pending
+// in a retry run: explicitly retried tasks plus skipped tasks that transitively
+// depend on retried tasks.
+func computePendingSet(retrySet map[string]struct{}, keys []GroupKeyWithDeps, outcomes map[string]taskOutcome) map[string]bool {
+	pending := make(map[string]bool, len(retrySet))
+	for name := range retrySet {
+		pending[name] = true
+	}
+
+	// Build dependents map: task → tasks that depend on it.
+	dependents := make(map[string][]string)
+	for _, key := range keys {
+		name := taskName(key.GroupKey)
+		for _, need := range key.Needs {
+			needName := taskName(need)
+			dependents[needName] = append(dependents[needName], name)
+		}
+	}
+
+	// Cascade to skipped dependents so they re-run when retried deps succeed.
+	queue := make([]string, 0, len(retrySet))
+	for name := range retrySet {
+		queue = append(queue, name)
+	}
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		for _, dep := range dependents[name] {
+			if pending[dep] {
+				continue
+			}
+			if outcomes[dep] == outcomeSkipped {
+				pending[dep] = true
+				queue = append(queue, dep)
+			}
+		}
+	}
+
+	return pending
+}
+
+func computePendingSetSlice(retrySet map[string]struct{}, keys []GroupKeyWithDeps, outcomes map[string]taskOutcome) []string {
+	pending := computePendingSet(retrySet, keys, outcomes)
+	result := make([]string, 0, len(pending))
+	for name := range pending {
+		result = append(result, name)
+	}
+	return result
 }
 
 // searchForHandler wraps an OutputHandler and checks output lines against searchFor patterns
