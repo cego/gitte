@@ -3,7 +3,7 @@ package actions
 import (
 	"testing"
 
-	"gitte/config"
+	"github.com/cego/gitte/config"
 )
 
 func testConfig() *config.GitteConfig {

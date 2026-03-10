@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"gitte/config"
+	"github.com/cego/gitte/config"
 
 	"github.com/spf13/cobra"
 )

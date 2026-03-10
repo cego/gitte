@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitte/config"
-	"gitte/executor"
+	"github.com/cego/gitte/config"
+	"github.com/cego/gitte/executor"
 
 	"github.com/spf13/cobra"
 )

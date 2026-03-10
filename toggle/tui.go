@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"gitte/config"
-	"gitte/state"
+	"github.com/cego/gitte/config"
+	"github.com/cego/gitte/state"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

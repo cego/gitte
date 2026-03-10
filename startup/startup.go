@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sort"
 
-	"gitte/config"
-	"gitte/executor"
-	"gitte/output"
+	"github.com/cego/gitte/config"
+	"github.com/cego/gitte/executor"
+	"github.com/cego/gitte/output"
 )
 
 // Run executes all startup checks and streams status to stdout.

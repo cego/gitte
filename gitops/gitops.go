@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"gitte/config"
-	"gitte/executor"
-	"gitte/output"
+	"github.com/cego/gitte/config"
+	"github.com/cego/gitte/executor"
+	"github.com/cego/gitte/output"
 )
 
 // CheckoutPrompt is raised for each project that the user may want to act on

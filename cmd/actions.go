@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"gitte/actions"
+	"github.com/cego/gitte/actions"
 
 	"github.com/spf13/cobra"
 )

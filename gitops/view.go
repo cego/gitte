@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"gitte/output"
+	"github.com/cego/gitte/output"
 )
 
 // View handles gitops output in either plain or TUI mode.

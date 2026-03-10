@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"gitte/config"
-	"gitte/output"
-	"gitte/state"
+	"github.com/cego/gitte/config"
+	"github.com/cego/gitte/output"
+	"github.com/cego/gitte/state"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"

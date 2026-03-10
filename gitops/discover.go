@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"gitte/config"
+	"github.com/cego/gitte/config"
 )
 
 // DiscoveredRepo represents a repo found via API discovery

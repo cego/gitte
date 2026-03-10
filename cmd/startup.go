@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"gitte/startup"
+	"github.com/cego/gitte/startup"
 
 	"github.com/spf13/cobra"
 )

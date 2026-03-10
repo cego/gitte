@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"gitte/config"
-	"gitte/state"
+	"github.com/cego/gitte/config"
+	"github.com/cego/gitte/state"
 
 	"github.com/spf13/cobra"
 )

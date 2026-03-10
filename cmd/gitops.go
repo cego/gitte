@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"gitte/gitops"
-	"gitte/output"
+	"github.com/cego/gitte/gitops"
+	"github.com/cego/gitte/output"
 
 	"github.com/spf13/cobra"
 )

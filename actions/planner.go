@@ -3,7 +3,7 @@ package actions
 import (
 	"strings"
 
-	"gitte/config"
+	"github.com/cego/gitte/config"
 
 	"github.com/samber/lo"
 )

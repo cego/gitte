@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"gitte/output"
-	"gitte/toggle"
+	"github.com/cego/gitte/output"
+	"github.com/cego/gitte/toggle"
 
 	"github.com/spf13/cobra"
 )

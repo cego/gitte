@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"gitte/executor"
-	"gitte/output"
+	"github.com/cego/gitte/executor"
+	"github.com/cego/gitte/output"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

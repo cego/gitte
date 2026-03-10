@@ -3,8 +3,8 @@ package cmd
 import (
 	"os"
 
-	"gitte/gitops"
-	"gitte/startup"
+	"github.com/cego/gitte/gitops"
+	"github.com/cego/gitte/startup"
 
 	"github.com/spf13/cobra"
 )

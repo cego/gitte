@@ -1,4 +1,4 @@
-module gitte
+module github.com/cego/gitte
 
 go 1.24.0
 
