@@ -77,6 +77,11 @@ func init() {
 		newCleanCmd(),
 		newListCmd(),
 	)
+
+	// --config accepts a file path
+	_ = rootCmd.RegisterFlagCompletionFunc("config", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		return []string{"yml", "yaml"}, cobra.ShellCompDirectiveFilterFileExt
+	})
 }
 
 func initGlobals() error {

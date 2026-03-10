@@ -13,14 +13,17 @@ import (
 )
 
 func newListCmd() *cobra.Command {
-	return &cobra.Command{
+	var showAll bool
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all projects and their actions",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runList()
+			return runList(showAll)
 		},
 	}
+	cmd.Flags().BoolVarP(&showAll, "all", "a", false, "include disabled projects")
+	return cmd
 }
 
 type listProj struct {
@@ -32,7 +35,7 @@ type listProj struct {
 	enabled  bool
 }
 
-func runList() error {
+func runList(showAll bool) error {
 	plain := outputMode() == output.ModePlain
 
 	// Which projects survive toggle filtering (enabled).
@@ -72,13 +75,24 @@ func runList() error {
 	projSty := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	disabledSty := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	actionSty := lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
-	disTagSty := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	countSty := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	keySty := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 
 	sty := func(s lipgloss.Style, text string) string {
 		if plain {
 			return text
 		}
 		return s.Render(text)
+	}
+
+	// Counts for the summary line.
+	totalEnabled, totalDisabled := 0, 0
+	for _, p := range projects {
+		if p.enabled {
+			totalEnabled++
+		} else {
+			totalDisabled++
+		}
 	}
 
 	// Recursive namespace tree printer — mirrors flattenNS in the actions TUI:
@@ -116,23 +130,47 @@ func runList() error {
 			printNS(nsMap[ns], depth+1)
 		}
 
-		// Leaf projects.
+		// Leaf projects: enabled first, then (optionally) disabled.
+		var disabledLeaves []listProj
+		disabledCount := 0
+
 		for _, leaf := range leafKeys {
 			for _, p := range leafMap[leaf] {
-				label := p.leaf
-				// Append config key in parentheses when it differs from the leaf name.
-				if p.name != p.leaf {
-					label += " (" + p.name + ")"
+				if !p.enabled {
+					disabledCount++
+					if showAll {
+						disabledLeaves = append(disabledLeaves, p)
+					}
+					continue
 				}
-
+				label := p.leaf
+				if p.name != p.leaf {
+					label += " " + sty(keySty, "("+p.name+")")
+				}
 				actStr := buildActionStr(p.actions, plain, sty, actionSty)
+				fmt.Printf("%s%s  %s\n", indent, sty(projSty, label), actStr)
+			}
+		}
 
-				if p.enabled {
-					fmt.Printf("%s%s  %s\n", indent, sty(projSty, label), actStr)
+		if showAll {
+			for _, p := range disabledLeaves {
+				label := p.leaf
+				if p.name != p.leaf {
+					label += " " + sty(keySty, "("+p.name+")")
+				}
+				actStr := buildActionStr(p.actions, plain, sty, actionSty)
+				if actStr != "" {
+					fmt.Printf("%s%s  %s\n", indent, sty(disabledSty, label), actStr)
 				} else {
-					fmt.Printf("%s%s  %s  %s\n", indent, sty(disabledSty, label), sty(disTagSty, "[disabled]"), actStr)
+					fmt.Printf("%s%s\n", indent, sty(disabledSty, label))
 				}
 			}
+		} else if disabledCount > 0 {
+			noun := "project"
+			if disabledCount > 1 {
+				noun = "projects"
+			}
+			fmt.Printf("%s%s\n", indent, sty(countSty, fmt.Sprintf("(+%d disabled %s)", disabledCount, noun)))
 		}
 	}
 
@@ -147,23 +185,23 @@ func runList() error {
 		printNS(hostMap[host], 1)
 	}
 
+	// Summary line.
+	summary := fmt.Sprintf("%d enabled", totalEnabled)
+	if totalDisabled > 0 && !showAll {
+		summary += fmt.Sprintf(", %d disabled (use --all to show)", totalDisabled)
+	} else if totalDisabled > 0 {
+		summary += fmt.Sprintf(", %d disabled", totalDisabled)
+	}
+	fmt.Println()
+	fmt.Println(sty(countSty, summary))
+
 	return nil
 }
 
-// buildActionStr produces "up[sn,ht]  down[sn,ht]" for a project's action map.
+// buildActionStr returns a sorted, comma-joined list of action names.
 func buildActionStr(actions map[string]config.ProjectAction, plain bool, sty func(lipgloss.Style, string) string, actionSty lipgloss.Style) string {
-	names := make([]string, 0, len(actions))
-	for a := range actions {
-		names = append(names, a)
-	}
-	sort.Strings(names)
-
-	parts := make([]string, 0, len(names))
-	for _, a := range names {
-		groups := sortedStringKeys2(actions[a].Groups)
-		parts = append(parts, sty(actionSty, a+"["+strings.Join(groups, ",")+"]"))
-	}
-	return strings.Join(parts, "  ")
+	names := sortedStringKeys(actions)
+	return sty(actionSty, strings.Join(names, ","))
 }
 
 func sortedStringKeys[V any](m map[string]V) []string {
@@ -173,10 +211,4 @@ func sortedStringKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-// sortedStringKeys2 is identical to sortedStringKeys but for []string values,
-// avoiding an ambiguous instantiation when both are in scope.
-func sortedStringKeys2(m map[string][]string) []string {
-	return sortedStringKeys(m)
 }

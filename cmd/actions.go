@@ -19,7 +19,8 @@ Examples:
   gitte actions up sn
   gitte actions up+build sn
   gitte actions up sn evolution+promotion`,
-		Args: cobra.RangeArgs(1, 3),
+		Args:              cobra.RangeArgs(1, 3),
+		ValidArgsFunction: actionArgsCompletion,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runActions(args)
 		},

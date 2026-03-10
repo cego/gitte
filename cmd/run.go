@@ -23,7 +23,8 @@ Examples:
   gitte run up sn
   gitte run up+build sn
   gitte run up sn evolution+promotion`,
-		Args: cobra.RangeArgs(0, 3),
+		Args:              cobra.RangeArgs(0, 3),
+		ValidArgsFunction: actionArgsCompletion,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Step 1: Startup checks
 			if err := startup.Run(globalCtx, globalCfg, globalCwd, outputMode()); err != nil {
