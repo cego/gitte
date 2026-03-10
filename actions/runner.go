@@ -25,8 +25,8 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	// The user presses r/R while Execute is running → task names written here → executor re-queues inline.
 	retryCh := make(chan []string, 100)
 
-	infos := buildTaskInfos(cfg, keys)
-	view := newView(mode, infos, actionOrder, runCancel, retryCh)
+	infos := buildTaskInfos(cfg, cwd, keys)
+	view := newView(mode, infos, actionOrder, runCancel, retryCh, cfg.QuickSolve.GitClean.Exclude)
 
 	currentKeys := keys
 	var runErr error
@@ -87,7 +87,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 }
 
 // buildTaskInfos constructs TaskInfo display metadata for each key.
-func buildTaskInfos(cfg *config.GitteConfig, keys []GroupKeyWithDeps) []TaskInfo {
+func buildTaskInfos(cfg *config.GitteConfig, cwd string, keys []GroupKeyWithDeps) []TaskInfo {
 	infos := make([]TaskInfo, 0, len(keys))
 	for _, key := range keys {
 		proj, ok := cfg.Projects[key.Project]
@@ -106,14 +106,22 @@ func buildTaskInfos(cfg *config.GitteConfig, keys []GroupKeyWithDeps) []TaskInfo
 			pathSegs = segs[:len(segs)-1]
 			projLeaf = segs[len(segs)-1]
 		}
+
+		var projectDir string
+		if localDir, lerr := config.LocalDirForRemote(proj.Remote); lerr == nil {
+			projectDir = filepath.Join(cwd, localDir)
+		}
+
 		infos = append(infos, TaskInfo{
-			TaskName: taskName(key.GroupKey),
-			Project:  key.Project,
-			Action:   key.Action,
-			Group:    key.Group,
-			Host:     host,
-			PathSegs: pathSegs,
-			ProjLeaf: projLeaf,
+			TaskName:      taskName(key.GroupKey),
+			Project:       key.Project,
+			Action:        key.Action,
+			Group:         key.Group,
+			Host:          host,
+			PathSegs:      pathSegs,
+			ProjLeaf:      projLeaf,
+			ProjectDir:    projectDir,
+			DefaultBranch: proj.DefaultBranch,
 		})
 	}
 	return infos

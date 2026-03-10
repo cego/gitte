@@ -15,6 +15,17 @@ type GitteConfig struct {
 	Retry          RetryDefaults             `yaml:"retry,omitempty"`
 	GroupIncludes  map[string][]string       `yaml:"groupIncludes,omitempty"`
 	Projects       map[string]ProjectConfig  `yaml:"projects,omitempty"`
+	QuickSolve     QuickSolveConfig          `yaml:"quickSolve,omitempty"`
+}
+
+// QuickSolveConfig holds settings for the quick solve feature in the actions TUI.
+type QuickSolveConfig struct {
+	GitClean QuickSolveGitClean `yaml:"git_clean,omitempty"`
+}
+
+// QuickSolveGitClean configures which directories are excluded from git clean -fdx.
+type QuickSolveGitClean struct {
+	Exclude []string `yaml:"exclude,omitempty"`
 }
 
 // Template is a reusable project configuration template.

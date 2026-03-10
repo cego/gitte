@@ -20,13 +20,15 @@ import (
 
 // TaskInfo carries metadata needed for tree display.
 type TaskInfo struct {
-	TaskName string
-	Project  string
-	Action   string
-	Group    string
-	Host     string
-	PathSegs []string // namespace path segments (not the leaf)
-	ProjLeaf string   // last segment of remote path (project folder name)
+	TaskName      string
+	Project       string
+	Action        string
+	Group         string
+	Host          string
+	PathSegs      []string // namespace path segments (not the leaf)
+	ProjLeaf      string   // last segment of remote path (project folder name)
+	ProjectDir    string   // absolute path to the project on disk (empty if unknown)
+	DefaultBranch string   // default branch (e.g. "master", "main")
 }
 
 // View handles action execution output.
@@ -43,11 +45,11 @@ type View interface {
 	PrepareRetry(taskNames []string, retryCh chan []string, cancel context.CancelFunc)
 }
 
-func newView(mode output.OutputMode, tasks []TaskInfo, actionOrder []string, cancel context.CancelFunc, retryCh chan []string) View {
+func newView(mode output.OutputMode, tasks []TaskInfo, actionOrder []string, cancel context.CancelFunc, retryCh chan []string, gitCleanExcludes []string) View {
 	if mode == output.ModePlain {
 		return newPlainActionsView()
 	}
-	return newTUIActionsView(tasks, actionOrder, cancel, retryCh)
+	return newTUIActionsView(tasks, actionOrder, cancel, retryCh, gitCleanExcludes)
 }
 
 // ── Plain view ────────────────────────────────────────────────────────────────
@@ -255,6 +257,27 @@ type actionPrepareRetryMsg struct {
 	newCancel    context.CancelFunc
 }
 
+// ── Quick solve overlay ───────────────────────────────────────────────────────
+
+type quickSolveStep int
+
+const (
+	qsStepMenu         quickSolveStep = iota
+	qsStepConfirmReset                // waiting for Enter/Esc on reset confirm screen
+	qsStepConfirmClean                // waiting for Enter/Esc on clean confirm screen
+	qsStepRunning                     // async operation in progress
+	qsStepResult                      // operation finished; press any key to dismiss
+)
+
+type quickSolveOverlay struct {
+	step     quickSolveStep
+	taskInfo TaskInfo
+	result   string
+	isErr    bool
+}
+
+type quickSolveDoneMsg struct{ err error }
+
 type tuiActionsView struct {
 	program         *tea.Program
 	msgCh           chan actionUpdateMsg
@@ -263,15 +286,17 @@ type tuiActionsView struct {
 	doneCh          chan struct{} // closed when p.Run() returns (program fully exited)
 }
 
-func newTUIActionsView(tasks []TaskInfo, actionOrder []string, cancel context.CancelFunc, retryCh chan []string) *tuiActionsView {
+func newTUIActionsView(tasks []TaskInfo, actionOrder []string, cancel context.CancelFunc, retryCh chan []string, gitCleanExcludes []string) *tuiActionsView {
 	msgCh := make(chan actionUpdateMsg, 1000)
 	drainedCh := make(chan struct{})
 	postDoneRetryCh := make(chan []string, 1)
 	rows := buildTreeRows(tasks, actionOrder)
 
 	taskState := make(map[string]*taskEntry, len(tasks))
+	taskInfoMap := make(map[string]TaskInfo, len(tasks))
 	for _, t := range tasks {
 		taskState[t.TaskName] = &taskEntry{state: actionPending}
+		taskInfoMap[t.TaskName] = t
 	}
 
 	// Build action→tasks index.
@@ -281,19 +306,21 @@ func newTUIActionsView(tasks []TaskInfo, actionOrder []string, cancel context.Ca
 	}
 
 	m := &actionsModel{
-		rows:            rows,
-		cursorTask:      "", // no selection until user navigates
-		taskState:       taskState,
-		taskLogs:        make(map[string][]string, len(tasks)),
-		actionOrder:     actionOrder,
-		tasksByAction:   tasksByAction,
-		collapsed:       make(map[string]bool),
-		msgCh:           msgCh,
-		drainedCh:       drainedCh,
-		retryCh:         retryCh,
-		postDoneRetryCh: postDoneRetryCh,
-		startTime:       time.Now(),
-		cancel:          cancel,
+		rows:             rows,
+		cursorTask:       "", // no selection until user navigates
+		taskState:        taskState,
+		taskInfoMap:      taskInfoMap,
+		taskLogs:         make(map[string][]string, len(tasks)),
+		actionOrder:      actionOrder,
+		tasksByAction:    tasksByAction,
+		collapsed:        make(map[string]bool),
+		msgCh:            msgCh,
+		drainedCh:        drainedCh,
+		retryCh:          retryCh,
+		postDoneRetryCh:  postDoneRetryCh,
+		startTime:        time.Now(),
+		cancel:           cancel,
+		gitCleanExcludes: gitCleanExcludes,
 	}
 	m.updateCollapsed()
 
@@ -308,7 +335,7 @@ func newTUIActionsView(tasks []TaskInfo, actionOrder []string, cancel context.Ca
 	}
 
 	go func() {
-		p.Run() //nolint:errcheck
+		_, _ = p.Run()
 		close(doneCh)
 	}()
 
@@ -399,10 +426,11 @@ type actionsModel struct {
 	cursorTask string // task name the cursor is on
 	treeOffset int    // viewport scroll offset (into visibleRows)
 
-	taskState map[string]*taskEntry
-	taskLogs  map[string][]string // per-task log lines
-	allLogs   []string            // interleaved (capped at maxAllLogs)
-	focusTask string              // if set, right pane shows only this task's logs
+	taskState   map[string]*taskEntry
+	taskInfoMap map[string]TaskInfo // for quick solve lookup
+	taskLogs    map[string][]string // per-task log lines
+	allLogs     []string            // interleaved (capped at maxAllLogs)
+	focusTask   string              // if set, right pane shows only this task's logs
 
 	actionOrder   []string
 	tasksByAction map[string][]string
@@ -426,6 +454,9 @@ type actionsModel struct {
 	clipboardMsg       string    // brief toast shown in help bar after copy
 	clipboardMsgExpiry time.Time // when to clear the toast
 	clipboardOK        bool      // true = success toast, false = error toast
+
+	gitCleanExcludes []string
+	quickSolve       *quickSolveOverlay
 }
 
 // updateCollapsed recalculates which action sections are collapsed.
@@ -629,6 +660,18 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil // stay alive; wait for user to press q/ctrl-c or retry
 
+	case quickSolveDoneMsg:
+		if m.quickSolve != nil {
+			m.quickSolve.step = qsStepResult
+			if msg.err != nil {
+				m.quickSolve.result = msg.err.Error()
+				m.quickSolve.isErr = true
+			} else {
+				m.quickSolve.result = "done — press Esc to close, then r to retry the task"
+				m.quickSolve.isErr = false
+			}
+		}
+
 	case actionPrepareRetryMsg:
 		for _, name := range msg.resetNames {
 			if e, ok := m.taskState[name]; ok {
@@ -644,10 +687,15 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.allDone = false
 		m.endTime = time.Time{}
 		m.cancelling = false
+		m.quickSolve = nil
 		m.updateCollapsed()
 		return m, m.listen()
 
 	case tea.KeyMsg:
+		// Route all key events to the quick solve overlay when it is active.
+		if m.quickSolve != nil {
+			return m.updateQuickSolve(msg)
+		}
 		switch msg.String() {
 		case "ctrl+c":
 			if m.allDone || m.cancelling {
@@ -702,9 +750,69 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				sort.Strings(failed)
 				m.sendRetry(failed)
 			}
+		case "s":
+			if t := m.cursorTask; t != "" {
+				if e, ok := m.taskState[t]; ok && e.state == actionFailed {
+					if info, ok := m.taskInfoMap[t]; ok && info.ProjectDir != "" {
+						m.quickSolve = &quickSolveOverlay{
+							step:     qsStepMenu,
+							taskInfo: info,
+						}
+					}
+				}
+			}
 		}
 	}
 	return m, nil
+}
+
+// updateQuickSolve handles key events while the quick solve overlay is open.
+func (m *actionsModel) updateQuickSolve(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	qs := m.quickSolve
+	switch qs.step {
+	case qsStepMenu:
+		switch msg.String() {
+		case "1":
+			qs.step = qsStepConfirmReset
+		case "2":
+			qs.step = qsStepConfirmClean
+		case "esc", "q", "s":
+			m.quickSolve = nil
+		}
+	case qsStepConfirmReset:
+		switch msg.String() {
+		case "enter":
+			qs.step = qsStepRunning
+			return m, m.runQuickSolveReset(qs.taskInfo)
+		case "esc", "q", "n":
+			qs.step = qsStepMenu
+		}
+	case qsStepConfirmClean:
+		switch msg.String() {
+		case "enter":
+			qs.step = qsStepRunning
+			return m, m.runQuickSolveClean(qs.taskInfo)
+		case "esc", "q", "n":
+			qs.step = qsStepMenu
+		}
+	case qsStepRunning:
+		// Ignore all keys while the operation is running.
+	case qsStepResult:
+		m.quickSolve = nil
+	}
+	return m, nil
+}
+
+func (m *actionsModel) runQuickSolveReset(info TaskInfo) tea.Cmd {
+	return func() tea.Msg {
+		return quickSolveDoneMsg{err: ResetToLatest(context.Background(), info.ProjectDir, info.DefaultBranch)}
+	}
+}
+
+func (m *actionsModel) runQuickSolveClean(info TaskInfo) tea.Cmd {
+	return func() tea.Msg {
+		return quickSolveDoneMsg{err: GitCleanFdx(context.Background(), info.ProjectDir, m.gitCleanExcludes)}
+	}
 }
 
 // sendRetry routes retry names to the right channel depending on whether Execute is still running.
@@ -809,6 +917,13 @@ var (
 	actFocusStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("226"))
 	actLogStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	actDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+
+	// Quick solve overlay styles.
+	qsTitleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170"))
+	qsWarnStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196"))
+	qsOptStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("33"))
+	qsDirStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	qsSuccessStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42"))
 )
 
 var actSpinFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -816,6 +931,9 @@ var actSpinFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 func (m *actionsModel) View() string {
 	if m.width == 0 {
 		return "Loading...\n"
+	}
+	if m.quickSolve != nil {
+		return m.renderQuickSolveView()
 	}
 
 	leftW := 48
@@ -900,6 +1018,9 @@ func (m *actionsModel) View() string {
 	if failed > 0 {
 		if e, ok := m.taskState[m.cursorTask]; ok && e.state == actionFailed {
 			parts = append(parts, "r: retry selected")
+			if info, ok := m.taskInfoMap[m.cursorTask]; ok && info.ProjectDir != "" {
+				parts = append(parts, "s: quick solve")
+			}
 		}
 		parts = append(parts, "R: retry all failed")
 	}
@@ -917,6 +1038,116 @@ func (m *actionsModel) View() string {
 		}
 	}
 	b.WriteString(actHelpStyle.Render(strings.Join(parts, "  ")))
+
+	return b.String()
+}
+
+// renderQuickSolveView renders the full screen with the quick solve modal overlaying the body.
+func (m *actionsModel) renderQuickSolveView() string {
+	qs := m.quickSolve
+	var b strings.Builder
+
+	// Header
+	b.WriteString(qsTitleStyle.Render("⚡ Quick Solve — "+qs.taskInfo.TaskName) + "\n")
+	sep := strings.Repeat("─", m.width)
+	b.WriteString(actSepStyle.Render(sep) + "\n")
+
+	avail := m.availH()
+	var lines []string
+
+	switch qs.step {
+	case qsStepMenu:
+		lines = append(lines,
+			"",
+			qsOptStyle.Render("  1  Reset to latest default branch"),
+			actDimStyle.Render("     Fetch from origin and reset to origin/"+qs.taskInfo.DefaultBranch),
+			"",
+			qsOptStyle.Render("  2  Git clean -fdx"),
+			actDimStyle.Render("     Remove all untracked files and directories"),
+			"",
+			actDimStyle.Render("  Project: "+qs.taskInfo.ProjectDir),
+		)
+	case qsStepConfirmReset:
+		branch := qs.taskInfo.DefaultBranch
+		lines = append(lines,
+			"",
+			qsWarnStyle.Render("  ⚠  DESTRUCTIVE OPERATION — CANNOT BE UNDONE"),
+			"",
+			"  This will run:",
+			actDimStyle.Render("    git fetch origin "+branch),
+			actDimStyle.Render("    git reset --hard origin/"+branch),
+			"",
+			qsWarnStyle.Render("  ⚠  ALL LOCAL CHANGES IN THIS PROJECT WILL BE PERMANENTLY DESTROYED."),
+			qsWarnStyle.Render("  ⚠  Uncommitted code, staged changes, and modified files — gone forever."),
+			qsWarnStyle.Render("  ⚠  This action cannot be undone. There is no recovery."),
+			"",
+			qsDirStyle.Render("  Project: "+qs.taskInfo.ProjectDir),
+			"",
+			"  Press "+qsWarnStyle.Render("Enter")+" to confirm, Esc to go back.",
+		)
+	case qsStepConfirmClean:
+		excl := strings.Join(m.gitCleanExcludes, ", ")
+		if excl == "" {
+			excl = "(none)"
+		}
+		lines = append(lines,
+			"",
+			qsWarnStyle.Render("  ⚠  DESTRUCTIVE OPERATION — CANNOT BE UNDONE"),
+			"",
+			"  This will run:",
+			actDimStyle.Render("    git clean -fdx (with exclusions: "+excl+")"),
+			"",
+			qsWarnStyle.Render("  ⚠  ALL UNTRACKED FILES AND DIRECTORIES WILL BE PERMANENTLY DELETED."),
+			qsWarnStyle.Render("  ⚠  Files are NOT moved to trash — they are gone forever."),
+			qsWarnStyle.Render("  ⚠  This action cannot be undone. There is no recovery."),
+			"",
+			qsDirStyle.Render("  Project: "+qs.taskInfo.ProjectDir),
+			"",
+			"  Press "+qsWarnStyle.Render("Enter")+" to confirm, Esc to go back.",
+		)
+	case qsStepRunning:
+		lines = append(lines, "", "  Running…")
+	case qsStepResult:
+		if qs.isErr {
+			lines = append(lines,
+				"",
+				actFailStyle.Render("  ✗ Failed:"),
+				actFailStyle.Render("    "+qs.result),
+				"",
+				actDimStyle.Render("  Press any key to close."),
+			)
+		} else {
+			lines = append(lines,
+				"",
+				qsSuccessStyle.Render("  ✓ "+qs.result),
+				"",
+				actDimStyle.Render("  Press any key to close."),
+			)
+		}
+	}
+
+	for _, l := range lines {
+		b.WriteString(l + "\n")
+	}
+	for i := len(lines); i < avail; i++ {
+		b.WriteString("\n")
+	}
+
+	b.WriteString(actSepStyle.Render(sep) + "\n")
+
+	// Help line
+	var help string
+	switch qs.step {
+	case qsStepMenu:
+		help = "1/2: choose action  Esc/s: cancel"
+	case qsStepConfirmReset, qsStepConfirmClean:
+		help = "Enter: confirm  Esc: go back"
+	case qsStepRunning:
+		help = "running…"
+	case qsStepResult:
+		help = "any key: close"
+	}
+	b.WriteString(actHelpStyle.Render(help))
 
 	return b.String()
 }
