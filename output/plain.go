@@ -81,7 +81,7 @@ func (w *PlainWriter) elapsed(prefix, name string) string {
 
 func formatDuration(d time.Duration) string {
 	if d < time.Second {
-		return fmt.Sprintf("%.1fs", d.Seconds())
+		return fmt.Sprintf("%dms", d.Milliseconds())
 	}
 	if d < time.Minute {
 		return fmt.Sprintf("%.1fs", d.Seconds())

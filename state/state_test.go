@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -90,7 +91,7 @@ func TestState_EnsureGitignored_IdempotentOnSecondCall(t *testing.T) {
 
 	data, _ := os.ReadFile(filepath.Join(dir, ".gitignore"))
 	count := 0
-	for _, line := range splitLines(string(data)) {
+	for _, line := range strings.Split(string(data), "\n") {
 		if line == StateFileName {
 			count++
 		}

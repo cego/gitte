@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
+	"gitte/config"
 	"gitte/state"
 
 	"github.com/spf13/cobra"
@@ -103,16 +105,19 @@ func newFeaturesDisableCmd() *cobra.Command {
 	}
 }
 
-func buildScopeDescription(projects []string, gitlabGroups interface{}, githubOrgs interface{}) string {
+func buildScopeDescription(projects []string, gitlabGroups []config.GitlabScope, githubOrgs []config.GithubScope) string {
+	var parts []string
 	if len(projects) > 0 {
-		result := "projects: "
-		for i, p := range projects {
-			if i > 0 {
-				result += ", "
-			}
-			result += p
-		}
-		return result
+		parts = append(parts, "projects: "+strings.Join(projects, ", "))
 	}
-	return "all projects"
+	for _, g := range gitlabGroups {
+		parts = append(parts, fmt.Sprintf("gitlab:%s/%s", g.Host, g.Group))
+	}
+	for _, g := range githubOrgs {
+		parts = append(parts, fmt.Sprintf("github:%s/%s", g.Host, g.Org))
+	}
+	if len(parts) == 0 {
+		return "all projects"
+	}
+	return strings.Join(parts, "; ")
 }

@@ -28,7 +28,7 @@ Examples:
 }
 
 func runActions(args []string) error {
-	actionStr, projectStr, groupStr := parseActionArgs(args)
+	actionStr, groupStr, projectStr := parseActionArgs(args)
 	keys, actionOrder := actions.PlanActions(globalCfg, actionStr, projectStr, groupStr, withNeeds())
 
 	if len(keys) == 0 {
@@ -41,7 +41,7 @@ func runActions(args []string) error {
 
 // parseActionArgs maps positional CLI args to (actionStr, groupStr, projectStr).
 // Argument order: <action> [group] [projects]
-func parseActionArgs(args []string) (actionStr, projectStr, groupStr string) {
+func parseActionArgs(args []string) (actionStr, groupStr, projectStr string) {
 	if len(args) > 0 {
 		actionStr = args[0]
 	}

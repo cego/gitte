@@ -87,7 +87,7 @@ func validateProject(result *ValidationResult, cfg *GitteConfig, name string, pr
 	for actionName, action := range project.Actions {
 		for _, need := range action.Needs {
 			if _, ok := cfg.Projects[need]; !ok {
-				result.AddWarning(
+				result.AddError(
 					fmt.Sprintf("projects.%s.actions.%s.needs", name, actionName),
 					fmt.Sprintf("project %q referenced in needs not found", need),
 				)

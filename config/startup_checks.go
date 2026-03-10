@@ -51,6 +51,10 @@ func (s *ShellStartupCheck) Check(ctx context.Context, cwd string) error {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
+			stderrStr := strings.TrimSpace(stderr.String())
+			if stderrStr != "" {
+				return fmt.Errorf("shell script exited with code %d: %s", exitErr.ExitCode(), stderrStr)
+			}
 			return fmt.Errorf("shell script exited with code %d", exitErr.ExitCode())
 		}
 		return err

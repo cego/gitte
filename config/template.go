@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"text/template"
 )
 
@@ -154,8 +155,9 @@ func mergeTemplates(dst, src Template) Template {
 			if srcAction.Retry != nil {
 				retry = srcAction.Retry
 			}
+			mergedSearchFors := append(append([]SearchFor{}, dstAction.SearchFors...), srcAction.SearchFors...)
 			actions[actionName] = ProjectAction{
-				SearchFors: srcAction.SearchFors,
+				SearchFors: mergedSearchFors,
 				Needs:      needs,
 				Groups:     mergedGroups,
 				Retry:      retry,
@@ -190,9 +192,15 @@ func applyTemplate(projName string, proj ProjectConfig, tmpl Template) (ProjectC
 	vars["project"] = projName
 	vars["remote"] = proj.Remote
 
-	// Render vars themselves (vars can reference auto-vars like {{.project}})
-	for k, v := range vars {
-		rendered, err := renderTemplate(v, vars)
+	// Render vars themselves (vars can reference auto-vars like {{.project}}).
+	// Sort keys for deterministic rendering order.
+	varKeys := make([]string, 0, len(vars))
+	for k := range vars {
+		varKeys = append(varKeys, k)
+	}
+	sort.Strings(varKeys)
+	for _, k := range varKeys {
+		rendered, err := renderTemplate(vars[k], vars)
 		if err != nil {
 			// If rendering fails (e.g. circular ref), keep original value
 			continue
@@ -228,8 +236,9 @@ func applyTemplate(projName string, proj ProjectConfig, tmpl Template) (ProjectC
 				retry = projAction.Retry
 			}
 
+			mergedSearchFors := append(append([]SearchFor{}, tmplAction.SearchFors...), projAction.SearchFors...)
 			mergedActions[actionName] = ProjectAction{
-				SearchFors: projAction.SearchFors,
+				SearchFors: mergedSearchFors,
 				Needs:      needs,
 				Groups:     mergedGroups,
 				Retry:      retry,

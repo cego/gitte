@@ -3,6 +3,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -110,25 +111,10 @@ func EnsureGitignored(dir string) error {
 }
 
 func containsLine(content, line string) bool {
-	for _, l := range splitLines(content) {
+	for _, l := range strings.Split(content, "\n") {
 		if l == line {
 			return true
 		}
 	}
 	return false
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
 }

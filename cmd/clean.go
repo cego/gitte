@@ -106,14 +106,44 @@ func checkBranch(ctx context.Context, name, dir string) {
 }
 
 func checkNonGitte() {
-	// Find all directories in cwd root and check against config
 	gitteDirs := make(map[string]bool)
 	for _, proj := range globalCfg.Projects {
 		if dir, err := config.LocalDirForRemote(proj.Remote); err == nil {
-			// Get top-level dir
-			gitteDirs[filepath.Dir(dir)] = true
 			gitteDirs[dir] = true
 		}
 	}
-	fmt.Println("[clean] non-gitte check: not fully implemented yet")
+
+	// Walk host/org/repo structure (3 levels deep) and report unknown dirs
+	hostEntries, err := os.ReadDir(globalCwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[clean] cannot read cwd: %v\n", err)
+		return
+	}
+	for _, hostEntry := range hostEntries {
+		if !hostEntry.IsDir() {
+			continue
+		}
+		orgEntries, err := os.ReadDir(filepath.Join(globalCwd, hostEntry.Name()))
+		if err != nil {
+			continue
+		}
+		for _, orgEntry := range orgEntries {
+			if !orgEntry.IsDir() {
+				continue
+			}
+			repoEntries, err := os.ReadDir(filepath.Join(globalCwd, hostEntry.Name(), orgEntry.Name()))
+			if err != nil {
+				continue
+			}
+			for _, repoEntry := range repoEntries {
+				if !repoEntry.IsDir() {
+					continue
+				}
+				relPath := filepath.Join(hostEntry.Name(), orgEntry.Name(), repoEntry.Name())
+				if !gitteDirs[relPath] {
+					fmt.Printf("[clean] non-gitte: %s\n", relPath)
+				}
+			}
+		}
+	}
 }

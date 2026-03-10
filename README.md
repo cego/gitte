@@ -63,8 +63,8 @@ Gitte will run startup checks, pull all repos, then execute the `up` action for 
 
 | Command | Description |
 |---------|-------------|
-| `gitte run [action] [projects] [group]` | Full pipeline: startup checks → git sync → actions |
-| `gitte actions [action] [projects] [group]` | Run actions only (skip startup and git sync) |
+| `gitte run [action] [group] [projects]` | Full pipeline: startup checks → git sync → actions |
+| `gitte actions [action] [group] [projects]` | Run actions only (skip startup and git sync) |
 | `gitte startup` | Run startup checks only |
 | `gitte gitops [--discover]` | Clone/pull all repos; `--discover` also fetches from configured sources |
 | `gitte toggle` | Interactive TUI to enable/disable projects |
@@ -76,7 +76,7 @@ Gitte will run startup checks, pull all repos, then execute the `up` action for 
 
 ### Argument syntax
 
-Arguments to `run` and `actions` are positional: `action [projects] [group]`.
+Arguments to `run` and `actions` are positional: `action [group] [projects]`.
 
 ```bash
 gitte run up                      # up on all enabled projects, all groups
