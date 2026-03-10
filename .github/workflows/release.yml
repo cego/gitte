@@ -1,0 +1,49 @@
+---
+name: release
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build linux-amd64
+        run: GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/linux-amd64/gitte .
+      - run: tar czf bin/gitte-linux-amd64.tar.gz -C bin/linux-amd64 gitte
+
+      - name: Build linux-arm64
+        run: GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/linux-arm64/gitte .
+      - run: tar czf bin/gitte-linux-arm64.tar.gz -C bin/linux-arm64 gitte
+
+      - name: Build windows-amd64
+        run: GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/windows-amd64/gitte.exe .
+      - run: (cd bin/windows-amd64 && zip ../gitte-windows-amd64.zip gitte.exe)
+
+      - name: Build darwin-amd64
+        run: GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/darwin-amd64/gitte .
+      - run: tar czf bin/gitte-darwin-amd64.tar.gz -C bin/darwin-amd64 gitte
+
+      - name: Build darwin-arm64
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/darwin-arm64/gitte .
+      - run: tar czf bin/gitte-darwin-arm64.tar.gz -C bin/darwin-arm64 gitte
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        run: |
+          gh release create "${GITHUB_REF_NAME}" bin/gitte-*.tar.gz bin/gitte-*.zip --generate-notes ||
+          gh release upload "${GITHUB_REF_NAME}" bin/gitte-*.tar.gz bin/gitte-*.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
