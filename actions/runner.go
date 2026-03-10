@@ -434,12 +434,18 @@ func (h *searchForHandler) HandleOutput(ctx context.Context, out executor.Output
 		if groups == nil {
 			continue
 		}
-		hint := fmt.Sprintf("\n[HINT] %s\n", expandHint(sf.Hint, groups))
-		_ = h.inner.HandleOutput(ctx, executor.Output{
-			CmdName: h.taskName,
-			Stream:  executor.StdoutStream,
-			Output:  []byte(hint),
-		})
+		expanded := expandHint(sf.Hint, groups)
+		for _, hintLine := range strings.Split(expanded, "\n") {
+			hintLine = strings.TrimSpace(hintLine)
+			if hintLine == "" {
+				continue
+			}
+			_ = h.inner.HandleOutput(ctx, executor.Output{
+				CmdName: h.taskName,
+				Stream:  executor.StdoutStream,
+				Output:  []byte("[HINT] " + hintLine),
+			})
+		}
 	}
 	return h.inner.HandleOutput(ctx, out)
 }
