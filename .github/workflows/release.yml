@@ -47,3 +47,105 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" bin/gitte-*.tar.gz bin/gitte-*.zip --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to APT (gitte-ppa.cego.dk)
+        if: github.ref_type == 'tag'
+        env:
+          VERSION: ${{ github.ref_name }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          PPA_SSH_KEY: ${{ secrets.PPA_SSH_KEY }}
+        run: |
+          sudo apt-get install -y dpkg-dev apt-utils
+
+          echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+
+          DESCRIPTION="Developer environment orchestration tool"
+
+          for ARCH in amd64 arm64; do
+            SRCBIN="bin/linux-${ARCH}/gitte"
+            PKGDIR="pkg/gitte_${VERSION}_${ARCH}"
+            mkdir -p "${PKGDIR}/DEBIAN" "${PKGDIR}/usr/local/bin"
+            cat > "${PKGDIR}/DEBIAN/control" << EOF
+          Name: gitte
+          Package: gitte
+          Version: ${VERSION}
+          Architecture: ${ARCH}
+          Author: Cego A/S <noc+gitte@cego.dk>
+          Maintainer: Cego A/S <noc+gitte@cego.dk>
+          Description: ${DESCRIPTION}
+          Homepage: https://github.com/cego/gitte
+          Website: https://github.com/cego/gitte
+          EOF
+            cp "${SRCBIN}" "${PKGDIR}/usr/local/bin/"
+            dpkg-deb --root-owner-group --build "${PKGDIR}" ppa/
+          done
+
+          (cd ppa && dpkg-scanpackages --multiversion . > Packages)
+          (cd ppa && gzip -k -f Packages)
+          (cd ppa && apt-ftparchive release . > Release)
+          (cd ppa && gpg --default-key "noc+gitte@cego.dk" -abs -o - Release > Release.gpg)
+          (cd ppa && gpg --default-key "noc+gitte@cego.dk" --clearsign -o - Release > InRelease)
+
+          echo "${PPA_SSH_KEY}" > /tmp/ppa_key
+          chmod 600 /tmp/ppa_key
+          rsync -az -e "ssh -i /tmp/ppa_key -o StrictHostKeyChecking=no" \
+            ppa/ deploy@gitte-ppa.cego.dk:/var/www/ppa/
+          rm /tmp/ppa_key
+
+      - name: Update Homebrew tap
+        if: github.ref_type == 'tag'
+        env:
+          VERSION: ${{ github.ref_name }}
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          SHA_DARWIN_AMD64=$(sha256sum bin/gitte-darwin-amd64.tar.gz | awk '{print $1}')
+          SHA_DARWIN_ARM64=$(sha256sum bin/gitte-darwin-arm64.tar.gz | awk '{print $1}')
+          SHA_LINUX_AMD64=$(sha256sum bin/gitte-linux-amd64.tar.gz | awk '{print $1}')
+          SHA_LINUX_ARM64=$(sha256sum bin/gitte-linux-arm64.tar.gz | awk '{print $1}')
+
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/cego/homebrew-tap.git" tap
+          cd tap
+          mkdir -p Formula
+
+          cat > Formula/gitte.rb << EOF
+          class Gitte < Formula
+            desc "Developer environment orchestration tool"
+            homepage "https://github.com/cego/gitte"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/cego/gitte/releases/download/${VERSION}/gitte-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "https://github.com/cego/gitte/releases/download/${VERSION}/gitte-darwin-amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/cego/gitte/releases/download/${VERSION}/gitte-linux-arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "https://github.com/cego/gitte/releases/download/${VERSION}/gitte-linux-amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "gitte"
+            end
+
+            test do
+              system "#{bin}/gitte", "--version"
+            end
+          end
+          EOF
+
+          git config user.email "noc+gitte@cego.dk"
+          git config user.name "CI"
+          git add Formula/gitte.rb
+          git commit -m "gitte ${VERSION}"
+          git push

@@ -17,6 +17,24 @@ Gitte is a developer environment orchestration tool for teams working across man
 
 ## Installation
 
+### Homebrew (macOS and Linux)
+
+```bash
+brew tap cego/tap
+brew install gitte
+```
+
+### APT (Debian and Ubuntu)
+
+```bash
+curl -fsSL https://gitte-ppa.cego.dk/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/gitte.gpg
+echo "deb [signed-by=/etc/apt/keyrings/gitte.gpg] https://gitte-ppa.cego.dk ./" | sudo tee /etc/apt/sources.list.d/gitte.list
+sudo apt update
+sudo apt install gitte
+```
+
+### Binary download
+
 Download the latest binary from the [releases page](https://github.com/cego/gitte/releases) and place it on your `PATH`.
 
 ### Build from source
