@@ -54,11 +54,16 @@ func Sync(
 	sort.Strings(projectNames)
 
 	taskNames := make([]string, len(projectNames))
+	dirs := make(map[string]string, len(projectNames))
 	for i, n := range projectNames {
 		taskNames[i] = "gitops:" + n
+		proj := cfg.Projects[n]
+		if localDir, err := config.LocalDirForRemote(proj.Remote); err == nil {
+			dirs[taskNames[i]] = localDir
+		}
 	}
 
-	view := newView(mode, taskNames, cancel)
+	view := newView(mode, taskNames, dirs, cancel)
 
 	var mu sync.Mutex
 	var prompts []CheckoutPrompt

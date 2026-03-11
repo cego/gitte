@@ -28,6 +28,7 @@ type TaskInfo struct {
 	PathSegs      []string // namespace path segments (not the leaf)
 	ProjLeaf      string   // last segment of remote path (project folder name)
 	ProjectDir    string   // absolute path to the project on disk (empty if unknown)
+	LocalDir      string   // relative directory from cwd (e.g. "gitlab.cego.dk/sn/promotion")
 	DefaultBranch string   // default branch (e.g. "master", "main")
 }
 
@@ -47,21 +48,36 @@ type View interface {
 
 func newView(mode output.OutputMode, tasks []TaskInfo, actionOrder []string, cancel context.CancelFunc, retryCh chan []string, gitCleanExcludes []string) View {
 	if mode == output.ModePlain {
-		return newPlainActionsView()
+		return newPlainActionsView(tasks)
 	}
 	return newTUIActionsView(tasks, actionOrder, cancel, retryCh, gitCleanExcludes)
 }
 
 // ── Plain view ────────────────────────────────────────────────────────────────
 
-type plainActionsView struct{ mu sync.Mutex }
+type plainActionsView struct {
+	mu   sync.Mutex
+	dirs map[string]string // taskName → relative local dir
+}
 
-func newPlainActionsView() *plainActionsView { return &plainActionsView{} }
+func newPlainActionsView(tasks []TaskInfo) *plainActionsView {
+	dirs := make(map[string]string, len(tasks))
+	for _, t := range tasks {
+		if t.LocalDir != "" {
+			dirs[t.TaskName] = t.LocalDir
+		}
+	}
+	return &plainActionsView{dirs: dirs}
+}
 
 func (v *plainActionsView) OnStart(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	_, _ = fmt.Fprintf(os.Stdout, "[action:%s] RUNNING\n", name)
+	if d := v.dirs[name]; d != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "[action:%s] RUNNING  ./%s\n", name, d)
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "[action:%s] RUNNING\n", name)
+	}
 }
 
 func (v *plainActionsView) OnReset(name string) {
@@ -1021,6 +1037,9 @@ func (m *actionsModel) View() string {
 
 	// Help line
 	var parts []string
+	if info, ok := m.taskInfoMap[m.cursorTask]; ok && info.LocalDir != "" {
+		parts = append(parts, actDimStyle.Render("./"+info.LocalDir))
+	}
 	parts = append(parts, "↑↓/jk: nav")
 	if m.focusTask != "" {
 		parts = append(parts, "Enter/f: all logs")

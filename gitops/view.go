@@ -26,9 +26,9 @@ type View interface {
 }
 
 // newView picks the right view implementation based on output mode.
-func newView(mode output.OutputMode, taskNames []string, cancel context.CancelFunc) View {
+func newView(mode output.OutputMode, taskNames []string, dirs map[string]string, cancel context.CancelFunc) View {
 	if mode == output.ModePlain {
-		return &plainView{details: make(map[string]string)}
+		return &plainView{details: make(map[string]string), dirs: dirs}
 	}
 	return newTUIView(taskNames, cancel)
 }
@@ -38,12 +38,17 @@ func newView(mode output.OutputMode, taskNames []string, cancel context.CancelFu
 type plainView struct {
 	mu      sync.Mutex
 	details map[string]string
+	dirs    map[string]string // taskName → relative local dir
 }
 
 func (v *plainView) OnStart(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	_, _ = fmt.Fprintf(os.Stdout, "[%s] RUNNING\n", name)
+	if d := v.dirs[name]; d != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "[%s] RUNNING  ./%s\n", name, d)
+	} else {
+		_, _ = fmt.Fprintf(os.Stdout, "[%s] RUNNING\n", name)
+	}
 }
 
 func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {

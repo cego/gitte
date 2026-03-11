@@ -145,9 +145,10 @@ func buildTaskInfos(cfg *config.GitteConfig, cwd string, keys []GroupKeyWithDeps
 			projLeaf = segs[len(segs)-1]
 		}
 
-		var projectDir string
-		if localDir, lerr := config.LocalDirForRemote(proj.Remote); lerr == nil {
-			projectDir = filepath.Join(cwd, localDir)
+		var projectDir, localDir string
+		if ld, lerr := config.LocalDirForRemote(proj.Remote); lerr == nil {
+			localDir = ld
+			projectDir = filepath.Join(cwd, ld)
 		}
 
 		infos = append(infos, TaskInfo{
@@ -159,6 +160,7 @@ func buildTaskInfos(cfg *config.GitteConfig, cwd string, keys []GroupKeyWithDeps
 			PathSegs:      pathSegs,
 			ProjLeaf:      projLeaf,
 			ProjectDir:    projectDir,
+			LocalDir:      localDir,
 			DefaultBranch: proj.DefaultBranch,
 		})
 	}
