@@ -343,11 +343,17 @@ func newTUIActionsView(tasks []TaskInfo, actionOrder []string, cancel context.Ca
 }
 
 func (v *tuiActionsView) OnStart(name string) {
-	v.msgCh <- actionUpdateMsg{taskName: name, state: actionRunning}
+	select {
+	case v.msgCh <- actionUpdateMsg{taskName: name, state: actionRunning}:
+	case <-v.doneCh:
+	}
 }
 
 func (v *tuiActionsView) OnReset(name string) {
-	v.msgCh <- actionUpdateMsg{taskName: name, state: actionPending}
+	select {
+	case v.msgCh <- actionUpdateMsg{taskName: name, state: actionPending}:
+	case <-v.doneCh:
+	}
 }
 
 func (v *tuiActionsView) OnFinish(name string, err error, elapsed time.Duration) {
@@ -359,11 +365,14 @@ func (v *tuiActionsView) OnFinish(name string, err error, elapsed time.Duration)
 			s = actionFailed
 		}
 	}
-	v.msgCh <- actionUpdateMsg{taskName: name, state: s, elapsed: elapsed, err: err}
+	select {
+	case v.msgCh <- actionUpdateMsg{taskName: name, state: s, elapsed: elapsed, err: err}:
+	case <-v.doneCh:
+	}
 }
 
 func (v *tuiActionsView) Handler() executor.OutputHandler {
-	return &tuiActionsHandler{msgCh: v.msgCh}
+	return &tuiActionsHandler{msgCh: v.msgCh, doneCh: v.doneCh}
 }
 
 // WaitAndGetRetry closes the update channel and waits for the user to either quit
@@ -402,7 +411,8 @@ func (v *tuiActionsView) PrepareRetry(taskNames []string, retryCh chan []string,
 }
 
 type tuiActionsHandler struct {
-	msgCh chan<- actionUpdateMsg
+	msgCh  chan<- actionUpdateMsg
+	doneCh <-chan struct{}
 }
 
 func (h *tuiActionsHandler) HandleOutput(_ context.Context, out executor.Output) error {
@@ -410,7 +420,10 @@ func (h *tuiActionsHandler) HandleOutput(_ context.Context, out executor.Output)
 	if line == "" {
 		return nil
 	}
-	h.msgCh <- actionUpdateMsg{taskName: out.CmdName, logLine: line}
+	select {
+	case h.msgCh <- actionUpdateMsg{taskName: out.CmdName, logLine: line}:
+	case <-h.doneCh:
+	}
 	return nil
 }
 
