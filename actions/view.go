@@ -953,7 +953,7 @@ var (
 	actFailStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	actSelStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170"))
 	actCursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170"))
-	actFocusStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("226"))
+	actFocusStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("170"))
 	actLogStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	actDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
