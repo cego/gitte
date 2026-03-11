@@ -25,10 +25,10 @@ type TaskInfo struct {
 	Action        string
 	Group         string
 	Host          string
-	PathSegs      []string // namespace path segments (not the leaf)
-	ProjLeaf      string   // last segment of remote path (project folder name)
-	ProjectDir    string   // absolute path to the project on disk (empty if unknown)
-	LocalDir      string   // relative directory from cwd (e.g. "gitlab.cego.dk/sn/promotion")
+	PathSegs      []string          // namespace path segments (not the leaf)
+	ProjLeaf      string            // last segment of remote path (project folder name)
+	ProjectDir    string            // absolute path to the project on disk (empty if unknown)
+	LocalDir      string            // relative directory from cwd (e.g. "gitlab.cego.dk/sn/promotion")
 	Command       string            // shell command executed for this task
 	ExtraEnv      map[string]string // env vars injected by gitte (feature gates)
 	DefaultBranch string            // default branch (e.g. "master", "main")
@@ -491,7 +491,6 @@ type actionsModel struct {
 }
 
 // updateCollapsed recalculates which action sections are collapsed.
-//
 func (m *actionsModel) hasFailures() bool {
 	for _, e := range m.taskState {
 		if e.state == actionFailed {
@@ -929,6 +928,8 @@ func (m *actionsModel) buildCopyText(taskName string) string {
 	b.WriteString(strings.Join(m.taskLogs[taskName], "\n"))
 	if e, ok := m.taskState[taskName]; ok {
 		switch e.state {
+		case actionPending, actionRunning:
+			// still in progress
 		case actionOK:
 			b.WriteString("\n\nExit code: 0")
 		case actionFailed:
