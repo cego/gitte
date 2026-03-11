@@ -2,6 +2,7 @@ package actions
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -16,6 +17,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 )
 
 // TaskInfo carries metadata needed for tree display.
@@ -764,9 +766,13 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			if m.focusTask != "" {
 				text := m.buildCopyText(m.focusTask)
-				if err := copyToClipboard(context.Background(), text); err != nil {
-					m.clipboardMsg = err.Error()
+				res := copyToClipboardOrFile(context.Background(), text, m.focusTask)
+				if res.err != nil {
+					m.clipboardMsg = res.err.Error()
 					m.clipboardOK = false
+				} else if res.method == "file" {
+					m.clipboardMsg = "saved to " + res.path
+					m.clipboardOK = true
 				} else {
 					m.clipboardMsg = "copied to clipboard"
 					m.clipboardOK = true
@@ -1472,17 +1478,57 @@ func stripActANSI(s string) string {
 	return b.String()
 }
 
-// copyToClipboard writes text to the system clipboard.
-// Tries stdin-based tools first, then KDE klipper via qdbus.
-func copyToClipboard(ctx context.Context, text string) error {
-	// Tools that read from stdin.
+// copyResult holds the outcome of a copy operation.
+type copyResult struct {
+	method string // "clipboard", "file"
+	path   string // only set when method == "file"
+	err    error
+}
+
+// copyToClipboardOrFile tries: OSC 52 → native clipboard tools → temp file.
+func copyToClipboardOrFile(ctx context.Context, text, taskName string) copyResult {
+	// 1. OSC 52: works over SSH in modern terminals (iTerm2, kitty, WezTerm, etc.).
+	if tryOSC52(text) {
+		return copyResult{method: "clipboard"}
+	}
+
+	// 2. Native clipboard tools.
+	if tryNativeClipboard(ctx, text) {
+		return copyResult{method: "clipboard"}
+	}
+
+	// 3. Fallback: write to temp file.
+	return writeToTempFile(text, taskName)
+}
+
+// tryOSC52 writes the OSC 52 escape sequence to stdout.
+// Returns true if stdout is a terminal (sequence was written).
+func tryOSC52(text string) bool {
+	if !isTermFile(os.Stdout) {
+		return false
+	}
+	encoded := base64Encode(text)
+	// OSC 52: \x1b]52;c;<base64>\x07
+	_, err := fmt.Fprintf(os.Stdout, "\x1b]52;c;%s\x07", encoded)
+	return err == nil
+}
+
+func base64Encode(s string) string {
+	return base64.StdEncoding.EncodeToString([]byte(s))
+}
+
+func isTermFile(f *os.File) bool {
+	return term.IsTerminal(int(f.Fd()))
+}
+
+// tryNativeClipboard tries OS clipboard tools. Returns true on success.
+func tryNativeClipboard(ctx context.Context, text string) bool {
 	stdinTools := [][]string{
 		{"wl-copy"},
 		{"xclip", "-selection", "clipboard"},
 		{"xsel", "--clipboard", "--input"},
 		{"pbcopy"},
 	}
-	var runErr error
 	for _, args := range stdinTools {
 		cmd, err := exec.LookPath(args[0])
 		if err != nil {
@@ -1491,27 +1537,34 @@ func copyToClipboard(ctx context.Context, text string) error {
 		c := exec.CommandContext(ctx, cmd, args[1:]...) //nolint:gosec
 		c.Stdin = strings.NewReader(text)
 		if err := c.Run(); err == nil {
-			return nil
-		} else {
-			runErr = fmt.Errorf("%s: %w", args[0], err)
+			return true
 		}
 	}
 
-	// KDE klipper via qdbus (available on KDE Plasma without extra packages).
+	// KDE klipper via qdbus.
 	if qdbus, err := exec.LookPath("qdbus"); err == nil {
 		c := exec.CommandContext(ctx, qdbus, "org.kde.klipper", "/klipper", //nolint:gosec
 			"org.kde.klipper.klipper.setClipboardContents", text)
 		if err := c.Run(); err == nil {
-			return nil
-		} else {
-			runErr = fmt.Errorf("qdbus klipper: %w", err)
+			return true
 		}
 	}
+	return false
+}
 
-	if runErr != nil {
-		return runErr
+// writeToTempFile writes text to a temp file and returns the path.
+func writeToTempFile(text, taskName string) copyResult {
+	// Sanitize task name for filename.
+	safe := strings.NewReplacer("/", "-", ":", "-", " ", "-").Replace(taskName)
+	f, err := os.CreateTemp("", fmt.Sprintf("gitte-%s-*.log", safe))
+	if err != nil {
+		return copyResult{err: fmt.Errorf("failed to create temp file: %w", err)}
 	}
-	return fmt.Errorf("no clipboard tool found — install wl-clipboard: apt install wl-clipboard")
+	defer f.Close()
+	if _, err := f.WriteString(text); err != nil {
+		return copyResult{err: fmt.Errorf("failed to write temp file: %w", err)}
+	}
+	return copyResult{method: "file", path: f.Name()}
 }
 
 func fmtActionDuration(d time.Duration) string {
