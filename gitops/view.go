@@ -294,7 +294,7 @@ func (m *gitopsModel) View() string {
 		width = 80
 	}
 
-	const minColW = 45
+	const minColW = 60
 	nCols := width / minColW
 	if nCols < 1 {
 		nCols = 1
