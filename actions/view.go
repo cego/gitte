@@ -29,6 +29,7 @@ type TaskInfo struct {
 	ProjLeaf      string   // last segment of remote path (project folder name)
 	ProjectDir    string   // absolute path to the project on disk (empty if unknown)
 	LocalDir      string   // relative directory from cwd (e.g. "gitlab.cego.dk/sn/promotion")
+	Command       string   // shell command executed for this task
 	DefaultBranch string   // default branch (e.g. "master", "main")
 }
 
@@ -1046,9 +1047,6 @@ func (m *actionsModel) View() string {
 
 	// Help line
 	var parts []string
-	if info, ok := m.taskInfoMap[m.cursorTask]; ok && info.LocalDir != "" {
-		parts = append(parts, actDimStyle.Render("./"+info.LocalDir))
-	}
 	parts = append(parts, "↑↓/jk: nav")
 	if m.focusTask != "" {
 		parts = append(parts, "Enter/f: all logs")
@@ -1334,19 +1332,27 @@ func (m *actionsModel) taskIconStyle(e *taskEntry) (string, lipgloss.Style) {
 
 func (m *actionsModel) renderLogs(width, height int) []string {
 	var src []string
-	var header string
 
 	if m.focusTask != "" {
-		header = "● " + m.focusTask
 		src = m.taskLogs[m.focusTask]
 	} else {
 		src = m.allLogs
 	}
 
 	var lines []string
-	if header != "" {
-		lines = append(lines, actFocusStyle.Render(header))
+	if m.focusTask != "" {
+		lines = append(lines, actFocusStyle.Render("● "+m.focusTask))
 		height--
+		if info, ok := m.taskInfoMap[m.focusTask]; ok {
+			if info.ProjectDir != "" {
+				lines = append(lines, actDimStyle.Render("  "+info.ProjectDir))
+				height--
+			}
+			if info.Command != "" {
+				lines = append(lines, actDimStyle.Render("  $ "+info.Command))
+				height--
+			}
+		}
 	}
 
 	start := 0

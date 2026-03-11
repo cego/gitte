@@ -151,6 +151,13 @@ func buildTaskInfos(cfg *config.GitteConfig, cwd string, keys []GroupKeyWithDeps
 			projectDir = filepath.Join(cwd, ld)
 		}
 
+		var command string
+		if action, ok := proj.Actions[key.Action]; ok {
+			if cmds, ok := action.Groups[key.Group]; ok && len(cmds) > 0 {
+				command = strings.Join(cmds, " ")
+			}
+		}
+
 		infos = append(infos, TaskInfo{
 			TaskName:      taskName(key.GroupKey),
 			Project:       key.Project,
@@ -161,6 +168,7 @@ func buildTaskInfos(cfg *config.GitteConfig, cwd string, keys []GroupKeyWithDeps
 			ProjLeaf:      projLeaf,
 			ProjectDir:    projectDir,
 			LocalDir:      localDir,
+			Command:       command,
 			DefaultBranch: proj.DefaultBranch,
 		})
 	}
