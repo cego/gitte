@@ -27,7 +27,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	// The user presses r/R while Execute is running → task names written here → executor re-queues inline.
 	retryCh := make(chan []string, 100)
 
-	infos := buildTaskInfos(cfg, cwd, keys)
+	infos := buildTaskInfos(cfg, st, cwd, keys)
 	view := newView(mode, infos, actionOrder, runCancel, retryCh, cfg.QuickSolve.GitClean.Exclude)
 
 	// Track per-task outcomes so retry runs can pre-complete tasks that already finished.
@@ -125,7 +125,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 }
 
 // buildTaskInfos constructs TaskInfo display metadata for each key.
-func buildTaskInfos(cfg *config.GitteConfig, cwd string, keys []GroupKeyWithDeps) []TaskInfo {
+func buildTaskInfos(cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps) []TaskInfo {
 	infos := make([]TaskInfo, 0, len(keys))
 	for _, key := range keys {
 		proj, ok := cfg.Projects[key.Project]
@@ -169,6 +169,7 @@ func buildTaskInfos(cfg *config.GitteConfig, cwd string, keys []GroupKeyWithDeps
 			ProjectDir:    projectDir,
 			LocalDir:      localDir,
 			Command:       command,
+			ExtraEnv:      extraEnvForProject(cfg, st, proj),
 			DefaultBranch: proj.DefaultBranch,
 		})
 	}
@@ -277,16 +278,13 @@ func runGroupTask(
 	return nil
 }
 
-// buildEnv constructs the environment variables for a task, including feature gate injections
-func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.ProjectConfig) []string {
-	base := os.Environ()
-
+// extraEnvForProject returns the env vars injected by feature gates for a project.
+func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, proj config.ProjectConfig) map[string]string {
 	if st == nil || cfg.FeatureGates == nil {
-		return base
+		return nil
 	}
 
 	extra := make(map[string]string)
-
 	for gateName, gate := range cfg.FeatureGates {
 		fs, enabled := st.Features[gateName]
 		if !enabled || !fs.Enabled {
@@ -308,6 +306,17 @@ func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.Project
 	}
 
 	if len(extra) == 0 {
+		return nil
+	}
+	return extra
+}
+
+// buildEnv constructs the environment variables for a task, including feature gate injections
+func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.ProjectConfig) []string {
+	base := os.Environ()
+
+	extra := extraEnvForProject(cfg, st, proj)
+	if extra == nil {
 		return base
 	}
 

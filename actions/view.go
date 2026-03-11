@@ -29,8 +29,9 @@ type TaskInfo struct {
 	ProjLeaf      string   // last segment of remote path (project folder name)
 	ProjectDir    string   // absolute path to the project on disk (empty if unknown)
 	LocalDir      string   // relative directory from cwd (e.g. "gitlab.cego.dk/sn/promotion")
-	Command       string   // shell command executed for this task
-	DefaultBranch string   // default branch (e.g. "master", "main")
+	Command       string            // shell command executed for this task
+	ExtraEnv      map[string]string // env vars injected by gitte (feature gates)
+	DefaultBranch string            // default branch (e.g. "master", "main")
 }
 
 // View handles action execution output.
@@ -763,7 +764,8 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toggleFocus()
 		case "c":
 			if m.focusTask != "" {
-				if err := copyToClipboard(context.Background(), strings.Join(m.taskLogs[m.focusTask], "\n")); err != nil {
+				text := m.buildCopyText(m.focusTask)
+				if err := copyToClipboard(context.Background(), text); err != nil {
 					m.clipboardMsg = err.Error()
 					m.clipboardOK = false
 				} else {
@@ -904,6 +906,40 @@ func (m *actionsModel) toggleFocus() {
 	} else {
 		m.focusTask = m.cursorTask
 	}
+}
+
+func (m *actionsModel) buildCopyText(taskName string) string {
+	var b strings.Builder
+	if info, ok := m.taskInfoMap[taskName]; ok {
+		b.WriteString("Task: " + taskName + "\n")
+		if info.ProjectDir != "" {
+			b.WriteString("Dir:  " + info.ProjectDir + "\n")
+		}
+		if info.Command != "" {
+			b.WriteString("Cmd:  " + info.Command + "\n")
+		}
+		if len(info.ExtraEnv) > 0 {
+			b.WriteString("Env:\n")
+			for k, v := range info.ExtraEnv {
+				b.WriteString("  " + k + "=" + v + "\n")
+			}
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString(strings.Join(m.taskLogs[taskName], "\n"))
+	if e, ok := m.taskState[taskName]; ok {
+		switch e.state {
+		case actionOK:
+			b.WriteString("\n\nExit code: 0")
+		case actionFailed:
+			if e.err != nil {
+				b.WriteString("\n\nExit: " + e.err.Error())
+			}
+		case actionSkipped:
+			b.WriteString("\n\nSkipped (dependency failed)")
+		}
+	}
+	return b.String()
 }
 
 func (m *actionsModel) updateViewport(visible []treeRow) {
@@ -1350,6 +1386,10 @@ func (m *actionsModel) renderLogs(width, height int) []string {
 			}
 			if info.Command != "" {
 				lines = append(lines, actDimStyle.Render("  $ "+info.Command))
+				height--
+			}
+			for k, v := range info.ExtraEnv {
+				lines = append(lines, actDimStyle.Render("  "+k+"="+v))
 				height--
 			}
 		}
