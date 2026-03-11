@@ -152,6 +152,7 @@ type startupModel struct {
 	drainedCh   chan struct{}
 	drainOnce   sync.Once
 	cancel      context.CancelFunc
+	width       int
 }
 
 func newStartupModel(names []string, msgCh <-chan tuiUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *startupModel {
@@ -188,6 +189,9 @@ func (m *startupModel) listen() tea.Cmd {
 
 func (m *startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
 			if m.cancel != nil {
@@ -220,32 +224,126 @@ func (m *startupModel) View() string {
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("Startup checks") + "\n\n")
 
-	for _, c := range m.checks {
-		var icon, nameStr, extra string
-		switch c.state {
-		case checkPending:
-			icon = pendingStyle.Render("○")
-			nameStr = dimStyle.Render(c.name)
-		case checkRunning:
-			frame := spinnerFrames[m.spinnerTick%len(spinnerFrames)]
-			icon = runningStyle.Render(frame)
-			nameStr = labelStyle.Render(c.name)
-		case checkOK:
-			icon = okStyle.Render("✓")
-			nameStr = okStyle.Render(c.name)
-			extra = dimStyle.Render("  " + fmtDuration(c.elapsed))
-		case checkFailed:
-			icon = failStyle.Render("✗")
-			nameStr = failStyle.Render(c.name)
-			extra = failStyle.Render("  FAILED: " + c.err.Error())
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+
+	const minColW = 45
+	nCols := width / minColW
+	if nCols < 1 {
+		nCols = 1
+	}
+	if nCols > 4 {
+		nCols = 4
+	}
+	colW := width / nCols
+
+	lines := make([]string, len(m.checks))
+	for i, c := range m.checks {
+		lines[i] = m.renderEntry(c, colW)
+	}
+
+	nRows := (len(lines) + nCols - 1) / nCols
+	for row := 0; row < nRows; row++ {
+		for col := 0; col < nCols; col++ {
+			idx := col*nRows + row
+			if idx >= len(lines) {
+				break
+			}
+			b.WriteString(lines[idx])
 		}
-		fmt.Fprintf(&b, "  %s  %-30s%s\n", icon, nameStr, extra)
+		b.WriteString("\n")
 	}
 
 	return b.String()
 }
 
+func (m *startupModel) renderEntry(c *checkEntry, colW int) string {
+	var icon, nameStr, extra string
+	switch c.state {
+	case checkPending:
+		icon = pendingStyle.Render("○")
+		nameStr = dimStyle.Render(c.name)
+	case checkRunning:
+		frame := spinnerFrames[m.spinnerTick%len(spinnerFrames)]
+		icon = runningStyle.Render(frame)
+		nameStr = labelStyle.Render(c.name)
+	case checkOK:
+		icon = okStyle.Render("✓")
+		nameStr = okStyle.Render(c.name)
+		extra = dimStyle.Render("  " + fmtDuration(c.elapsed))
+	case checkFailed:
+		icon = failStyle.Render("✗")
+		nameStr = failStyle.Render(c.name)
+		extra = failStyle.Render("  FAILED: " + c.err.Error())
+	}
+
+	line := fmt.Sprintf(" %s %s%s", icon, nameStr, extra)
+	return fitToWidth(line, colW)
+}
+
 // ---- helpers -----------------------------------------------------------
+
+func fitToWidth(s string, width int) string {
+	vis := visibleWidth(s)
+	if vis > width {
+		return truncateToVisualWidth(s, width)
+	}
+	if vis < width {
+		return s + strings.Repeat(" ", width-vis)
+	}
+	return s
+}
+
+func visibleWidth(s string) int {
+	n := 0
+	inEsc := false
+	for _, r := range s {
+		if inEsc {
+			if r == 'm' {
+				inEsc = false
+			}
+			continue
+		}
+		if r == '\x1b' {
+			inEsc = true
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+func truncateToVisualWidth(s string, maxWidth int) string {
+	var result strings.Builder
+	vis := 0
+	inEsc := false
+	var escBuf strings.Builder
+	for _, r := range s {
+		if inEsc {
+			escBuf.WriteRune(r)
+			if r == 'm' {
+				inEsc = false
+				result.WriteString(escBuf.String())
+				escBuf.Reset()
+			}
+			continue
+		}
+		if r == '\x1b' {
+			inEsc = true
+			escBuf.WriteRune(r)
+			continue
+		}
+		if vis >= maxWidth {
+			result.WriteString("\x1b[0m")
+			return result.String()
+		}
+		result.WriteRune(r)
+		vis++
+	}
+	return result.String()
+}
 
 func fmtDuration(d time.Duration) string {
 	if d < time.Second {

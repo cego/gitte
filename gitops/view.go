@@ -207,6 +207,7 @@ type gitopsModel struct {
 	drainedCh   chan struct{}
 	drainOnce   sync.Once
 	cancel      context.CancelFunc
+	width       int
 }
 
 func newGitopsModel(names []string, msgCh <-chan goUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *gitopsModel {
@@ -239,6 +240,9 @@ func (m *gitopsModel) listen() tea.Cmd {
 
 func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
 			if m.cancel != nil {
@@ -285,47 +289,141 @@ func (m *gitopsModel) View() string {
 	var b strings.Builder
 	b.WriteString(goTitleStyle.Render("Syncing repositories") + "\n\n")
 
-	for _, e := range m.entries {
-		label := strings.TrimPrefix(e.name, "gitops:")
-		var icon, nameStr, extra string
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
 
-		switch e.state {
-		case goStatePending:
-			icon = goPendingStyle.Render("○")
-			nameStr = goDimStyle.Render(label)
-		case goStateRunning:
-			frame := goSpinnerFrames[m.spinnerTick%len(goSpinnerFrames)]
-			icon = goRunningStyle.Render(frame)
-			nameStr = goLabelStyle.Render(label)
-		case goStateOK:
-			icon = goOKStyle.Render("✓")
-			nameStr = goOKStyle.Render(label)
-			d := e.detail
-			if d == "" {
-				d = "ok"
+	const minColW = 45
+	nCols := width / minColW
+	if nCols < 1 {
+		nCols = 1
+	}
+	if nCols > 4 {
+		nCols = 4
+	}
+	colW := width / nCols
+
+	lines := make([]string, len(m.entries))
+	for i, e := range m.entries {
+		lines[i] = m.renderEntry(e, colW)
+	}
+
+	nRows := (len(lines) + nCols - 1) / nCols
+	for row := 0; row < nRows; row++ {
+		for col := 0; col < nCols; col++ {
+			idx := col*nRows + row
+			if idx >= len(lines) {
+				break
 			}
-			extra = goDimStyle.Render("  " + d + "  " + fmtDuration(e.elapsed))
-		case goStateSkipped:
-			icon = goSkippedStyle.Render("–")
-			nameStr = goSkippedStyle.Render(label)
-			extra = goSkippedStyle.Render("  local changes")
-		case goStateDetached:
-			icon = goDetachedStyle.Render("⚠")
-			nameStr = goDetachedStyle.Render(label)
-			extra = goDetachedStyle.Render("  " + strings.TrimSpace(strings.TrimPrefix(e.detail, "detached:")))
-		case goStateStale:
-			icon = goStaleStyle.Render("⚠")
-			nameStr = goStaleStyle.Render(label)
-			extra = goStaleStyle.Render("  " + strings.TrimSpace(strings.TrimPrefix(e.detail, "stale:")))
-		case goStateFailed:
-			icon = goFailStyle.Render("✗")
-			nameStr = goFailStyle.Render(label)
-			extra = goFailStyle.Render("  " + e.detail)
+			b.WriteString(lines[idx])
 		}
-		fmt.Fprintf(&b, "  %s  %-30s%s\n", icon, nameStr, extra)
+		b.WriteString("\n")
 	}
 
 	return b.String()
+}
+
+func (m *gitopsModel) renderEntry(e *goEntry, colW int) string {
+	label := strings.TrimPrefix(e.name, "gitops:")
+	var icon, nameStr, extra string
+
+	switch e.state {
+	case goStatePending:
+		icon = goPendingStyle.Render("○")
+		nameStr = goDimStyle.Render(label)
+	case goStateRunning:
+		frame := goSpinnerFrames[m.spinnerTick%len(goSpinnerFrames)]
+		icon = goRunningStyle.Render(frame)
+		nameStr = goLabelStyle.Render(label)
+	case goStateOK:
+		icon = goOKStyle.Render("✓")
+		nameStr = goOKStyle.Render(label)
+		d := e.detail
+		if d == "" {
+			d = "ok"
+		}
+		extra = goDimStyle.Render("  " + d + "  " + fmtDuration(e.elapsed))
+	case goStateSkipped:
+		icon = goSkippedStyle.Render("–")
+		nameStr = goSkippedStyle.Render(label)
+		extra = goSkippedStyle.Render("  local changes")
+	case goStateDetached:
+		icon = goDetachedStyle.Render("⚠")
+		nameStr = goDetachedStyle.Render(label)
+		extra = goDetachedStyle.Render("  " + strings.TrimSpace(strings.TrimPrefix(e.detail, "detached:")))
+	case goStateStale:
+		icon = goStaleStyle.Render("⚠")
+		nameStr = goStaleStyle.Render(label)
+		extra = goStaleStyle.Render("  " + strings.TrimSpace(strings.TrimPrefix(e.detail, "stale:")))
+	case goStateFailed:
+		icon = goFailStyle.Render("✗")
+		nameStr = goFailStyle.Render(label)
+		extra = goFailStyle.Render("  " + e.detail)
+	}
+
+	line := fmt.Sprintf(" %s %s%s", icon, nameStr, extra)
+	return fitToWidth(line, colW)
+}
+
+func fitToWidth(s string, width int) string {
+	vis := visibleWidth(s)
+	if vis > width {
+		return truncateToVisualWidth(s, width)
+	}
+	if vis < width {
+		return s + strings.Repeat(" ", width-vis)
+	}
+	return s
+}
+
+func visibleWidth(s string) int {
+	n := 0
+	inEsc := false
+	for _, r := range s {
+		if inEsc {
+			if r == 'm' {
+				inEsc = false
+			}
+			continue
+		}
+		if r == '\x1b' {
+			inEsc = true
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+func truncateToVisualWidth(s string, maxWidth int) string {
+	var result strings.Builder
+	vis := 0
+	inEsc := false
+	var escBuf strings.Builder
+	for _, r := range s {
+		if inEsc {
+			escBuf.WriteRune(r)
+			if r == 'm' {
+				inEsc = false
+				result.WriteString(escBuf.String())
+				escBuf.Reset()
+			}
+			continue
+		}
+		if r == '\x1b' {
+			inEsc = true
+			escBuf.WriteRune(r)
+			continue
+		}
+		if vis >= maxWidth {
+			result.WriteString("\x1b[0m")
+			return result.String()
+		}
+		result.WriteRune(r)
+		vis++
+	}
+	return result.String()
 }
 
 func fmtDuration(d time.Duration) string {
