@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/cego/gitte/gitops"
@@ -31,6 +32,8 @@ Examples:
 				return err
 			}
 
+			fmt.Println()
+
 			// Step 2: Discovery (if requested)
 			if discover {
 				if err := gitops.Discover(globalCtx, globalCfg, globalCwd); err != nil {
@@ -44,6 +47,8 @@ Examples:
 			if err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode)); err != nil {
 				return err
 			}
+
+			fmt.Println()
 
 			// Step 4: Actions (if specified)
 			if len(args) > 0 {
