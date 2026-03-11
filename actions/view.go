@@ -490,6 +490,15 @@ type actionsModel struct {
 
 // updateCollapsed recalculates which action sections are collapsed.
 //
+func (m *actionsModel) hasFailures() bool {
+	for _, e := range m.taskState {
+		if e.state == actionFailed {
+			return true
+		}
+	}
+	return false
+}
+
 // Only one action section is expanded at a time: the "current" one.
 // Current = the action with running tasks, or (when nothing runs) the last
 // action that has made any non-skipped progress.
@@ -684,7 +693,7 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case actionAllDoneMsg:
 		m.allDone = true
 		m.endTime = time.Now()
-		if m.cancelling {
+		if m.cancelling || !m.hasFailures() {
 			return m, tea.Quit
 		}
 		return m, nil // stay alive; wait for user to press q/ctrl-c or retry
