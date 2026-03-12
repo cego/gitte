@@ -1556,7 +1556,8 @@ func tryNativeClipboard(ctx context.Context, text string) bool {
 func writeToTempFile(text, taskName string) copyResult {
 	// Sanitize task name for filename.
 	safe := strings.NewReplacer("/", "-", ":", "-", " ", "-").Replace(taskName)
-	f, err := os.CreateTemp("", fmt.Sprintf("gitte-%s-*.log", safe))
+	ts := time.Now().Format("20060102-150405")
+	f, err := os.CreateTemp("", fmt.Sprintf("gitte-%s-%s.log", safe, ts))
 	if err != nil {
 		return copyResult{err: fmt.Errorf("failed to create temp file: %w", err)}
 	}
