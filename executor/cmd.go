@@ -81,6 +81,19 @@ func ExecuteSyncInDirWithOutputHandler(
 		return nil, err
 	}
 
+	// When context is cancelled, exec.CommandContext kills the parent process but
+	// child processes may survive and hold the pipe file descriptors open, blocking
+	// handleStream's ReadBytes forever. Close the pipes to unblock the readers.
+	pipeDone := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			stdoutPipe.Close()
+			stderrPipe.Close()
+		case <-pipeDone:
+		}
+	}()
+
 	var stdout, stderr bytes.Buffer
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -95,6 +108,7 @@ func ExecuteSyncInDirWithOutputHandler(
 	}()
 
 	wg.Wait()
+	close(pipeDone)
 	err = cmd.Wait()
 
 	if ctx.Err() != nil {
