@@ -158,6 +158,18 @@ func buildTaskInfos(cfg *config.GitteConfig, st *state.GitteState, cwd string, k
 			}
 		}
 
+		// Merge project env + feature gate env for display.
+		displayEnv := make(map[string]string)
+		for k, v := range proj.Env {
+			displayEnv[k] = v
+		}
+		for k, v := range extraEnvForProject(cfg, st, proj) {
+			displayEnv[k] = v
+		}
+		if len(displayEnv) == 0 {
+			displayEnv = nil
+		}
+
 		infos = append(infos, TaskInfo{
 			TaskName:      taskName(key.GroupKey),
 			Project:       key.Project,
@@ -169,7 +181,7 @@ func buildTaskInfos(cfg *config.GitteConfig, st *state.GitteState, cwd string, k
 			ProjectDir:    projectDir,
 			LocalDir:      localDir,
 			Command:       command,
-			ExtraEnv:      extraEnvForProject(cfg, st, proj),
+			ExtraEnv:      displayEnv,
 			DefaultBranch: proj.DefaultBranch,
 		})
 	}
@@ -315,8 +327,10 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, proj conf
 func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.ProjectConfig) []string {
 	base := os.Environ()
 
-	extra := extraEnvForProject(cfg, st, proj)
-	if extra == nil {
+	projEnv := proj.Env
+	featureEnv := extraEnvForProject(cfg, st, proj)
+
+	if len(projEnv) == 0 && len(featureEnv) == 0 {
 		return base
 	}
 
@@ -327,7 +341,12 @@ func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.Project
 			envMap[parts[0]] = parts[1]
 		}
 	}
-	for k, v := range extra {
+	// Project/template env (lowest priority after OS env)
+	for k, v := range projEnv {
+		envMap[k] = v
+	}
+	// Feature gate env (highest priority, overrides project env)
+	for k, v := range featureEnv {
 		envMap[k] = v
 	}
 

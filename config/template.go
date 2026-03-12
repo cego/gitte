@@ -115,7 +115,7 @@ func resolveTemplateInheritance(templates map[string]Template) error {
 		for _, parentName := range tmpl.Extends {
 			merged = mergeTemplates(merged, templates[parentName])
 		}
-		merged = mergeTemplates(merged, Template{Vars: tmpl.Vars, Actions: tmpl.Actions})
+		merged = mergeTemplates(merged, Template{Vars: tmpl.Vars, Env: tmpl.Env, Actions: tmpl.Actions})
 		merged.Extends = nil
 		templates[name] = merged
 	}
@@ -132,6 +132,14 @@ func mergeTemplates(dst, src Template) Template {
 	}
 	for k, v := range src.Vars {
 		vars[k] = v
+	}
+
+	env := make(map[string]string)
+	for k, v := range dst.Env {
+		env[k] = v
+	}
+	for k, v := range src.Env {
+		env[k] = v
 	}
 
 	actions := make(map[string]ProjectAction)
@@ -170,6 +178,9 @@ func mergeTemplates(dst, src Template) Template {
 	result := Template{}
 	if len(vars) > 0 {
 		result.Vars = vars
+	}
+	if len(env) > 0 {
+		result.Env = env
 	}
 	if len(actions) > 0 {
 		result.Actions = actions
@@ -254,10 +265,24 @@ func applyTemplate(projName string, proj ProjectConfig, tmpl Template) (ProjectC
 		return ProjectConfig{}, err
 	}
 
+	// Merge env: template env → project env (project wins)
+	mergedEnv := make(map[string]string)
+	for k, v := range tmpl.Env {
+		mergedEnv[k] = v
+	}
+	for k, v := range proj.Env {
+		mergedEnv[k] = v
+	}
+
 	result := proj
 	result.Actions = substitutedActions
 	result.Extends = "" // clear extends
 	result.Vars = nil   // clear vars (already applied)
+	if len(mergedEnv) > 0 {
+		result.Env = mergedEnv
+	} else {
+		result.Env = nil
+	}
 
 	return result, nil
 }

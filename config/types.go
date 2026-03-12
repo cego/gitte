@@ -33,6 +33,7 @@ type QuickSolveGitClean struct {
 type Template struct {
 	Extends []string                 `yaml:"extends,omitempty"`
 	Vars    map[string]string        `yaml:"vars,omitempty"`
+	Env     map[string]string        `yaml:"env,omitempty"`
 	Actions map[string]ProjectAction `yaml:"actions,omitempty"`
 }
 
@@ -44,6 +45,7 @@ type ProjectConfig struct {
 	DefaultDisabled bool                     `yaml:"defaultDisabled,omitempty"`
 	Extends         string                   `yaml:"extends,omitempty"`
 	Vars            map[string]string        `yaml:"vars,omitempty"`
+	Env             map[string]string        `yaml:"env,omitempty"`
 }
 
 // ProjectAction represents an action (build/up/down/purge) for a project
