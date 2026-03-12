@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cego/gitte/config"
@@ -31,14 +32,14 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	view := newView(mode, infos, actionOrder, runCancel, retryCh, cfg.QuickSolve.GitClean.Exclude)
 
 	// Track per-task outcomes so retry runs can pre-complete tasks that already finished.
-	outcomes := make(map[string]taskOutcome)
+	outcomes := newTaskOutcomes()
 	onFinish := func(name string, err error, elapsed time.Duration) {
 		if err == nil {
-			outcomes[name] = outcomeSuccess
+			outcomes.set(name, outcomeSuccess)
 		} else if errors.Is(err, executor.ErrTaskSkipped) {
-			outcomes[name] = outcomeSkipped
+			outcomes.set(name, outcomeSkipped)
 		} else {
-			outcomes[name] = outcomeFailed
+			outcomes.set(name, outcomeFailed)
 		}
 		view.OnFinish(name, err, elapsed)
 	}
@@ -80,13 +81,14 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 		// This keeps the full task set in the executor so additional retries
 		// submitted via retryCh can find any failed task.
 		if retrySet != nil {
-			pendingSet := computePendingSet(retrySet, keys, outcomes)
+			snap := outcomes.snapshot()
+			pendingSet := computePendingSet(retrySet, keys, snap)
 			var succeeded, failed []string
 			for _, t := range tasks {
 				if pendingSet[t.Name] {
 					continue
 				}
-				if outcomes[t.Name] == outcomeSuccess {
+				if snap[t.Name] == outcomeSuccess {
 					succeeded = append(succeeded, t.Name)
 				} else {
 					failed = append(failed, t.Name)
@@ -113,7 +115,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 
 		// Compute all tasks that should be reset to pending: retried tasks
 		// plus skipped tasks that transitively depend on retried tasks.
-		pendingNames := computePendingSetSlice(retrySet, keys, outcomes)
+		pendingNames := computePendingSetSlice(retrySet, keys, outcomes.snapshot())
 		if len(pendingNames) == 0 {
 			return runErr
 		}
@@ -403,6 +405,33 @@ const (
 	outcomeFailed
 	outcomeSkipped
 )
+
+// taskOutcomes is a concurrency-safe map of task name → outcome.
+type taskOutcomes struct {
+	mu sync.Mutex
+	m  map[string]taskOutcome
+}
+
+func newTaskOutcomes() *taskOutcomes {
+	return &taskOutcomes{m: make(map[string]taskOutcome)}
+}
+
+func (o *taskOutcomes) set(name string, outcome taskOutcome) {
+	o.mu.Lock()
+	o.m[name] = outcome
+	o.mu.Unlock()
+}
+
+// snapshot returns a shallow copy safe for single-goroutine reads.
+func (o *taskOutcomes) snapshot() map[string]taskOutcome {
+	o.mu.Lock()
+	cp := make(map[string]taskOutcome, len(o.m))
+	for k, v := range o.m {
+		cp[k] = v
+	}
+	o.mu.Unlock()
+	return cp
+}
 
 // computePendingSet returns the set of task names that should be left as pending
 // in a retry run: explicitly retried tasks plus skipped tasks that transitively
