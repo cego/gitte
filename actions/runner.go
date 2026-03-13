@@ -14,6 +14,7 @@ import (
 
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
+	"github.com/cego/gitte/features"
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/state"
 )
@@ -165,7 +166,7 @@ func buildTaskInfos(cfg *config.GitteConfig, st *state.GitteState, cwd string, k
 		for k, v := range proj.Env {
 			displayEnv[k] = v
 		}
-		for k, v := range extraEnvForProject(cfg, st, proj) {
+		for k, v := range extraEnvForProject(cfg, st, key.Project, proj) {
 			displayEnv[k] = v
 		}
 		if len(displayEnv) == 0 {
@@ -236,7 +237,7 @@ func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd strin
 			Needs: needNames,
 			Retry: retryConfig,
 			ExecuteFn: func(ctx context.Context, tName string, handler executor.OutputHandler) error {
-				return runGroupTask(ctx, cfg, st, cwd, proj, tName, cmds, allSearchFors, handler)
+				return runGroupTask(ctx, cfg, st, cwd, proj, key.Project, tName, cmds, allSearchFors, handler)
 			},
 		})
 	}
@@ -253,6 +254,7 @@ func runGroupTask(
 	st *state.GitteState,
 	cwd string,
 	proj config.ProjectConfig,
+	projName string,
 	taskName string,
 	cmds []string,
 	searchFors []config.SearchFor,
@@ -269,7 +271,7 @@ func runGroupTask(
 
 	taskDir := filepath.Join(cwd, localDir)
 
-	env := buildEnv(cfg, st, proj)
+	env := buildEnv(cfg, st, projName, proj)
 
 	wrappedHandler := &searchForHandler{
 		inner:      handler,
@@ -293,7 +295,7 @@ func runGroupTask(
 }
 
 // extraEnvForProject returns the env vars injected by feature gates for a project.
-func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, proj config.ProjectConfig) map[string]string {
+func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) map[string]string {
 	if st == nil || cfg.FeatureGates == nil {
 		return nil
 	}
@@ -305,17 +307,20 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, proj conf
 			continue
 		}
 
-		scope := gate.Scope
 		if fs.OverrideScope != nil {
-			scope = config.FeatureScope{
-				Projects: fs.OverrideScope.Projects,
+			host, path, _, err := config.ParseRemoteURL(proj.Remote)
+			if err != nil {
+				continue
 			}
+			if !features.ProjectMatchesOverrideScope(projName, host, path, fs.OverrideScope) {
+				continue
+			}
+		} else if !projectMatchesScope(proj, gate.Scope) {
+			continue
 		}
 
-		if projectMatchesScope(proj, scope) {
-			for k, v := range gate.Effects.Env {
-				extra[k] = v
-			}
+		for k, v := range gate.Effects.Env {
+			extra[k] = v
 		}
 	}
 
@@ -326,11 +331,11 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, proj conf
 }
 
 // buildEnv constructs the environment variables for a task, including feature gate injections
-func buildEnv(cfg *config.GitteConfig, st *state.GitteState, proj config.ProjectConfig) []string {
+func buildEnv(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) []string {
 	base := os.Environ()
 
 	projEnv := proj.Env
-	featureEnv := extraEnvForProject(cfg, st, proj)
+	featureEnv := extraEnvForProject(cfg, st, projName, proj)
 
 	if len(projEnv) == 0 && len(featureEnv) == 0 {
 		return base
@@ -371,7 +376,7 @@ func projectMatchesScope(proj config.ProjectConfig, scope config.FeatureScope) b
 	}
 
 	for _, gs := range scope.GitlabGroups {
-		if gs.Host == host && strings.HasPrefix(path, gs.Group) {
+		if gs.Host == host && (path == gs.Group || strings.HasPrefix(path, gs.Group+"/")) {
 			return true
 		}
 	}
