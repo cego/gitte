@@ -219,7 +219,7 @@ func (m *featuresModel) viewScopeTree() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(ftHelpStyle.Render("↑↓/jk: nav  Space/Enter: toggle  Ctrl-Z: undo  Esc: back  q: save & quit"))
+	b.WriteString(ftHelpStyle.Render("↑↓/jk: nav  Ctrl-↑↓: skip  PgUp/Dn: page  Space/Enter: toggle  Ctrl-Z: undo  Esc: back  q: save & quit"))
 	return b.String()
 }
 
@@ -301,6 +301,10 @@ func (m *featuresModel) updateScopeTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.scopeMovePrev()
 	case tea.KeyDown:
 		m.scopeMoveNext()
+	case tea.KeyPgUp:
+		m.scopeMovePrevPage()
+	case tea.KeyPgDown:
+		m.scopeMoveNextPage()
 	case tea.KeySpace, tea.KeyEnter:
 		m.scopeToggle()
 	case tea.KeyCtrlZ:
@@ -315,6 +319,10 @@ func (m *featuresModel) updateScopeTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.scopeMovePrev()
 		case "j":
 			m.scopeMoveNext()
+		case "ctrl+up":
+			m.scopeMovePrevSibling()
+		case "ctrl+down":
+			m.scopeMoveNextSibling()
 		}
 	}
 	return m, nil
@@ -335,16 +343,73 @@ func (m *featuresModel) scopeMovePrev() {
 }
 
 func (m *featuresModel) scopeUpdateViewport() {
-	avail := m.height - 5
-	if avail < 5 {
-		avail = 10
-	}
+	avail := m.scopeAvail()
 	if m.scopeCursor >= m.scopeOffset+avail {
 		m.scopeOffset = m.scopeCursor - avail + 1
 	}
 	if m.scopeCursor < m.scopeOffset {
 		m.scopeOffset = m.scopeCursor
 	}
+}
+
+func (m *featuresModel) scopeAvail() int {
+	avail := m.height - 5
+	if avail < 5 {
+		avail = 10
+	}
+	return avail
+}
+
+func (m *featuresModel) scopeMoveNextPage() {
+	target := m.scopeCursor + m.scopeAvail()
+	if target >= len(m.scopeRows) {
+		target = len(m.scopeRows) - 1
+	}
+	if target != m.scopeCursor {
+		m.scopeCursor = target
+		m.scopeUpdateViewport()
+	}
+}
+
+func (m *featuresModel) scopeMovePrevPage() {
+	target := m.scopeCursor - m.scopeAvail()
+	if target < 0 {
+		target = 0
+	}
+	if target != m.scopeCursor {
+		m.scopeCursor = target
+		m.scopeUpdateViewport()
+	}
+}
+
+// scopeMoveNextSibling jumps to the next row at the same or lesser depth.
+func (m *featuresModel) scopeMoveNextSibling() {
+	curDepth := m.scopeRows[m.scopeCursor].Depth
+	for i := m.scopeCursor + 1; i < len(m.scopeRows); i++ {
+		if m.scopeRows[i].Depth <= curDepth {
+			m.scopeCursor = i
+			m.scopeUpdateViewport()
+			return
+		}
+	}
+	// No sibling found — jump to last row.
+	m.scopeCursor = len(m.scopeRows) - 1
+	m.scopeUpdateViewport()
+}
+
+// scopeMovePrevSibling jumps to the previous row at the same or lesser depth.
+func (m *featuresModel) scopeMovePrevSibling() {
+	curDepth := m.scopeRows[m.scopeCursor].Depth
+	for i := m.scopeCursor - 1; i >= 0; i-- {
+		if m.scopeRows[i].Depth <= curDepth {
+			m.scopeCursor = i
+			m.scopeUpdateViewport()
+			return
+		}
+	}
+	// No sibling found — jump to first row.
+	m.scopeCursor = 0
+	m.scopeUpdateViewport()
 }
 
 func (m *featuresModel) scopeToggle() {
