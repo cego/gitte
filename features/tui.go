@@ -178,7 +178,7 @@ func (m *featuresModel) viewScopeTree() string {
 
 	for i := start; i < end; i++ {
 		row := m.scopeRows[i]
-		indent := strings.Repeat("  ", row.Depth)
+		indent := strings.Repeat("    ", row.Depth)
 		isSelected := i == m.scopeCursor
 
 		cursor := "  "
