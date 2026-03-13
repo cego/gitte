@@ -153,6 +153,8 @@ type startupModel struct {
 	drainOnce   sync.Once
 	cancel      context.CancelFunc
 	width       int
+	startedAt   time.Time
+	finishedAt  time.Time
 }
 
 func newStartupModel(names []string, msgCh <-chan tuiUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *startupModel {
@@ -205,6 +207,9 @@ func (m *startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Tick(80*time.Millisecond, func(t time.Time) tea.Msg { return tuiTickMsg(t) })
 
 	case tuiUpdateMsg:
+		if m.startedAt.IsZero() {
+			m.startedAt = time.Now()
+		}
 		if i, ok := m.index[msg.name]; ok {
 			m.checks[i].state = msg.state
 			m.checks[i].elapsed = msg.elapsed
@@ -214,6 +219,7 @@ func (m *startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.listen()
 
 	case allDoneMsg:
+		m.finishedAt = time.Now()
 		return m, tea.Quit
 	}
 
@@ -222,7 +228,15 @@ func (m *startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *startupModel) View() string {
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("Startup checks") + "\n\n")
+	title := "Startup checks"
+	if !m.startedAt.IsZero() {
+		end := m.finishedAt
+		if end.IsZero() {
+			end = time.Now()
+		}
+		title += " " + dimStyle.Render("("+fmtDuration(end.Sub(m.startedAt))+")")
+	}
+	b.WriteString(titleStyle.Render(title) + "\n\n")
 
 	width := m.width
 	if width <= 0 {

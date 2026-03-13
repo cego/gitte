@@ -213,6 +213,8 @@ type gitopsModel struct {
 	drainOnce   sync.Once
 	cancel      context.CancelFunc
 	width       int
+	startedAt   time.Time
+	finishedAt  time.Time
 }
 
 func newGitopsModel(names []string, msgCh <-chan goUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *gitopsModel {
@@ -267,6 +269,9 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case goUpdateMsg:
+		if m.startedAt.IsZero() {
+			m.startedAt = time.Now()
+		}
 		if i, ok := m.index[msg.name]; ok {
 			e := m.entries[i]
 			e.elapsed = msg.elapsed
@@ -284,6 +289,7 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.listen()
 
 	case goDoneMsg:
+		m.finishedAt = time.Now()
 		return m, tea.Quit
 	}
 
@@ -292,7 +298,15 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *gitopsModel) View() string {
 	var b strings.Builder
-	b.WriteString(goTitleStyle.Render("Syncing repositories") + "\n\n")
+	title := "Syncing repositories"
+	if !m.startedAt.IsZero() {
+		end := m.finishedAt
+		if end.IsZero() {
+			end = time.Now()
+		}
+		title += " " + goDimStyle.Render("("+fmtDuration(end.Sub(m.startedAt))+")")
+	}
+	b.WriteString(goTitleStyle.Render(title) + "\n\n")
 
 	width := m.width
 	if width <= 0 {
