@@ -20,7 +20,12 @@ func newFeaturesCmd() *cobra.Command {
 			if outputMode() == output.ModePlain {
 				return newFeaturesListCmd().RunE(cmd, args)
 			}
-			return features.Run(globalCfg, globalCwd, globalSt)
+			err := features.Run(globalCfg, globalCwd, globalSt)
+			if err == features.ErrNoFeatureGates {
+				fmt.Println(err)
+				return nil
+			}
+			return err
 		},
 	}
 

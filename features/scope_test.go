@@ -128,7 +128,7 @@ func TestCheckedStateToOverride_NoneChecked(t *testing.T) {
 	if override == nil {
 		t.Fatal("expected non-nil override when none checked")
 	}
-	if len(override.Projects) != 0 && len(override.GitlabGroups) != 0 && len(override.GithubOrgs) != 0 {
+	if len(override.Projects) != 0 || len(override.GitlabGroups) != 0 || len(override.GithubOrgs) != 0 {
 		t.Error("expected empty override")
 	}
 }

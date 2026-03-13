@@ -2,6 +2,7 @@ package features
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
@@ -477,17 +478,21 @@ func (m *featuresModel) applyScopeChanges() {
 }
 
 func (m *featuresModel) save() {
-	_ = state.Save(m.cwd, m.st)
+	if err := state.Save(m.cwd, m.st); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to save state: %v\n", err)
+	}
 }
 
-// Run starts the feature gate TUI.
+// Run starts the feature gate TUI. Returns ErrNoFeatureGates if none are defined.
 func Run(cfg *config.GitteConfig, cwd string, st *state.GitteState) error {
 	if len(cfg.FeatureGates) == 0 {
-		fmt.Println("No feature gates defined in configuration.")
-		return nil
+		return ErrNoFeatureGates
 	}
 	model := newFeaturesModel(cfg, cwd, st)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
+
+// ErrNoFeatureGates is returned when no feature gates are defined in the config.
+var ErrNoFeatureGates = fmt.Errorf("no feature gates defined in configuration")
