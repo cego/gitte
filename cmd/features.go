@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/cego/gitte/config"
+	"github.com/cego/gitte/features"
+	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/state"
 
 	"github.com/spf13/cobra"
@@ -14,6 +16,12 @@ func newFeaturesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "features",
 		Short: "Manage feature gates",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if outputMode() == output.ModePlain {
+				return newFeaturesListCmd().RunE(cmd, args)
+			}
+			return features.Run(globalCfg, globalCwd, globalSt)
+		},
 	}
 
 	cmd.AddCommand(
@@ -49,7 +57,12 @@ func newFeaturesListCmd() *cobra.Command {
 }
 
 func newFeaturesEnableCmd() *cobra.Command {
-	var project string
+	var (
+		projects     []string
+		gitlabGroups []string
+		githubOrgs   []string
+		excludes     []string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "enable <gate>",
@@ -57,14 +70,31 @@ func newFeaturesEnableCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			gateName := args[0]
-
 			if _, ok := globalCfg.FeatureGates[gateName]; !ok {
 				return fmt.Errorf("unknown feature gate: %q", gateName)
 			}
 
 			fs := state.FeatureState{Enabled: true}
-			if project != "" {
-				fs.OverrideScope = &state.ScopeOverride{Projects: []string{project}}
+
+			if len(projects) > 0 || len(gitlabGroups) > 0 || len(githubOrgs) > 0 {
+				override := &state.ScopeOverride{Projects: projects}
+				for _, g := range gitlabGroups {
+					host, group, ok := strings.Cut(g, "/")
+					if !ok {
+						return fmt.Errorf("invalid --gitlab-group format %q, expected host/group", g)
+					}
+					entry := state.ScopeOverrideGroup{Host: host, Group: group, ExcludeProjects: excludes}
+					override.GitlabGroups = append(override.GitlabGroups, entry)
+				}
+				for _, o := range githubOrgs {
+					host, org, ok := strings.Cut(o, "/")
+					if !ok {
+						return fmt.Errorf("invalid --github-org format %q, expected host/org", o)
+					}
+					entry := state.ScopeOverrideOrg{Host: host, Org: org, ExcludeProjects: excludes}
+					override.GithubOrgs = append(override.GithubOrgs, entry)
+				}
+				fs.OverrideScope = override
 			}
 
 			globalSt.Features[gateName] = fs
@@ -77,7 +107,10 @@ func newFeaturesEnableCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&project, "project", "", "limit feature gate to a specific project")
+	cmd.Flags().StringArrayVar(&projects, "project", nil, "limit to specific project(s)")
+	cmd.Flags().StringArrayVar(&gitlabGroups, "gitlab-group", nil, "limit to gitlab group (host/group)")
+	cmd.Flags().StringArrayVar(&githubOrgs, "github-org", nil, "limit to github org (host/org)")
+	cmd.Flags().StringArrayVar(&excludes, "exclude", nil, "exclude project from all groups/orgs")
 	return cmd
 }
 
