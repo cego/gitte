@@ -43,13 +43,15 @@ func newFeaturesListCmd() *cobra.Command {
 
 			for gateName, gate := range globalCfg.FeatureGates {
 				enabled := "no"
+				scopeDesc := buildScopeDescription(gate.Scope.Projects, gate.Scope.GitlabGroups, gate.Scope.GithubOrgs)
 				if fs, ok := globalSt.Features[gateName]; ok && fs.Enabled {
 					enabled = "yes"
+					if fs.OverrideScope != nil {
+						scopeDesc = buildOverrideScopeDescription(fs.OverrideScope)
+					}
 				}
 
-				// Build scope description
-				scope := buildScopeDescription(gate.Scope.Projects, gate.Scope.GitlabGroups, gate.Scope.GithubOrgs)
-				fmt.Printf("%-30s %-8s %s\n", gateName, enabled, scope)
+				fmt.Printf("%-30s %-8s %s\n", gateName, enabled, scopeDesc)
 			}
 			return nil
 		},
@@ -136,6 +138,31 @@ func newFeaturesDisableCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func buildOverrideScopeDescription(o *state.ScopeOverride) string {
+	var parts []string
+	if len(o.Projects) > 0 {
+		parts = append(parts, "projects: "+strings.Join(o.Projects, ", "))
+	}
+	for _, g := range o.GitlabGroups {
+		s := fmt.Sprintf("gitlab:%s/%s", g.Host, g.Group)
+		if len(g.ExcludeProjects) > 0 {
+			s += " (excl: " + strings.Join(g.ExcludeProjects, ", ") + ")"
+		}
+		parts = append(parts, s)
+	}
+	for _, g := range o.GithubOrgs {
+		s := fmt.Sprintf("github:%s/%s", g.Host, g.Org)
+		if len(g.ExcludeProjects) > 0 {
+			s += " (excl: " + strings.Join(g.ExcludeProjects, ", ") + ")"
+		}
+		parts = append(parts, s)
+	}
+	if len(parts) == 0 {
+		return "none (disabled)"
+	}
+	return strings.Join(parts, "; ")
 }
 
 func buildScopeDescription(projects []string, gitlabGroups []config.GitlabScope, githubOrgs []config.GithubScope) string {

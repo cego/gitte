@@ -315,7 +315,7 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName 
 			if !features.ProjectMatchesOverrideScope(projName, host, path, fs.OverrideScope) {
 				continue
 			}
-		} else if !projectMatchesScope(proj, gate.Scope) {
+		} else if !ProjectMatchesScopeByName(projName, proj, gate.Scope) {
 			continue
 		}
 

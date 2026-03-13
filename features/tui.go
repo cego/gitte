@@ -302,6 +302,8 @@ func (m *featuresModel) updateScopeTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.scopeMoveNext()
 	case tea.KeySpace, tea.KeyEnter:
 		m.scopeToggle()
+	case tea.KeyCtrlZ:
+		m.scopeUndo()
 	default:
 		switch msg.String() {
 		case "q":
@@ -312,8 +314,6 @@ func (m *featuresModel) updateScopeTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.scopeMovePrev()
 		case "j":
 			m.scopeMoveNext()
-		case "ctrl+z":
-			m.scopeUndo()
 		}
 	}
 	return m, nil
