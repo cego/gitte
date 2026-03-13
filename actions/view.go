@@ -925,8 +925,13 @@ func (m *actionsModel) buildCopyText(taskName string) string {
 		}
 		if len(info.ExtraEnv) > 0 {
 			b.WriteString("Env:\n")
-			for k, v := range info.ExtraEnv {
-				b.WriteString("  " + k + "=" + v + "\n")
+			envKeys := make([]string, 0, len(info.ExtraEnv))
+			for k := range info.ExtraEnv {
+				envKeys = append(envKeys, k)
+			}
+			sort.Strings(envKeys)
+			for _, k := range envKeys {
+				b.WriteString("  " + k + "=" + info.ExtraEnv[k] + "\n")
 			}
 		}
 		b.WriteString("\n")
@@ -1395,8 +1400,13 @@ func (m *actionsModel) renderLogs(width, height int) []string {
 				lines = append(lines, actDimStyle.Render("  $ "+info.Command))
 				height--
 			}
-			for k, v := range info.ExtraEnv {
-				lines = append(lines, actDimStyle.Render("  "+k+"="+v))
+			envKeys := make([]string, 0, len(info.ExtraEnv))
+			for k := range info.ExtraEnv {
+				envKeys = append(envKeys, k)
+			}
+			sort.Strings(envKeys)
+			for _, k := range envKeys {
+				lines = append(lines, actDimStyle.Render("  "+k+"="+info.ExtraEnv[k]))
 				height--
 			}
 		}
