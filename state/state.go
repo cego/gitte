@@ -28,7 +28,23 @@ type FeatureState struct {
 
 // ScopeOverride narrows a feature gate's configured scope on this machine
 type ScopeOverride struct {
-	Projects []string `yaml:"projects,omitempty"`
+	Projects     []string             `yaml:"projects,omitempty"`
+	GitlabGroups []ScopeOverrideGroup `yaml:"gitlab_groups,omitempty"`
+	GithubOrgs   []ScopeOverrideOrg   `yaml:"github_orgs,omitempty"`
+}
+
+// ScopeOverrideGroup scopes a feature gate to a GitLab group with optional exclusions
+type ScopeOverrideGroup struct {
+	Host            string   `yaml:"host"`
+	Group           string   `yaml:"group"`
+	ExcludeProjects []string `yaml:"exclude_projects,omitempty"`
+}
+
+// ScopeOverrideOrg scopes a feature gate to a GitHub org with optional exclusions
+type ScopeOverrideOrg struct {
+	Host            string   `yaml:"host"`
+	Org             string   `yaml:"org"`
+	ExcludeProjects []string `yaml:"exclude_projects,omitempty"`
 }
 
 // StateCache holds cached remote config metadata
