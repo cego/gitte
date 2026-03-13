@@ -86,3 +86,90 @@ func TestProjectMatchesOverrideScope_EmptyOverride(t *testing.T) {
 		t.Error("expected false for empty override")
 	}
 }
+
+func TestBuildScopeTree_GroupsProjectsByHostAndNamespace(t *testing.T) {
+	projects := map[string]ScopeProject{
+		"monolith": {Host: "gitlab.cego.dk", Path: "cego/monolith"},
+		"mysql":    {Host: "gitlab.cego.dk", Path: "cego/mysql"},
+		"promo":    {Host: "gitlab.cego.dk", Path: "spilnu/services/promo"},
+	}
+	rows := BuildScopeTree(projects)
+
+	if len(rows) == 0 {
+		t.Fatal("expected rows")
+	}
+	if rows[0].Kind != ScopeRowHost {
+		t.Errorf("expected first row to be host, got %v", rows[0].Kind)
+	}
+	if rows[0].Label != "gitlab.cego.dk" {
+		t.Errorf("expected label gitlab.cego.dk, got %q", rows[0].Label)
+	}
+}
+
+func TestCheckedStateToOverride_AllChecked(t *testing.T) {
+	checked := map[string]bool{"monolith": true, "mysql": true}
+	projects := map[string]ScopeProject{
+		"monolith": {Host: "gitlab.cego.dk", Path: "cego/monolith"},
+		"mysql":    {Host: "gitlab.cego.dk", Path: "cego/mysql"},
+	}
+	override := CheckedStateToOverride(checked, projects)
+	if override != nil {
+		t.Error("expected nil override when all checked")
+	}
+}
+
+func TestCheckedStateToOverride_NoneChecked(t *testing.T) {
+	checked := map[string]bool{"monolith": false, "mysql": false}
+	projects := map[string]ScopeProject{
+		"monolith": {Host: "gitlab.cego.dk", Path: "cego/monolith"},
+		"mysql":    {Host: "gitlab.cego.dk", Path: "cego/mysql"},
+	}
+	override := CheckedStateToOverride(checked, projects)
+	if override == nil {
+		t.Fatal("expected non-nil override when none checked")
+	}
+	if len(override.Projects) != 0 && len(override.GitlabGroups) != 0 && len(override.GithubOrgs) != 0 {
+		t.Error("expected empty override")
+	}
+}
+
+func TestCheckedStateToOverride_PartialGroup(t *testing.T) {
+	checked := map[string]bool{"monolith": true, "mysql": false}
+	projects := map[string]ScopeProject{
+		"monolith": {Host: "gitlab.cego.dk", Path: "cego/monolith"},
+		"mysql":    {Host: "gitlab.cego.dk", Path: "cego/mysql"},
+	}
+	override := CheckedStateToOverride(checked, projects)
+	if override == nil {
+		t.Fatal("expected non-nil override")
+	}
+	if len(override.GitlabGroups) != 1 {
+		t.Fatalf("expected 1 gitlab group, got %d", len(override.GitlabGroups))
+	}
+	g := override.GitlabGroups[0]
+	if g.Group != "cego" {
+		t.Errorf("expected group cego, got %q", g.Group)
+	}
+	if len(g.ExcludeProjects) != 1 || g.ExcludeProjects[0] != "mysql" {
+		t.Errorf("expected exclude [mysql], got %v", g.ExcludeProjects)
+	}
+}
+
+func TestOverrideToCheckedState(t *testing.T) {
+	override := &state.ScopeOverride{
+		GitlabGroups: []state.ScopeOverrideGroup{
+			{Host: "gitlab.cego.dk", Group: "cego", ExcludeProjects: []string{"mysql"}},
+		},
+	}
+	projects := map[string]ScopeProject{
+		"monolith": {Host: "gitlab.cego.dk", Path: "cego/monolith"},
+		"mysql":    {Host: "gitlab.cego.dk", Path: "cego/mysql"},
+	}
+	checked := OverrideToCheckedState(override, projects)
+	if !checked["monolith"] {
+		t.Error("expected monolith checked")
+	}
+	if checked["mysql"] {
+		t.Error("expected mysql unchecked")
+	}
+}
