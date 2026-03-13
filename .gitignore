@@ -12,3 +12,4 @@ cego-gitte-*.tgz
 ppa/
 gitte
 gitte.yml
+.worktrees/
