@@ -60,5 +60,6 @@ Examples:
 
 	cmd.Flags().BoolVar(&discover, "discover", false, "discover and sync repos from configured sources before actions")
 	cmd.Flags().BoolVar(&noRebase, "no-rebase", false, "skip auto-rebase onto default branch (also: GITTE_NO_REBASE=true)")
+	cmd.Flags().BoolVar(&flagNoNeeds, "no-needs", false, "disable dependency resolution between tasks (also: GITTE_NO_NEEDS=true)")
 	return cmd
 }

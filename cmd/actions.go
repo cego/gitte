@@ -9,7 +9,7 @@ import (
 )
 
 func newActionsCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "actions <action> [group] [projects]",
 		Short: "Run actions only (no startup checks, no git sync)",
 		Long: `Run actions only on configured projects.
@@ -25,6 +25,8 @@ Examples:
 			return runActions(args)
 		},
 	}
+	cmd.Flags().BoolVar(&flagNoNeeds, "no-needs", false, "disable dependency resolution between tasks (also: GITTE_NO_NEEDS=true)")
+	return cmd
 }
 
 func runActions(args []string) error {

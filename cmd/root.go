@@ -23,6 +23,7 @@ var (
 	flagConfigPath string
 	flagNoTTY      bool
 	flagCwd        string
+	flagNoNeeds    bool
 
 	// Global shared state set during PersistentPreRunE
 	globalCfg    *config.GitteConfig // toggle-filtered view
@@ -212,9 +213,9 @@ func outputMode() output.OutputMode {
 	return output.DetectMode(flagNoTTY)
 }
 
-// withNeeds returns false when GITTE_NO_NEEDS=true, true otherwise
+// withNeeds returns false when --no-needs flag is set or GITTE_NO_NEEDS=true, true otherwise
 func withNeeds() bool {
-	return os.Getenv("GITTE_NO_NEEDS") != "true"
+	return !flagNoNeeds && os.Getenv("GITTE_NO_NEEDS") != "true"
 }
 
 // maxParallelization returns GITTE_MAX_TASK_PARALLELIZATION if set, else 0 (unlimited)
