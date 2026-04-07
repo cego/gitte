@@ -20,6 +20,21 @@ import (
 	"github.com/cego/gitte/output"
 )
 
+// parallelLimit returns the effective parallelization cap for gitops clone/pull
+// tasks. It uses GITTE_MAX_TASK_PARALLELIZATION if set; otherwise it falls
+// back to defaultVal (0 = unlimited).
+func parallelLimit(defaultVal int) int {
+	v := os.Getenv("GITTE_MAX_TASK_PARALLELIZATION")
+	if v == "" {
+		return defaultVal
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return defaultVal
+	}
+	return n
+}
+
 // CheckoutPrompt is raised for each project that the user may want to act on
 // (detached HEAD, broken remote, stale branch). In TTY mode the user is asked
 // interactively; in plain mode the command fails with Recommendation as a hint.
@@ -43,6 +58,7 @@ func Sync(
 	mode output.OutputMode,
 	noRebase bool,
 	onPrompt func(CheckoutPrompt) (bool, error),
+	warnFn func(string),
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -63,7 +79,7 @@ func Sync(
 		}
 	}
 
-	view := newView(mode, taskNames, dirs, cancel)
+	view := newView(mode, "Syncing repositories", taskNames, dirs, cancel)
 
 	var mu sync.Mutex
 	var prompts []CheckoutPrompt
@@ -82,14 +98,15 @@ func Sync(
 			Name: "gitops:" + name,
 			ExecuteFn: func(ctx context.Context, taskName string, handler executor.OutputHandler) error {
 				setDetail := func(detail string) { view.SetDetail(taskName, detail) }
-				return syncProject(ctx, cwd, name, proj, noRebase, setDetail, addPrompt)
+				return syncProject(ctx, cwd, name, proj, noRebase, setDetail, addPrompt, warnFn)
 			},
 		})
 	}
 
 	exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
-		OnTaskStart:  view.OnStart,
-		OnTaskFinish: view.OnFinish,
+		MaxParallelization: parallelLimit(0),
+		OnTaskStart:        view.OnStart,
+		OnTaskFinish:       view.OnFinish,
 	})
 	if err != nil {
 		return err
@@ -164,6 +181,7 @@ func syncProject(
 	noRebase bool,
 	setDetail func(string),
 	addPrompt func(CheckoutPrompt),
+	warnFn func(string),
 ) error {
 	localDir, err := config.LocalDirForRemote(proj.Remote)
 	if err != nil {
@@ -182,6 +200,7 @@ func syncProject(
 		return syncProject(ctx, cwd, name, proj, noRebase,
 			func(d string) { fmt.Fprintf(os.Stderr, "  [%s] %s\n", name, d) },
 			func(_ CheckoutPrompt) {}, // no further prompts after retry
+			func(w string) { fmt.Fprintln(os.Stderr, "warning: "+w) },
 		)
 	}
 
@@ -198,7 +217,7 @@ func syncProject(
 	// Always fetch so remote refs are fresh.
 	if err := fetchOrigin(ctx, projectPath); err != nil {
 		// Non-fatal: continue with cached refs; subsequent checks may be stale.
-		fmt.Fprintf(os.Stderr, "warning [%s]: fetch failed: %v\n", name, err)
+		warnFn(fmt.Sprintf("[%s] fetch failed: %v", name, err))
 	}
 
 	// Detached HEAD.

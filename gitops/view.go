@@ -26,24 +26,30 @@ type View interface {
 }
 
 // newView picks the right view implementation based on output mode.
-func newView(mode output.OutputMode, taskNames []string, dirs map[string]string, cancel context.CancelFunc) View {
+func newView(mode output.OutputMode, title string, taskNames []string, dirs map[string]string, cancel context.CancelFunc) View {
 	if mode == output.ModePlain {
-		return &plainView{details: make(map[string]string), dirs: dirs}
+		return &plainView{title: title, details: make(map[string]string), dirs: dirs}
 	}
-	return newTUIView(taskNames, cancel)
+	return newTUIView(title, taskNames, cancel)
 }
 
 // ---- Plain view --------------------------------------------------------
 
 type plainView struct {
-	mu      sync.Mutex
-	details map[string]string
-	dirs    map[string]string // taskName → relative local dir
+	mu        sync.Mutex
+	title     string
+	printedHdr bool
+	details   map[string]string
+	dirs      map[string]string // taskName → relative local dir
 }
 
 func (v *plainView) OnStart(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if !v.printedHdr && v.title != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "=== %s ===\n", v.title)
+		v.printedHdr = true
+	}
 	if d := v.dirs[name]; d != "" {
 		_, _ = fmt.Fprintf(os.Stdout, "[%s] RUNNING  ./%s\n", name, d)
 	} else {
@@ -130,10 +136,10 @@ type tuiView struct {
 	drainedCh chan struct{} // closed by listen() after the last buffered message is consumed
 }
 
-func newTUIView(taskNames []string, cancel context.CancelFunc) *tuiView {
+func newTUIView(title string, taskNames []string, cancel context.CancelFunc) *tuiView {
 	msgCh := make(chan goUpdateMsg, 100)
 	drainedCh := make(chan struct{})
-	m := newGitopsModel(taskNames, msgCh, drainedCh, cancel)
+	m := newGitopsModel(title, taskNames, msgCh, drainedCh, cancel)
 	p := tea.NewProgram(m)
 	v := &tuiView{
 		program:   p,
@@ -165,7 +171,7 @@ func (v *tuiView) OnFinish(name string, err error, elapsed time.Duration) {
 // SetDetail signals a sub-state directly to the BubbleTea model, bypassing the
 // listen loop so it arrives before the OnFinish goUpdateMsg.
 func (v *tuiView) SetDetail(name, detail string) {
-	state := goStateOK
+	state := goStateRunning
 	switch {
 	case detail == "skipped":
 		state = goStateSkipped
@@ -189,6 +195,20 @@ func (v *tuiView) Wait() {
 
 // ---- BubbleTea model ---------------------------------------------------
 
+var goWarnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+
+// PrintWarnings prints collected non-fatal warnings to stderr. Call this after
+// all TUI phases have finished so warnings don't corrupt the live output.
+func PrintWarnings(mode output.OutputMode, warnings []string) {
+	for _, w := range warnings {
+		if mode == output.ModePlain {
+			fmt.Fprintln(os.Stderr, "warning: "+w)
+		} else {
+			fmt.Fprintln(os.Stderr, goWarnStyle.Render("⚠ ")+w)
+		}
+	}
+}
+
 var (
 	goPendingStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	goRunningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
@@ -205,6 +225,7 @@ var (
 var goSpinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 type gitopsModel struct {
+	title       string
 	entries     []*goEntry
 	index       map[string]int
 	msgCh       <-chan goUpdateMsg
@@ -217,14 +238,14 @@ type gitopsModel struct {
 	finishedAt  time.Time
 }
 
-func newGitopsModel(names []string, msgCh <-chan goUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *gitopsModel {
+func newGitopsModel(title string, names []string, msgCh <-chan goUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *gitopsModel {
 	entries := make([]*goEntry, len(names))
 	idx := make(map[string]int, len(names))
 	for i, n := range names {
 		entries[i] = &goEntry{name: n, state: goStatePending}
 		idx[n] = i
 	}
-	return &gitopsModel{entries: entries, index: idx, msgCh: msgCh, drainedCh: drainedCh, cancel: cancel}
+	return &gitopsModel{title: title, entries: entries, index: idx, msgCh: msgCh, drainedCh: drainedCh, cancel: cancel}
 }
 
 func (m *gitopsModel) Init() tea.Cmd {
@@ -264,8 +285,12 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case goDetailMsg:
 		if i, ok := m.index[msg.name]; ok {
-			m.entries[i].state = msg.state
-			m.entries[i].detail = msg.detail
+			e := m.entries[i]
+			// Don't override a terminal state (OK/Failed) with an in-progress update.
+			if e.state != goStateOK && e.state != goStateFailed {
+				e.state = msg.state
+			}
+			e.detail = msg.detail
 		}
 
 	case goUpdateMsg:
@@ -279,10 +304,18 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Hard failure always wins.
 				e.state = goStateFailed
 				e.detail = msg.detail
-			} else if e.state == goStateRunning {
-				// No SetDetail was called; take the state from OnFinish.
+			} else if msg.state == goStateRunning {
+				// OnStart: transition pending → running so the spinner shows.
+				if e.state == goStatePending {
+					e.state = goStateRunning
+				}
+			} else if e.state == goStateRunning || e.state == goStatePending {
+				// OnFinish: take the terminal state. Preserve detail text already
+				// set by SetDetail (msg.detail is empty for non-error OnFinish).
 				e.state = msg.state
-				e.detail = msg.detail
+				if msg.detail != "" {
+					e.detail = msg.detail
+				}
 			}
 			// Otherwise keep the state set by SetDetail (skipped/stale/detached).
 		}
@@ -298,7 +331,10 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *gitopsModel) View() string {
 	var b strings.Builder
-	title := "Syncing repositories"
+	title := m.title
+	if title == "" {
+		title = "Syncing repositories"
+	}
 	if !m.startedAt.IsZero() {
 		end := m.finishedAt
 		if end.IsZero() {

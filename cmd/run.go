@@ -35,18 +35,22 @@ Examples:
 			fmt.Println()
 
 			// Step 2: Discovery (if requested)
+			mode := outputMode()
+			warnings, addWarning := newWarnCollector()
 			if discover {
-				if err := gitops.Discover(globalCtx, globalCfg, globalCwd); err != nil {
+				if err := gitops.Discover(globalCtx, globalCfg, globalCwd, mode, addWarning); err != nil {
+					gitops.PrintWarnings(mode, warnings())
 					return err
 				}
 			}
 
 			// Step 3: Git sync
-			mode := outputMode()
 			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
-			if err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode)); err != nil {
+			if err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode), addWarning); err != nil {
+				gitops.PrintWarnings(mode, warnings())
 				return err
 			}
+			gitops.PrintWarnings(mode, warnings())
 
 			fmt.Println()
 

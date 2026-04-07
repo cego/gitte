@@ -9,6 +9,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// LoadOverrideConfig loads .gitte-override.yml and returns it as a GitteConfig.
+// Returns an empty config if the file does not exist.
+func LoadOverrideConfig(dir string) (*GitteConfig, error) {
+	data, err := os.ReadFile(filepath.Join(dir, OverridePath))
+	if os.IsNotExist(err) {
+		return &GitteConfig{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return LoadGitteConfigFromYAML(data)
+}
+
+// SaveOverrideConfig writes cfg to .gitte-override.yml, replacing any existing file.
+func SaveOverrideConfig(dir string, cfg *GitteConfig) error {
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, OverridePath), data, 0o644)
+}
+
 const ConfigPath = ".gitte.yml"
 const OverridePath = ".gitte-override.yml"
 const DotEnvPath = ".gitte-env"
@@ -113,6 +135,10 @@ func MergeOverride(base, override *GitteConfig) *GitteConfig {
 	if override.SearchFor != nil {
 		base.SearchFor = override.SearchFor
 	}
+
+	// Append local sources (gitlab groups + github orgs)
+	base.Sources.Gitlab = append(base.Sources.Gitlab, override.Sources.Gitlab...)
+	base.Sources.Github = append(base.Sources.Github, override.Sources.Github...)
 
 	return base
 }
