@@ -356,7 +356,11 @@ func newTUIActionsView(tasks []TaskInfo, actionOrder []string, cancel context.Ca
 	}
 
 	go func() {
-		_, _ = p.Run()
+		finalModel, _ := p.Run()
+		if am, ok := finalModel.(*actionsModel); ok {
+			am.focusTask = ""
+			fmt.Print(am.View())
+		}
 		close(doneCh)
 	}()
 
@@ -1091,12 +1095,17 @@ func (m *actionsModel) View() string {
 		end = time.Now()
 	}
 	elapsed := end.Sub(m.startTime)
-	hdr := fmt.Sprintf("Actions  running:%d  done:%d/%d  failed:%d",
-		running, success+failed, total-skipped, failed)
-	if skipped > 0 {
-		hdr += fmt.Sprintf("  skipped:%d", skipped)
+	var hdr string
+	if m.allDone && !m.hasFailures() {
+		hdr = "✓ All tasks finished successfully  " + fmtActionDuration(elapsed)
+	} else {
+		hdr = fmt.Sprintf("Actions  running:%d  done:%d/%d  failed:%d",
+			running, success+failed, total-skipped, failed)
+		if skipped > 0 {
+			hdr += fmt.Sprintf("  skipped:%d", skipped)
+		}
+		hdr += "  " + fmtActionDuration(elapsed)
 	}
-	hdr += "  " + fmtActionDuration(elapsed)
 
 	topSep := strings.Repeat("─", leftW) + "─┬─" + strings.Repeat("─", logW)
 	botSep := strings.Repeat("─", leftW) + "─┴─" + strings.Repeat("─", logW)
@@ -1186,7 +1195,7 @@ func (m *actionsModel) renderQuickSolveView() string {
 			actDimStyle.Render("     Fetch from origin and reset to origin/"+qs.taskInfo.DefaultBranch),
 			"",
 			qsOptStyle.Render("  2  Git clean -fdx"),
-			actDimStyle.Render("     Remove all untracked files and directories"),
+			actDimStyle.Render("     Remove untracked and ignored files — does not affect tracked changes"),
 			"",
 			actDimStyle.Render("  Project: "+qs.taskInfo.ProjectDir),
 		)
