@@ -127,6 +127,7 @@ const (
 	rowKindNamespace             // namespace path segment
 	rowKindProjectHeader         // project label when it has >1 group
 	rowKindTask                  // selectable leaf
+	rowKindErrorLine             // non-selectable continuation line showing a task's error
 )
 
 type treeRow struct {
@@ -593,13 +594,48 @@ func (m *actionsModel) updateCollapsed() {
 }
 
 // visibleRows returns the rows that should be shown (honouring collapsed state).
+// Failed tasks have their error message injected as one or more rowKindErrorLine
+// rows immediately below the task row.
 func (m *actionsModel) visibleRows() []treeRow {
+	leftW := 48
+	if m.width > 0 && m.width < 80 {
+		leftW = m.width / 2
+	}
+
 	visible := make([]treeRow, 0, len(m.rows))
 	for _, row := range m.rows {
 		if row.kind != rowKindAction && m.collapsed[row.action] {
 			continue
 		}
 		visible = append(visible, row)
+		if row.kind == rowKindTask {
+			e, ok := m.taskState[row.taskName]
+			if !ok || e.state != actionFailed || e.err == nil {
+				continue
+			}
+			// Indent: same as task row prefix (depth*2 spaces + cursor + icon+space)
+			// but without cursor/icon — just depth*2 + 4 spaces so text aligns under the label.
+			prefixLen := row.depth*2 + 4
+			availW := leftW - prefixLen
+			if availW < 10 {
+				availW = 10
+			}
+			runes := []rune(e.err.Error())
+			for len(runes) > 0 {
+				n := availW
+				if n > len(runes) {
+					n = len(runes)
+				}
+				visible = append(visible, treeRow{
+					kind:     rowKindErrorLine,
+					label:    string(runes[:n]),
+					depth:    row.depth,
+					taskName: row.taskName,
+					action:   row.action,
+				})
+				runes = runes[n:]
+			}
+		}
 	}
 	return visible
 }
@@ -1306,19 +1342,13 @@ func (m *actionsModel) renderTree(width, height int) []string {
 				case actionOK:
 					extra = actDimStyle.Render("  " + fmtActionDuration(e.elapsed))
 				case actionFailed:
-					msg := "  FAILED"
-					if e.err != nil {
-						short := e.err.Error()
-						if len([]rune(short)) > 28 {
-							short = string([]rune(short)[:28]) + "…"
-						}
-						msg += ": " + short
-					}
-					extra = actFailStyle.Render(msg)
+					// Error text is shown on rowKindErrorLine rows injected by visibleRows.
 				}
 			}
 
 			line = indent + cursor + iconSty.Render(icon+" ") + labelSty.Render(label) + extra
+		case rowKindErrorLine:
+			line = strings.Repeat("  ", row.depth) + "    " + actFailStyle.Render(row.label)
 		}
 		lines = append(lines, truncateANSILine(line, width))
 	}
