@@ -35,14 +35,14 @@ Examples:
 			fmt.Println()
 
 			// Step 2: Discovery (if requested)
+			mode := outputMode()
 			if discover {
-				if err := gitops.Discover(globalCtx, globalCfg, globalCwd); err != nil {
+				if err := gitops.Discover(globalCtx, globalCfg, globalCwd, mode); err != nil {
 					return err
 				}
 			}
 
 			// Step 3: Git sync
-			mode := outputMode()
 			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
 			if err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode)); err != nil {
 				return err

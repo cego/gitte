@@ -15,29 +15,24 @@ import (
 func newGitopsCmd() *cobra.Command {
 	var discover bool
 	var noRebase bool
-	var noSync bool
 
 	cmd := &cobra.Command{
 		Use:   "gitops",
 		Short: "Sync git repositories",
 		Long:  "Clone or pull all configured projects. Use --discover to also fetch group/org repos.",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			mode := outputMode()
 			if discover {
-				if err := gitops.Discover(globalCtx, globalCfg, globalCwd); err != nil {
+				if err := gitops.Discover(globalCtx, globalCfg, globalCwd, mode); err != nil {
 					return err
 				}
 			}
-			if noSync {
-				return nil
-			}
-			mode := outputMode()
 			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
 			return gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode))
 		},
 	}
 
 	cmd.Flags().BoolVar(&discover, "discover", false, "also discover and sync repos from configured sources")
-	cmd.Flags().BoolVar(&noSync, "no-sync", false, "skip syncing configured projects (useful with --discover)")
 	cmd.Flags().BoolVar(&noRebase, "no-rebase", false, "skip auto-rebase onto default branch (also: GITTE_NO_REBASE=true)")
 	return cmd
 }
