@@ -15,6 +15,7 @@ import (
 func newGitopsCmd() *cobra.Command {
 	var discover bool
 	var noRebase bool
+	var noSync bool
 
 	cmd := &cobra.Command{
 		Use:   "gitops",
@@ -26,6 +27,9 @@ func newGitopsCmd() *cobra.Command {
 					return err
 				}
 			}
+			if noSync {
+				return nil
+			}
 			mode := outputMode()
 			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
 			return gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode))
@@ -33,6 +37,7 @@ func newGitopsCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&discover, "discover", false, "also discover and sync repos from configured sources")
+	cmd.Flags().BoolVar(&noSync, "no-sync", false, "skip syncing configured projects (useful with --discover)")
 	cmd.Flags().BoolVar(&noRebase, "no-rebase", false, "skip auto-rebase onto default branch (also: GITTE_NO_REBASE=true)")
 	return cmd
 }

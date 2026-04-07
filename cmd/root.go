@@ -88,6 +88,7 @@ func init() {
 		newFeaturesCmd(),
 		newCleanCmd(),
 		newListCmd(),
+		newSourcesCmd(),
 	)
 
 	// --config accepts a file path
