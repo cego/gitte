@@ -268,6 +268,7 @@ type actionUpdateMsg struct {
 }
 
 type actionAllDoneMsg struct{}
+type actionFinalRenderMsg struct{}
 type actionTickMsg time.Time
 
 type actionPrepareRetryMsg struct {
@@ -358,8 +359,10 @@ func newTUIActionsView(tasks []TaskInfo, actionOrder []string, cancel context.Ca
 	go func() {
 		finalModel, _ := p.Run()
 		if am, ok := finalModel.(*actionsModel); ok {
-			am.focusTask = ""
-			fmt.Print(am.View())
+			if am.allDone && !am.hasFailures() {
+				elapsed := am.endTime.Sub(am.startTime)
+				fmt.Println("✓ All tasks finished successfully  " + fmtActionDuration(elapsed))
+			}
 		}
 		close(doneCh)
 	}()
@@ -737,9 +740,13 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.allDone = true
 		m.endTime = time.Now()
 		if m.cancelling || !m.hasFailures() {
-			return m, tea.Quit
+			m.focusTask = ""
+			return m, func() tea.Msg { return actionFinalRenderMsg{} }
 		}
 		return m, nil // stay alive; wait for user to press q/ctrl-c or retry
+
+	case actionFinalRenderMsg:
+		return m, tea.Quit
 
 	case quickSolveDoneMsg:
 		if m.quickSolve != nil {
@@ -1095,17 +1102,12 @@ func (m *actionsModel) View() string {
 		end = time.Now()
 	}
 	elapsed := end.Sub(m.startTime)
-	var hdr string
-	if m.allDone && !m.hasFailures() {
-		hdr = "✓ All tasks finished successfully  " + fmtActionDuration(elapsed)
-	} else {
-		hdr = fmt.Sprintf("Actions  running:%d  done:%d/%d  failed:%d",
-			running, success+failed, total-skipped, failed)
-		if skipped > 0 {
-			hdr += fmt.Sprintf("  skipped:%d", skipped)
-		}
-		hdr += "  " + fmtActionDuration(elapsed)
+	hdr := fmt.Sprintf("Actions  running:%d  done:%d/%d  failed:%d",
+		running, success+failed, total-skipped, failed)
+	if skipped > 0 {
+		hdr += fmt.Sprintf("  skipped:%d", skipped)
 	}
+	hdr += "  " + fmtActionDuration(elapsed)
 
 	topSep := strings.Repeat("─", leftW) + "─┬─" + strings.Repeat("─", logW)
 	botSep := strings.Repeat("─", leftW) + "─┴─" + strings.Repeat("─", logW)
