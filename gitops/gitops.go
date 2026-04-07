@@ -43,6 +43,7 @@ func Sync(
 	mode output.OutputMode,
 	noRebase bool,
 	onPrompt func(CheckoutPrompt) (bool, error),
+	warnFn func(string),
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -74,14 +75,6 @@ func Sync(
 		mu.Unlock()
 	}
 
-	var warnMu sync.Mutex
-	var warnings []string
-	addWarning := func(msg string) {
-		warnMu.Lock()
-		warnings = append(warnings, msg)
-		warnMu.Unlock()
-	}
-
 	tasks := make([]executor.Task, 0, len(projectNames))
 	for _, name := range projectNames {
 		name := name
@@ -90,7 +83,7 @@ func Sync(
 			Name: "gitops:" + name,
 			ExecuteFn: func(ctx context.Context, taskName string, handler executor.OutputHandler) error {
 				setDetail := func(detail string) { view.SetDetail(taskName, detail) }
-				return syncProject(ctx, cwd, name, proj, noRebase, setDetail, addPrompt, addWarning)
+				return syncProject(ctx, cwd, name, proj, noRebase, setDetail, addPrompt, warnFn)
 			},
 		})
 	}
@@ -105,7 +98,6 @@ func Sync(
 
 	runErr := exec.Execute(ctx)
 	view.Wait()
-	printWarnings(mode, warnings)
 
 	// Process post-TUI prompts serially.
 	var promptErrs []error

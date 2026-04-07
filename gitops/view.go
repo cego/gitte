@@ -191,9 +191,9 @@ func (v *tuiView) Wait() {
 
 var goWarnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
 
-// printWarnings prints collected non-fatal warnings to stderr after the TUI
-// has finished so they do not corrupt the live output.
-func printWarnings(mode output.OutputMode, warnings []string) {
+// PrintWarnings prints collected non-fatal warnings to stderr. Call this after
+// all TUI phases have finished so warnings don't corrupt the live output.
+func PrintWarnings(mode output.OutputMode, warnings []string) {
 	for _, w := range warnings {
 		if mode == output.ModePlain {
 			fmt.Fprintln(os.Stderr, "warning: "+w)

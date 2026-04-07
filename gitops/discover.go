@@ -21,7 +21,7 @@ type DiscoveredRepo struct {
 
 // Discover fetches all repos from configured sources (GitLab groups + GitHub orgs)
 // and clones/pulls them. Runs in two TUI phases: API discovery, then clone/pull.
-func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.OutputMode) error {
+func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.OutputMode, warnFn func(string)) error {
 	type sourceEntry struct {
 		name     string
 		discover func(ctx context.Context, warnFn func(string)) ([]DiscoveredRepo, error)
@@ -64,14 +64,6 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 		sourceNames[i] = s.name
 	}
 
-	var warnMu sync.Mutex
-	var warnings []string
-	addWarning := func(msg string) {
-		warnMu.Lock()
-		warnings = append(warnings, msg)
-		warnMu.Unlock()
-	}
-
 	var mu sync.Mutex
 	var allRepos []DiscoveredRepo
 
@@ -83,7 +75,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 			Name: src.name,
 			ExecuteFn: func(ctx context.Context, tName string, _ executor.OutputHandler) error {
 				discoverView.SetDetail(tName, "discovering…")
-				repos, err := src.discover(ctx, addWarning)
+				repos, err := src.discover(ctx, warnFn)
 				if err != nil {
 					return err
 				}
@@ -110,8 +102,6 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 
 	discoverErr := discoverExec.Execute(ctx)
 	discoverView.Wait()
-	printWarnings(mode, warnings)
-	warnings = nil
 	if discoverErr != nil {
 		return discoverErr
 	}
@@ -138,7 +128,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 			Name: taskNames[i],
 			ExecuteFn: func(ctx context.Context, tName string, _ executor.OutputHandler) error {
 				setDetail := func(d string) { syncView.SetDetail(tName, d) }
-				return syncTransientDetailed(ctx, cwd, repo.Remote, setDetail, addWarning)
+				return syncTransientDetailed(ctx, cwd, repo.Remote, setDetail, warnFn)
 			},
 		}
 	}
@@ -153,7 +143,6 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 
 	runErr := syncExec.Execute(ctx)
 	syncView.Wait()
-	printWarnings(mode, warnings)
 	return runErr
 }
 
