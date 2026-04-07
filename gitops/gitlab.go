@@ -19,10 +19,10 @@ type gitlabProject struct {
 }
 
 // ListGitlabGroupRepos returns all repos in a GitLab group (recursive, paginated)
-func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string) ([]DiscoveredRepo, error) {
+func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string, warnFn func(string)) ([]DiscoveredRepo, error) {
 	token := os.Getenv(tokenEnv)
 	if token == "" {
-		fmt.Fprintf(os.Stderr, "warning: %s is not set — gitlab discovery for %s/%s may fail for private groups\n", tokenEnv, host, group)
+		warnFn(fmt.Sprintf("%s is not set — gitlab discovery for %s/%s may fail for private groups", tokenEnv, host, group))
 	}
 
 	var repos []DiscoveredRepo
@@ -70,11 +70,7 @@ func fetchGitlabPage(req *http.Request, group string) ([]gitlabProject, string, 
 	if err != nil {
 		return nil, "", fmt.Errorf("gitlab API request failed: %w", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to close gitlab response body: %v\n", err)
-		}
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		hint := ""

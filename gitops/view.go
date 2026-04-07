@@ -189,6 +189,20 @@ func (v *tuiView) Wait() {
 
 // ---- BubbleTea model ---------------------------------------------------
 
+var goWarnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
+
+// printWarnings prints collected non-fatal warnings to stderr after the TUI
+// has finished so they do not corrupt the live output.
+func printWarnings(mode output.OutputMode, warnings []string) {
+	for _, w := range warnings {
+		if mode == output.ModePlain {
+			fmt.Fprintln(os.Stderr, "warning: "+w)
+		} else {
+			fmt.Fprintln(os.Stderr, goWarnStyle.Render("⚠ ")+w)
+		}
+	}
+}
+
 var (
 	goPendingStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	goRunningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))

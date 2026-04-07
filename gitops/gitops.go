@@ -74,6 +74,14 @@ func Sync(
 		mu.Unlock()
 	}
 
+	var warnMu sync.Mutex
+	var warnings []string
+	addWarning := func(msg string) {
+		warnMu.Lock()
+		warnings = append(warnings, msg)
+		warnMu.Unlock()
+	}
+
 	tasks := make([]executor.Task, 0, len(projectNames))
 	for _, name := range projectNames {
 		name := name
@@ -82,7 +90,7 @@ func Sync(
 			Name: "gitops:" + name,
 			ExecuteFn: func(ctx context.Context, taskName string, handler executor.OutputHandler) error {
 				setDetail := func(detail string) { view.SetDetail(taskName, detail) }
-				return syncProject(ctx, cwd, name, proj, noRebase, setDetail, addPrompt)
+				return syncProject(ctx, cwd, name, proj, noRebase, setDetail, addPrompt, addWarning)
 			},
 		})
 	}
@@ -97,6 +105,7 @@ func Sync(
 
 	runErr := exec.Execute(ctx)
 	view.Wait()
+	printWarnings(mode, warnings)
 
 	// Process post-TUI prompts serially.
 	var promptErrs []error
@@ -164,6 +173,7 @@ func syncProject(
 	noRebase bool,
 	setDetail func(string),
 	addPrompt func(CheckoutPrompt),
+	warnFn func(string),
 ) error {
 	localDir, err := config.LocalDirForRemote(proj.Remote)
 	if err != nil {
@@ -182,6 +192,7 @@ func syncProject(
 		return syncProject(ctx, cwd, name, proj, noRebase,
 			func(d string) { fmt.Fprintf(os.Stderr, "  [%s] %s\n", name, d) },
 			func(_ CheckoutPrompt) {}, // no further prompts after retry
+			func(w string) { fmt.Fprintln(os.Stderr, "warning: "+w) },
 		)
 	}
 
@@ -198,7 +209,7 @@ func syncProject(
 	// Always fetch so remote refs are fresh.
 	if err := fetchOrigin(ctx, projectPath); err != nil {
 		// Non-fatal: continue with cached refs; subsequent checks may be stale.
-		fmt.Fprintf(os.Stderr, "warning [%s]: fetch failed: %v\n", name, err)
+		warnFn(fmt.Sprintf("[%s] fetch failed: %v", name, err))
 	}
 
 	// Detached HEAD.

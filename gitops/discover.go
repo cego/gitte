@@ -24,7 +24,7 @@ type DiscoveredRepo struct {
 func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.OutputMode) error {
 	type sourceEntry struct {
 		name     string
-		discover func(ctx context.Context) ([]DiscoveredRepo, error)
+		discover func(ctx context.Context, warnFn func(string)) ([]DiscoveredRepo, error)
 	}
 
 	var sources []sourceEntry
@@ -33,8 +33,8 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 			src, group := src, group
 			sources = append(sources, sourceEntry{
 				name: src.Host + "/" + group,
-				discover: func(ctx context.Context) ([]DiscoveredRepo, error) {
-					return ListGitlabGroupRepos(ctx, src.Host, group, src.TokenEnv)
+				discover: func(ctx context.Context, warnFn func(string)) ([]DiscoveredRepo, error) {
+					return ListGitlabGroupRepos(ctx, src.Host, group, src.TokenEnv, warnFn)
 				},
 			})
 		}
@@ -44,7 +44,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 			src, org := src, org
 			sources = append(sources, sourceEntry{
 				name: src.Host + "/" + org,
-				discover: func(ctx context.Context) ([]DiscoveredRepo, error) {
+				discover: func(ctx context.Context, warnFn func(string)) ([]DiscoveredRepo, error) {
 					return ListGithubOrgRepos(ctx, src.Host, org, src.TokenEnv)
 				},
 			})
@@ -64,6 +64,14 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 		sourceNames[i] = s.name
 	}
 
+	var warnMu sync.Mutex
+	var warnings []string
+	addWarning := func(msg string) {
+		warnMu.Lock()
+		warnings = append(warnings, msg)
+		warnMu.Unlock()
+	}
+
 	var mu sync.Mutex
 	var allRepos []DiscoveredRepo
 
@@ -75,7 +83,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 			Name: src.name,
 			ExecuteFn: func(ctx context.Context, tName string, _ executor.OutputHandler) error {
 				discoverView.SetDetail(tName, "discovering…")
-				repos, err := src.discover(ctx)
+				repos, err := src.discover(ctx, addWarning)
 				if err != nil {
 					return err
 				}
@@ -102,6 +110,8 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 
 	discoverErr := discoverExec.Execute(ctx)
 	discoverView.Wait()
+	printWarnings(mode, warnings)
+	warnings = nil
 	if discoverErr != nil {
 		return discoverErr
 	}
@@ -128,7 +138,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 			Name: taskNames[i],
 			ExecuteFn: func(ctx context.Context, tName string, _ executor.OutputHandler) error {
 				setDetail := func(d string) { syncView.SetDetail(tName, d) }
-				return syncTransientDetailed(ctx, cwd, repo.Remote, setDetail)
+				return syncTransientDetailed(ctx, cwd, repo.Remote, setDetail, addWarning)
 			},
 		}
 	}
@@ -143,12 +153,13 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 
 	runErr := syncExec.Execute(ctx)
 	syncView.Wait()
+	printWarnings(mode, warnings)
 	return runErr
 }
 
 // syncTransientDetailed clones or pulls a single transiently-discovered remote,
 // reporting progress via setDetail.
-func syncTransientDetailed(ctx context.Context, cwd, remote string, setDetail func(string)) error {
+func syncTransientDetailed(ctx context.Context, cwd, remote string, setDetail func(string), warnFn func(string)) error {
 	localDir, err := config.LocalDirForRemote(remote)
 	if err != nil {
 		return err
@@ -165,7 +176,7 @@ func syncTransientDetailed(ctx context.Context, cwd, remote string, setDetail fu
 	}
 
 	if err := fetchOrigin(ctx, projectPath); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: fetch failed for %s: %v\n", localDir, err)
+		warnFn(fmt.Sprintf("fetch failed for %s: %v", localDir, err))
 	}
 
 	dirty, err := hasLocalChanges(ctx, projectPath)
