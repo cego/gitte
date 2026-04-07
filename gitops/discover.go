@@ -67,7 +67,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 	var mu sync.Mutex
 	var allRepos []DiscoveredRepo
 
-	discoverView := newView(mode, sourceNames, nil, cancel)
+	discoverView := newView(mode, "Discovering repositories", sourceNames, nil, cancel)
 	discoverTasks := make([]executor.Task, len(sources))
 	for i, src := range sources {
 		i, src := i, src
@@ -120,7 +120,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 		}
 	}
 
-	syncView := newView(mode, taskNames, dirs, cancel)
+	syncView := newView(mode, "Syncing discovered repositories", taskNames, dirs, cancel)
 	syncTasks := make([]executor.Task, len(allRepos))
 	for i, repo := range allRepos {
 		i, repo := i, repo

@@ -79,7 +79,7 @@ func Sync(
 		}
 	}
 
-	view := newView(mode, taskNames, dirs, cancel)
+	view := newView(mode, "Syncing repositories", taskNames, dirs, cancel)
 
 	var mu sync.Mutex
 	var prompts []CheckoutPrompt

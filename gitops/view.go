@@ -26,24 +26,30 @@ type View interface {
 }
 
 // newView picks the right view implementation based on output mode.
-func newView(mode output.OutputMode, taskNames []string, dirs map[string]string, cancel context.CancelFunc) View {
+func newView(mode output.OutputMode, title string, taskNames []string, dirs map[string]string, cancel context.CancelFunc) View {
 	if mode == output.ModePlain {
-		return &plainView{details: make(map[string]string), dirs: dirs}
+		return &plainView{title: title, details: make(map[string]string), dirs: dirs}
 	}
-	return newTUIView(taskNames, cancel)
+	return newTUIView(title, taskNames, cancel)
 }
 
 // ---- Plain view --------------------------------------------------------
 
 type plainView struct {
-	mu      sync.Mutex
-	details map[string]string
-	dirs    map[string]string // taskName → relative local dir
+	mu        sync.Mutex
+	title     string
+	printedHdr bool
+	details   map[string]string
+	dirs      map[string]string // taskName → relative local dir
 }
 
 func (v *plainView) OnStart(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if !v.printedHdr && v.title != "" {
+		_, _ = fmt.Fprintf(os.Stdout, "=== %s ===\n", v.title)
+		v.printedHdr = true
+	}
 	if d := v.dirs[name]; d != "" {
 		_, _ = fmt.Fprintf(os.Stdout, "[%s] RUNNING  ./%s\n", name, d)
 	} else {
@@ -130,10 +136,10 @@ type tuiView struct {
 	drainedCh chan struct{} // closed by listen() after the last buffered message is consumed
 }
 
-func newTUIView(taskNames []string, cancel context.CancelFunc) *tuiView {
+func newTUIView(title string, taskNames []string, cancel context.CancelFunc) *tuiView {
 	msgCh := make(chan goUpdateMsg, 100)
 	drainedCh := make(chan struct{})
-	m := newGitopsModel(taskNames, msgCh, drainedCh, cancel)
+	m := newGitopsModel(title, taskNames, msgCh, drainedCh, cancel)
 	p := tea.NewProgram(m)
 	v := &tuiView{
 		program:   p,
@@ -219,6 +225,7 @@ var (
 var goSpinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 type gitopsModel struct {
+	title       string
 	entries     []*goEntry
 	index       map[string]int
 	msgCh       <-chan goUpdateMsg
@@ -231,14 +238,14 @@ type gitopsModel struct {
 	finishedAt  time.Time
 }
 
-func newGitopsModel(names []string, msgCh <-chan goUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *gitopsModel {
+func newGitopsModel(title string, names []string, msgCh <-chan goUpdateMsg, drainedCh chan struct{}, cancel context.CancelFunc) *gitopsModel {
 	entries := make([]*goEntry, len(names))
 	idx := make(map[string]int, len(names))
 	for i, n := range names {
 		entries[i] = &goEntry{name: n, state: goStatePending}
 		idx[n] = i
 	}
-	return &gitopsModel{entries: entries, index: idx, msgCh: msgCh, drainedCh: drainedCh, cancel: cancel}
+	return &gitopsModel{title: title, entries: entries, index: idx, msgCh: msgCh, drainedCh: drainedCh, cancel: cancel}
 }
 
 func (m *gitopsModel) Init() tea.Cmd {
@@ -324,7 +331,10 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *gitopsModel) View() string {
 	var b strings.Builder
-	title := "Syncing repositories"
+	title := m.title
+	if title == "" {
+		title = "Syncing repositories"
+	}
 	if !m.startedAt.IsZero() {
 		end := m.finishedAt
 		if end.IsZero() {
