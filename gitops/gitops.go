@@ -20,6 +20,21 @@ import (
 	"github.com/cego/gitte/output"
 )
 
+// parallelLimit returns the effective parallelization cap for gitops clone/pull
+// tasks. It uses GITTE_MAX_TASK_PARALLELIZATION if set; otherwise it falls
+// back to defaultVal (0 = unlimited).
+func parallelLimit(defaultVal int) int {
+	v := os.Getenv("GITTE_MAX_TASK_PARALLELIZATION")
+	if v == "" {
+		return defaultVal
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return defaultVal
+	}
+	return n
+}
+
 // CheckoutPrompt is raised for each project that the user may want to act on
 // (detached HEAD, broken remote, stale branch). In TTY mode the user is asked
 // interactively; in plain mode the command fails with Recommendation as a hint.
@@ -89,8 +104,9 @@ func Sync(
 	}
 
 	exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
-		OnTaskStart:  view.OnStart,
-		OnTaskFinish: view.OnFinish,
+		MaxParallelization: parallelLimit(0),
+		OnTaskStart:        view.OnStart,
+		OnTaskFinish:       view.OnFinish,
 	})
 	if err != nil {
 		return err

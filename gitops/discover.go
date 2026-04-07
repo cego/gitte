@@ -134,8 +134,9 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 	}
 
 	syncExec, err := executor.NewExecutor(syncTasks, executor.ExecutorOptions{
-		OnTaskStart:  syncView.OnStart,
-		OnTaskFinish: syncView.OnFinish,
+		MaxParallelization: parallelLimit(8),
+		OnTaskStart:        syncView.OnStart,
+		OnTaskFinish:       syncView.OnFinish,
 	})
 	if err != nil {
 		return err
