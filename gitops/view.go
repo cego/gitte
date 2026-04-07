@@ -165,7 +165,7 @@ func (v *tuiView) OnFinish(name string, err error, elapsed time.Duration) {
 // SetDetail signals a sub-state directly to the BubbleTea model, bypassing the
 // listen loop so it arrives before the OnFinish goUpdateMsg.
 func (v *tuiView) SetDetail(name, detail string) {
-	state := goStateOK
+	state := goStateRunning
 	switch {
 	case detail == "skipped":
 		state = goStateSkipped
@@ -264,8 +264,12 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case goDetailMsg:
 		if i, ok := m.index[msg.name]; ok {
-			m.entries[i].state = msg.state
-			m.entries[i].detail = msg.detail
+			e := m.entries[i]
+			// Don't override a terminal state (OK/Failed) with an in-progress update.
+			if e.state != goStateOK && e.state != goStateFailed {
+				e.state = msg.state
+			}
+			e.detail = msg.detail
 		}
 
 	case goUpdateMsg:
@@ -279,10 +283,18 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Hard failure always wins.
 				e.state = goStateFailed
 				e.detail = msg.detail
-			} else if e.state == goStateRunning {
-				// No SetDetail was called; take the state from OnFinish.
+			} else if msg.state == goStateRunning {
+				// OnStart: transition pending → running so the spinner shows.
+				if e.state == goStatePending {
+					e.state = goStateRunning
+				}
+			} else if e.state == goStateRunning || e.state == goStatePending {
+				// OnFinish: take the terminal state. Preserve detail text already
+				// set by SetDetail (msg.detail is empty for non-error OnFinish).
 				e.state = msg.state
-				e.detail = msg.detail
+				if msg.detail != "" {
+					e.detail = msg.detail
+				}
 			}
 			// Otherwise keep the state set by SetDetail (skipped/stale/detached).
 		}
