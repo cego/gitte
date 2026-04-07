@@ -194,7 +194,11 @@ func loadConfig(searchDir string) (*config.GitteConfig, error) {
 			saveCache(newCache)
 		}
 
-		return cfg, nil
+		overrideCfg, err := config.LoadOverrideConfig(globalCwd)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load local override: %w", err)
+		}
+		return config.MergeOverride(cfg, overrideCfg), nil
 	}
 
 	return config.LoadAndMergeConfig(fd)
