@@ -102,13 +102,18 @@ func (e *Executor) Execute(ctx context.Context) error {
 	// Using a channel ensures status mutations only happen on the main goroutine, avoiding data races.
 	internalRetryCh := make(chan *taskRun, len(e.tasks))
 
+	// executorDone is closed when Execute returns, allowing background goroutines to detect
+	// shutdown and avoid writing to channels that are no longer being read.
+	executorDone := make(chan struct{})
+	defer close(executorDone)
+
 	// Semaphore for max parallelization
 	var semaphore chan struct{}
 	if e.opts.MaxParallelization > 0 {
 		semaphore = make(chan struct{}, e.opts.MaxParallelization)
 	}
 
-	if err := e.startReadyTasks(ctx, completionCh, outputCh, semaphore); err != nil {
+	if err := e.startReadyTasks(ctx, completionCh, outputCh, semaphore, executorDone); err != nil {
 		return err
 	}
 
@@ -158,7 +163,10 @@ func (e *Executor) Execute(ctx context.Context) error {
 					delay := parseRetryDelay(run.task.Retry.Delay, run.task.Retry.Backoff, run.attempt)
 					go func(r *taskRun, d time.Duration) {
 						time.Sleep(d)
-						internalRetryCh <- r
+						select {
+						case internalRetryCh <- r:
+						case <-executorDone:
+						}
 					}(run, delay)
 				} else {
 					run.status = statusFailed
@@ -181,7 +189,7 @@ func (e *Executor) Execute(ctx context.Context) error {
 		}
 
 		if finished < total {
-			if err := e.startReadyTasks(ctx, completionCh, outputCh, semaphore); err != nil {
+			if err := e.startReadyTasks(ctx, completionCh, outputCh, semaphore, executorDone); err != nil {
 				return err
 			}
 			if err := e.ensureProgress(); err != nil {
@@ -196,7 +204,7 @@ func (e *Executor) Execute(ctx context.Context) error {
 }
 
 // startReadyTasks finds all pending tasks whose deps are satisfied and starts them
-func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- CommandResult, outputCh chan<- Output, sem chan struct{}) error {
+func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- CommandResult, outputCh chan<- Output, sem chan struct{}, executorDone <-chan struct{}) error {
 	for name, run := range e.tasks {
 		if run.status != statusPending {
 			continue
@@ -243,19 +251,25 @@ func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- Comm
 				if e.opts.OnTaskFinish != nil {
 					e.opts.OnTaskFinish(r.task.Name, err, elapsed)
 				}
-				completionCh <- CommandResult{
+				select {
+				case completionCh <- CommandResult{
 					Name:    r.task.Name,
 					Success: false,
 					Error:   fmt.Errorf("task %s failed: %w", r.task.Name, err),
+				}:
+				case <-executorDone:
 				}
 				return
 			}
 			if e.opts.OnTaskFinish != nil {
 				e.opts.OnTaskFinish(r.task.Name, nil, elapsed)
 			}
-			completionCh <- CommandResult{
+			select {
+			case completionCh <- CommandResult{
 				Name:    r.task.Name,
 				Success: true,
+			}:
+			case <-executorDone:
 			}
 		}(run)
 	}
