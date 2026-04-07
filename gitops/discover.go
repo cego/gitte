@@ -110,6 +110,12 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 		return nil
 	}
 
+	noun := "repository"
+	if len(allRepos) != 1 {
+		noun = "repositories"
+	}
+	fmt.Printf("\n  Discovered %d %s\n\n", len(allRepos), noun)
+
 	// Phase 2: Clone/pull — one TUI row per discovered repo.
 	taskNames := make([]string, len(allRepos))
 	dirs := make(map[string]string, len(allRepos))
