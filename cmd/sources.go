@@ -11,6 +11,17 @@ func newSourcesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sources",
 		Short: "Manage local discovery sources",
+		Long: `Manage the GitLab groups and GitHub orgs that 'gitte gitops --discover' queries.
+
+Sources are stored in .gitte-override.yml alongside the main .gitte.yml so
+they stay local to your machine and do not affect shared configuration.
+
+Quick setup:
+  gitte sources add gitlab gitlab.example.com mygroup subgroup
+  gitte sources add github github.com myorg
+  gitte gitops --discover
+
+Running 'gitte sources' without a subcommand is equivalent to 'gitte sources list'.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return newSourcesListCmd().RunE(cmd, args)
 		},
@@ -73,7 +84,15 @@ func newSourcesAddGitlabCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gitlab <host> <group> [group...]",
 		Short: "Add GitLab groups to local discovery sources",
-		Args:  cobra.MinimumNArgs(2),
+		Long: `Add one or more GitLab groups to local discovery sources.
+
+The token env var (default: GITLAB_TOKEN) must hold a token with read_api scope.
+Without a token, only public groups are accessible.
+
+Examples:
+  gitte sources add gitlab gitlab.example.com mygroup
+  gitte sources add gitlab gitlab.example.com groupA groupB --token-env MY_TOKEN`,
+		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := args[0]
 			groups := args[1:]
@@ -132,7 +151,15 @@ func newSourcesAddGithubCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "github <host> <org> [org...]",
 		Short: "Add GitHub orgs to local discovery sources",
-		Args:  cobra.MinimumNArgs(2),
+		Long: `Add one or more GitHub orgs to local discovery sources.
+
+The token env var (default: GITHUB_TOKEN) must hold a token with read:org scope
+for private orgs. Public orgs work without a token.
+
+Examples:
+  gitte sources add github github.com myorg
+  gitte sources add github github.com orgA orgB --token-env MY_GITHUB_TOKEN`,
+		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := args[0]
 			orgs := args[1:]

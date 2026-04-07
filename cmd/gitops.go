@@ -20,7 +20,26 @@ func newGitopsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gitops",
 		Short: "Sync git repositories",
-		Long:  "Clone or pull all configured projects. Use --discover to also fetch group/org repos.",
+		Long: `Clone or pull all configured projects.
+
+With --discover, gitte first queries each configured source (GitLab groups,
+GitHub orgs) via their API, then clones or pulls every repository found.
+Discovered repos are cloned alongside configured repos; overlapping paths are
+handled naturally since both use the same local directory layout.
+
+Discovery sources are stored locally in .gitte-override.yml so they do not
+interfere with the shared .gitte.yml. Manage them with 'gitte sources'.
+
+API tokens:
+  GitLab  GITLAB_TOKEN  (read_api scope)
+  GitHub  GITHUB_TOKEN  (read:org scope for private orgs)
+
+The token env var name can be customised per source with 'gitte sources add
+--token-env'. Without a token, only public groups/orgs are accessible.
+
+SSH concurrency:
+  Discovery clone/pull runs at most 8 SSH connections in parallel to avoid
+  overwhelming the server. Override with GITTE_MAX_TASK_PARALLELIZATION=N.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mode := outputMode()
 			warnings, addWarning := newWarnCollector()
