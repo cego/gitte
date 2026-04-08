@@ -1,7 +1,6 @@
 package tokens
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,12 +10,6 @@ import (
 )
 
 const service = "gitte"
-
-// isNotFound reports whether err means the secret simply does not exist in the
-// keyring (as opposed to the keyring being unavailable or locked).
-func isNotFound(err error) bool {
-	return errors.Is(err, keyring.ErrNotFound)
-}
 
 func account(kind, host string) string {
 	return kind + ":" + host
@@ -38,14 +31,13 @@ func Delete(kind, host string) error {
 	return keyring.Delete(service, account(kind, host))
 }
 
-// Resolve returns the token to use for a source, following this priority chain:
-//  1. token_cmd — run the shell command and use its trimmed stdout
-//  2. token_env — read the named environment variable
-//  3. system keyring — look up by kind and host
-//
-// Returns ("", nil) when no token is configured. The caller should warn the
-// user when a token is needed but absent.
+// Resolve returns the token to use for a source. The keyring is always tried
+// first. If it has no entry or is unavailable, falls back to token_cmd then
+// token_env. Returns ("", nil) when no token is found anywhere.
 func Resolve(kind, host, tokenEnv, tokenCmd string) (string, error) {
+	if token, err := Get(kind, host); err == nil && token != "" {
+		return token, nil
+	}
 	if tokenCmd != "" {
 		out, err := exec.Command("sh", "-c", tokenCmd).Output()
 		if err != nil {
@@ -56,16 +48,5 @@ func Resolve(kind, host, tokenEnv, tokenCmd string) (string, error) {
 	if tokenEnv != "" {
 		return os.Getenv(tokenEnv), nil
 	}
-	token, err := Get(kind, host)
-	if err == nil {
-		return token, nil
-	}
-	if isNotFound(err) {
-		// Token was never stored — return empty, caller will warn.
-		return "", nil
-	}
-	// Keyring is present but inaccessible (daemon not running, locked, D-Bus
-	// session missing, etc.). Surface the error so the user knows why discovery
-	// has no token rather than silently proceeding without one.
-	return "", fmt.Errorf("keyring lookup for %s failed: %w\n\nIf the keyring is unavailable, use --token-env when running 'gitte sources add'", host, err)
+	return "", nil
 }
