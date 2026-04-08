@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,12 @@ import (
 )
 
 const service = "gitte"
+
+// isNotFound reports whether err means the secret simply does not exist in the
+// keyring (as opposed to the keyring being unavailable or locked).
+func isNotFound(err error) bool {
+	return errors.Is(err, keyring.ErrNotFound)
+}
 
 func account(kind, host string) string {
 	return kind + ":" + host
@@ -50,9 +57,15 @@ func Resolve(kind, host, tokenEnv, tokenCmd string) (string, error) {
 		return os.Getenv(tokenEnv), nil
 	}
 	token, err := Get(kind, host)
-	if err != nil {
-		// ErrNotFound or keyring unavailable — proceed without token
+	if err == nil {
+		return token, nil
+	}
+	if isNotFound(err) {
+		// Token was never stored — return empty, caller will warn.
 		return "", nil
 	}
-	return token, nil
+	// Keyring is present but inaccessible (daemon not running, locked, D-Bus
+	// session missing, etc.). Surface the error so the user knows why discovery
+	// has no token rather than silently proceeding without one.
+	return "", fmt.Errorf("keyring lookup for %s failed: %w\n\nIf the keyring is unavailable, use --token-env when running 'gitte sources add'", host, err)
 }

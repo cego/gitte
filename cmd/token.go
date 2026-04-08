@@ -31,6 +31,7 @@ token_cmd in your source config instead.`,
 	}
 	cmd.AddCommand(
 		newTokenSetCmd(),
+		newTokenGetCmd(),
 		newTokenDeleteCmd(),
 		newTokenListCmd(),
 	)
@@ -86,6 +87,29 @@ Examples:
 			}
 
 			fmt.Printf("Token stored for %s (%s)\n", host, kind)
+			return nil
+		},
+	}
+}
+
+func newTokenGetCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "get <gitlab|github> <host>",
+		Short: "Retrieve and print a stored token (for diagnostics)",
+		Long: `Print the token stored in the keyring for a given host.
+Useful for diagnosing whether the keyring is accessible and the token is present.`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			kind := args[0]
+			host := args[1]
+			if kind != "gitlab" && kind != "github" {
+				return fmt.Errorf("kind must be 'gitlab' or 'github', got %q", kind)
+			}
+			token, err := tokens.Get(kind, host)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve token for %s: %w", host, err)
+			}
+			fmt.Println(token)
 			return nil
 		},
 	}
