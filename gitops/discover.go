@@ -10,6 +10,7 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
 	"github.com/cego/gitte/output"
+	"github.com/cego/gitte/tokens"
 )
 
 // DiscoveredRepo represents a repo found via API discovery
@@ -29,23 +30,31 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 
 	var sources []sourceEntry
 	for _, src := range cfg.Sources.Gitlab {
+		token, err := tokens.Resolve("gitlab", src.Host, src.TokenEnv, src.TokenCmd)
+		if err != nil {
+			return fmt.Errorf("resolving token for %s: %w", src.Host, err)
+		}
 		for _, group := range src.Groups {
-			src, group := src, group
+			src, group, token := src, group, token
 			sources = append(sources, sourceEntry{
 				name: src.Host + "/" + group,
 				discover: func(ctx context.Context, warnFn func(string)) ([]DiscoveredRepo, error) {
-					return ListGitlabGroupRepos(ctx, src.Host, group, src.TokenEnv, warnFn)
+					return ListGitlabGroupRepos(ctx, src.Host, group, token, warnFn)
 				},
 			})
 		}
 	}
 	for _, src := range cfg.Sources.Github {
+		token, err := tokens.Resolve("github", src.Host, src.TokenEnv, src.TokenCmd)
+		if err != nil {
+			return fmt.Errorf("resolving token for %s: %w", src.Host, err)
+		}
 		for _, org := range src.Orgs {
-			src, org := src, org
+			src, org, token := src, org, token
 			sources = append(sources, sourceEntry{
 				name: src.Host + "/" + org,
 				discover: func(ctx context.Context, warnFn func(string)) ([]DiscoveredRepo, error) {
-					return ListGithubOrgRepos(ctx, src.Host, org, src.TokenEnv)
+					return ListGithubOrgRepos(ctx, src.Host, org, token)
 				},
 			})
 		}

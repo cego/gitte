@@ -51,13 +51,13 @@ func newSourcesListCmd() *cobra.Command {
 			}
 
 			for _, src := range override.Sources.Gitlab {
-				fmt.Printf("gitlab  %s  [%s]\n", src.Host, src.TokenEnv)
+				fmt.Printf("gitlab  %s  [%s]\n", src.Host, tokenLabel(src.TokenEnv, src.TokenCmd))
 				for _, g := range src.Groups {
 					fmt.Printf("  %s\n", g)
 				}
 			}
 			for _, src := range override.Sources.Github {
-				fmt.Printf("github  %s  [%s]\n", src.Host, src.TokenEnv)
+				fmt.Printf("github  %s  [%s]\n", src.Host, tokenLabel(src.TokenEnv, src.TokenCmd))
 				for _, org := range src.Orgs {
 					fmt.Printf("  %s\n", org)
 				}
@@ -80,18 +80,22 @@ func newSourcesAddCmd() *cobra.Command {
 }
 
 func newSourcesAddGitlabCmd() *cobra.Command {
-	var tokenEnv string
+	var tokenEnv, tokenCmd string
 	cmd := &cobra.Command{
 		Use:   "gitlab <host> <group> [group...]",
 		Short: "Add GitLab groups to local discovery sources",
 		Long: `Add one or more GitLab groups to local discovery sources.
 
-The token env var (default: GITLAB_TOKEN) must hold a token with read_api scope.
-Without a token, only public groups are accessible.
+By default the token is looked up from the system keyring. Run:
+  gitte token set gitlab <host>
+
+to store a token with read_api scope. Without a token, only public groups are accessible.
 
 Examples:
   gitte sources add gitlab gitlab.example.com mygroup
-  gitte sources add gitlab gitlab.example.com groupA groupB --token-env MY_TOKEN`,
+  gitte sources add gitlab gitlab.example.com groupA groupB
+  gitte sources add gitlab gitlab.example.com mygroup --token-env MY_TOKEN
+  gitte sources add gitlab gitlab.example.com mygroup --token-cmd "pass show gitlab/token"`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := args[0]
@@ -113,18 +117,19 @@ Examples:
 				override.Sources.Gitlab[i].Groups = mergeStrings(src.Groups, groups)
 				if tokenEnv != "" {
 					override.Sources.Gitlab[i].TokenEnv = tokenEnv
+					override.Sources.Gitlab[i].TokenCmd = ""
+				} else if tokenCmd != "" {
+					override.Sources.Gitlab[i].TokenCmd = tokenCmd
+					override.Sources.Gitlab[i].TokenEnv = ""
 				}
 				added = len(override.Sources.Gitlab[i].Groups) - before
 				break
 			}
 			if !found {
-				te := tokenEnv
-				if te == "" {
-					te = "GITLAB_TOKEN"
-				}
 				override.Sources.Gitlab = append(override.Sources.Gitlab, config.GitlabSource{
 					Host:     host,
-					TokenEnv: te,
+					TokenEnv: tokenEnv,
+					TokenCmd: tokenCmd,
 					Groups:   groups,
 				})
 				added = len(groups)
@@ -138,27 +143,35 @@ Examples:
 				fmt.Printf("All groups already configured for %s\n", host)
 			} else {
 				fmt.Printf("Added %d GitLab group(s) under %s\n", added, host)
+				if tokenEnv == "" && tokenCmd == "" {
+					fmt.Printf("Token: using system keyring. Run 'gitte token set gitlab %s' to store one.\n", host)
+				}
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tokenEnv, "token-env", "", "env var containing the API token (default: GITLAB_TOKEN)")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "", "env var containing the API token")
+	cmd.Flags().StringVar(&tokenCmd, "token-cmd", "", "shell command to retrieve the API token")
 	return cmd
 }
 
 func newSourcesAddGithubCmd() *cobra.Command {
-	var tokenEnv string
+	var tokenEnv, tokenCmd string
 	cmd := &cobra.Command{
 		Use:   "github <host> <org> [org...]",
 		Short: "Add GitHub orgs to local discovery sources",
 		Long: `Add one or more GitHub orgs to local discovery sources.
 
-The token env var (default: GITHUB_TOKEN) must hold a token with read:org scope
-for private orgs. Public orgs work without a token.
+By default the token is looked up from the system keyring. Run:
+  gitte token set github <host>
+
+to store a token with read:org scope. Public orgs work without a token.
 
 Examples:
   gitte sources add github github.com myorg
-  gitte sources add github github.com orgA orgB --token-env MY_GITHUB_TOKEN`,
+  gitte sources add github github.com orgA orgB
+  gitte sources add github github.com myorg --token-env MY_GITHUB_TOKEN
+  gitte sources add github github.com myorg --token-cmd "pass show github/token"`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := args[0]
@@ -180,18 +193,19 @@ Examples:
 				override.Sources.Github[i].Orgs = mergeStrings(src.Orgs, orgs)
 				if tokenEnv != "" {
 					override.Sources.Github[i].TokenEnv = tokenEnv
+					override.Sources.Github[i].TokenCmd = ""
+				} else if tokenCmd != "" {
+					override.Sources.Github[i].TokenCmd = tokenCmd
+					override.Sources.Github[i].TokenEnv = ""
 				}
 				added = len(override.Sources.Github[i].Orgs) - before
 				break
 			}
 			if !found {
-				te := tokenEnv
-				if te == "" {
-					te = "GITHUB_TOKEN"
-				}
 				override.Sources.Github = append(override.Sources.Github, config.GithubSource{
 					Host:     host,
-					TokenEnv: te,
+					TokenEnv: tokenEnv,
+					TokenCmd: tokenCmd,
 					Orgs:     orgs,
 				})
 				added = len(orgs)
@@ -205,11 +219,15 @@ Examples:
 				fmt.Printf("All orgs already configured for %s\n", host)
 			} else {
 				fmt.Printf("Added %d GitHub org(s) under %s\n", added, host)
+				if tokenEnv == "" && tokenCmd == "" {
+					fmt.Printf("Token: using system keyring. Run 'gitte token set github %s' to store one.\n", host)
+				}
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tokenEnv, "token-env", "", "env var containing the API token (default: GITHUB_TOKEN)")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "", "env var containing the API token")
+	cmd.Flags().StringVar(&tokenCmd, "token-cmd", "", "shell command to retrieve the API token")
 	return cmd
 }
 
@@ -319,6 +337,21 @@ func newSourcesRemoveGithubCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// tokenLabel returns a short display label describing how the token is sourced.
+func tokenLabel(tokenEnv, tokenCmd string) string {
+	if tokenCmd != "" {
+		cmd := tokenCmd
+		if len(cmd) > 30 {
+			cmd = cmd[:27] + "..."
+		}
+		return "cmd:" + cmd
+	}
+	if tokenEnv != "" {
+		return "env:" + tokenEnv
+	}
+	return "keyring"
 }
 
 // mergeStrings appends items from add into base, skipping duplicates.

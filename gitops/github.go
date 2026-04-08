@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -16,9 +15,9 @@ type githubRepo struct {
 	FullName string `json:"full_name"`
 }
 
-// ListGithubOrgRepos returns all repos in a GitHub org (paginated)
-func ListGithubOrgRepos(ctx context.Context, host, org, tokenEnv string) ([]DiscoveredRepo, error) {
-	token := os.Getenv(tokenEnv)
+// ListGithubOrgRepos returns all repos in a GitHub org (paginated).
+// token is the resolved API token; pass "" for unauthenticated (public orgs only).
+func ListGithubOrgRepos(ctx context.Context, host, org, token string) ([]DiscoveredRepo, error) {
 	var repos []DiscoveredRepo
 	page := 1
 
@@ -34,7 +33,7 @@ func ListGithubOrgRepos(ctx context.Context, host, org, tokenEnv string) ([]Disc
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
 
-		ghRepos, err := fetchGithubPage(req, org)
+		ghRepos, err := fetchGithubPage(req, host, org)
 		if err != nil {
 			return nil, err
 		}
@@ -54,7 +53,7 @@ func ListGithubOrgRepos(ctx context.Context, host, org, tokenEnv string) ([]Disc
 	return repos, nil
 }
 
-func fetchGithubPage(req *http.Request, org string) ([]githubRepo, error) {
+func fetchGithubPage(req *http.Request, host, org string) ([]githubRepo, error) {
 	resp, err := githubHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("github API request failed: %w", err)
@@ -62,7 +61,16 @@ func fetchGithubPage(req *http.Request, org string) ([]githubRepo, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("github API returned %d for org %s", resp.StatusCode, org)
+		hint := ""
+		switch resp.StatusCode {
+		case http.StatusUnauthorized:
+			hint = fmt.Sprintf(" (invalid or expired token — run: gitte token set github %s)", host)
+		case http.StatusForbidden:
+			hint = " (token lacks read:org scope or org access)"
+		case http.StatusNotFound:
+			hint = fmt.Sprintf(" (org not found or no token — run: gitte token set github %s)", host)
+		}
+		return nil, fmt.Errorf("github API returned %d for org %s%s", resp.StatusCode, org, hint)
 	}
 
 	var ghRepos []githubRepo

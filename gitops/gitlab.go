@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"time"
 )
@@ -18,11 +17,11 @@ type gitlabProject struct {
 	PathWithNamespace string `json:"path_with_namespace"`
 }
 
-// ListGitlabGroupRepos returns all repos in a GitLab group (recursive, paginated)
-func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string, warnFn func(string)) ([]DiscoveredRepo, error) {
-	token := os.Getenv(tokenEnv)
+// ListGitlabGroupRepos returns all repos in a GitLab group (recursive, paginated).
+// token is the resolved API token; pass "" for unauthenticated (public groups only).
+func ListGitlabGroupRepos(ctx context.Context, host, group, token string, warnFn func(string)) ([]DiscoveredRepo, error) {
 	if token == "" {
-		warnFn(fmt.Sprintf("%s is not set — gitlab discovery for %s/%s may fail for private groups", tokenEnv, host, group))
+		warnFn(fmt.Sprintf("no token for %s — private groups may be inaccessible (run: gitte token set gitlab %s)", host, host))
 	}
 
 	var repos []DiscoveredRepo
@@ -41,7 +40,7 @@ func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string, war
 			req.Header.Set("PRIVATE-TOKEN", token)
 		}
 
-		projects, nextPage, err := fetchGitlabPage(req, group)
+		projects, nextPage, err := fetchGitlabPage(req, host, group)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +64,7 @@ func ListGitlabGroupRepos(ctx context.Context, host, group, tokenEnv string, war
 	return repos, nil
 }
 
-func fetchGitlabPage(req *http.Request, group string) ([]gitlabProject, string, error) {
+func fetchGitlabPage(req *http.Request, host, group string) ([]gitlabProject, string, error) {
 	resp, err := gitlabHTTPClient.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("gitlab API request failed: %w", err)
@@ -76,11 +75,11 @@ func fetchGitlabPage(req *http.Request, group string) ([]gitlabProject, string, 
 		hint := ""
 		switch resp.StatusCode {
 		case http.StatusUnauthorized:
-			hint = " (invalid or expired token — check your token env var)"
+			hint = fmt.Sprintf(" (invalid or expired token — run: gitte token set gitlab %s)", host)
 		case http.StatusForbidden:
 			hint = " (token lacks read_api scope or group access)"
 		case http.StatusNotFound:
-			hint = " (group not found or token missing — set the token env var and ensure it has read_api scope)"
+			hint = fmt.Sprintf(" (group not found or no token — run: gitte token set gitlab %s)", host)
 		}
 		return nil, "", fmt.Errorf("gitlab API returned %d for group %s%s", resp.StatusCode, group, hint)
 	}

@@ -89,6 +89,7 @@ func init() {
 		newCleanCmd(),
 		newListCmd(),
 		newSourcesCmd(),
+		newTokenCmd(),
 	)
 
 	// --config accepts a file path

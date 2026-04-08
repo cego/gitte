@@ -119,14 +119,16 @@ type Sources struct {
 // GitlabSource defines a GitLab source for auto-discovery
 type GitlabSource struct {
 	Host     string   `yaml:"host"`
-	TokenEnv string   `yaml:"token_env"`
+	TokenEnv string   `yaml:"token_env,omitempty"`
+	TokenCmd string   `yaml:"token_cmd,omitempty"`
 	Groups   []string `yaml:"groups,omitempty"`
 }
 
 // GithubSource defines a GitHub source for auto-discovery
 type GithubSource struct {
 	Host     string   `yaml:"host"`
-	TokenEnv string   `yaml:"token_env"`
+	TokenEnv string   `yaml:"token_env,omitempty"`
+	TokenCmd string   `yaml:"token_cmd,omitempty"`
 	Orgs     []string `yaml:"orgs,omitempty"`
 }
 
