@@ -453,12 +453,13 @@ func (m *gitopsModel) renderProgressBar(width int) string {
 	return "[" + bar + "]" + counts
 }
 
-// noteworthyEntries returns entries that changed or have issues —
-// i.e. anything that is not simply "up to date".
+// noteworthyEntries returns entries that need attention after a sync —
+// failed, skipped (local changes), detached HEAD, or stale branch.
+// All goStateOK entries are excluded regardless of detail (pulled, cloned, up to date).
 func (m *gitopsModel) noteworthyEntries() []*goEntry {
 	var out []*goEntry
 	for _, e := range m.entries {
-		if e.state == goStateOK && (e.detail == "" || e.detail == "up to date") {
+		if e.state == goStateOK {
 			continue
 		}
 		out = append(out, e)
