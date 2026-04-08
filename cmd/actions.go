@@ -4,9 +4,13 @@ import (
 	"fmt"
 
 	"github.com/cego/gitte/actions"
+	"github.com/cego/gitte/config"
 
 	"github.com/spf13/cobra"
 )
+
+var flagActionsFilter []string
+var flagActionsExclude []string
 
 func newActionsCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -26,19 +30,26 @@ Examples:
 		},
 	}
 	cmd.Flags().BoolVar(&flagNoNeeds, "no-needs", false, "disable dependency resolution between tasks (also: GITTE_NO_NEEDS=true)")
+	cmd.Flags().StringArrayVar(&flagActionsFilter, "filter", nil, "only run actions for projects matching these glob patterns (can be repeated)")
+	cmd.Flags().StringArrayVar(&flagActionsExclude, "exclude", nil, "exclude projects matching these glob patterns (can be repeated)")
 	return cmd
 }
 
 func runActions(args []string) error {
+	cfg, err := config.FilterProjectsByGlob(globalCfg, flagActionsFilter, flagActionsExclude)
+	if err != nil {
+		return err
+	}
+
 	actionStr, groupStr, projectStr := parseActionArgs(args)
-	keys, actionOrder := actions.PlanActions(globalCfg, actionStr, projectStr, groupStr, withNeeds())
+	keys, actionOrder := actions.PlanActions(cfg, actionStr, projectStr, groupStr, withNeeds())
 
 	if len(keys) == 0 {
 		return fmt.Errorf("no matching actions found for %q (action=%s projects=%q group=%q)",
 			args[0], actionStr, projectStr, groupStr)
 	}
 
-	return actions.RunActions(globalCtx, globalCfg, globalSt, globalCwd, outputMode(), keys, actionOrder, maxParallelization())
+	return actions.RunActions(globalCtx, cfg, globalSt, globalCwd, outputMode(), keys, actionOrder, maxParallelization())
 }
 
 // parseActionArgs maps positional CLI args to (actionStr, groupStr, projectStr).

@@ -51,12 +51,14 @@ type CheckoutPrompt struct {
 // onPrompt is called serially after the TUI exits for each project that needs
 // attention; it returns (true, nil) to check out the default branch, (false, nil)
 // to skip, or (false, err) to surface an error (used by plain mode).
+// retryCount is the number of automatic retries for transient errors (0 = no retry).
 func Sync(
 	ctx context.Context,
 	cfg *config.GitteConfig,
 	cwd string,
 	mode output.OutputMode,
 	noRebase bool,
+	retryCount int,
 	onPrompt func(CheckoutPrompt) (bool, error),
 	warnFn func(string),
 ) error {
@@ -96,9 +98,15 @@ func Sync(
 		proj := cfg.Projects[name]
 		tasks = append(tasks, executor.Task{
 			Name: "gitops:" + name,
+			Retry: executor.RetryConfig{
+				Attempts:    retryCount + 1,
+				Delay:       "5s",
+				ShouldRetry: IsTransientError,
+			},
 			ExecuteFn: func(ctx context.Context, taskName string, handler executor.OutputHandler) error {
 				setDetail := func(detail string) { view.SetDetail(taskName, detail) }
-				return syncProject(ctx, cwd, name, proj, noRebase, setDetail, addPrompt, warnFn)
+				setCommits := func(commits []string) { view.SetCommits(taskName, commits) }
+				return syncProject(ctx, cwd, name, proj, noRebase, setDetail, setCommits, addPrompt, warnFn)
 			},
 		})
 	}
@@ -107,6 +115,7 @@ func Sync(
 		MaxParallelization: parallelLimit(0),
 		OnTaskStart:        view.OnStart,
 		OnTaskFinish:       view.OnFinish,
+		OnTaskReset:        view.OnReset,
 	})
 	if err != nil {
 		return err
@@ -180,6 +189,7 @@ func syncProject(
 	proj config.ProjectConfig,
 	noRebase bool,
 	setDetail func(string),
+	setCommits func([]string),
 	addPrompt func(CheckoutPrompt),
 	warnFn func(string),
 ) error {
@@ -199,6 +209,7 @@ func syncProject(
 	retryFn := func() error {
 		return syncProject(ctx, cwd, name, proj, noRebase,
 			func(d string) { fmt.Fprintf(os.Stderr, "  [%s] %s\n", name, d) },
+			func(_ []string) {}, // no commit display after post-TUI retry
 			func(_ CheckoutPrompt) {}, // no further prompts after retry
 			func(w string) { fmt.Fprintln(os.Stderr, "warning: "+w) },
 		)
@@ -255,6 +266,7 @@ func syncProject(
 
 	// ── On default branch ──────────────────────────────────────────────────
 	if currentBranch == defaultBranch {
+		headBefore := getHEAD(ctx, projectPath)
 		upToDate, err := mergeFastForward(ctx, projectPath, "origin/"+defaultBranch)
 		if err != nil {
 			return err
@@ -263,6 +275,9 @@ func syncProject(
 			setDetail("up to date")
 		} else {
 			setDetail("pulled")
+			if headBefore != "" {
+				setCommits(getNewCommits(ctx, projectPath, headBefore))
+			}
 		}
 		return nil
 	}
@@ -548,4 +563,27 @@ func checkoutBranch(ctx context.Context, dir, branch string) error {
 		return fmt.Errorf("git checkout %s failed (exit %d): %s", branch, res.ExitCode, strings.TrimSpace(string(res.Stderr)))
 	}
 	return nil
+}
+
+// getHEAD returns the current HEAD SHA, or "" on error.
+func getHEAD(ctx context.Context, dir string) string {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-parse", "HEAD")
+	if err != nil || res.ExitCode != 0 {
+		return ""
+	}
+	return strings.TrimSpace(string(res.Stdout))
+}
+
+// getNewCommits returns one-line commit messages for commits reachable from HEAD
+// but not from oldHead. Returns at most 20 lines.
+func getNewCommits(ctx context.Context, dir, oldHead string) []string {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "log", "--oneline", oldHead+"..HEAD", "--max-count=20")
+	if err != nil || res.ExitCode != 0 {
+		return nil
+	}
+	raw := strings.TrimSpace(string(res.Stdout))
+	if raw == "" {
+		return nil
+	}
+	return strings.Split(raw, "\n")
 }

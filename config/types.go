@@ -16,6 +16,7 @@ type GitteConfig struct {
 	GroupIncludes  map[string][]string       `yaml:"groupIncludes,omitempty"`
 	Projects       map[string]ProjectConfig  `yaml:"projects,omitempty"`
 	QuickSolve     QuickSolveConfig          `yaml:"quickSolve,omitempty"`
+	DoctorChecks   DoctorCheckMap            `yaml:"doctor,omitempty"`
 }
 
 // QuickSolveConfig holds settings for the quick solve feature in the actions TUI.

@@ -53,9 +53,10 @@ type Task struct {
 
 // RetryConfig controls retry behaviour for a task
 type RetryConfig struct {
-	Attempts int    // total attempts (1 = no retry)
-	Delay    string // e.g. "5s"
-	Backoff  string // "none", "linear", "exponential"
+	Attempts    int          // total attempts (1 = no retry)
+	Delay       string       // e.g. "5s"
+	Backoff     string       // "none", "linear", "exponential"
+	ShouldRetry func(error) bool // if non-nil, called before scheduling a retry; return false to stop retrying immediately
 }
 
 // taskStatus represents the execution status of a task

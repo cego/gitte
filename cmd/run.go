@@ -46,7 +46,7 @@ Examples:
 
 			// Step 3: Git sync
 			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
-			if err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode), addWarning); err != nil {
+			if err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, 0, makePromptFn(mode), addWarning); err != nil {
 				gitops.PrintWarnings(mode, warnings())
 				return err
 			}

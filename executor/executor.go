@@ -157,7 +157,11 @@ func (e *Executor) Execute(ctx context.Context) error {
 				}
 
 				run.attempt++
-				if run.attempt < maxAttempts {
+				canRetry := run.attempt < maxAttempts
+				if canRetry && run.task.Retry.ShouldRetry != nil {
+					canRetry = run.task.Retry.ShouldRetry(result.Error)
+				}
+				if canRetry {
 					// Schedule retry: goroutine waits for the delay, then notifies the main loop
 					// via internalRetryCh so all status mutations stay on the main goroutine.
 					delay := parseRetryDelay(run.task.Retry.Delay, run.task.Retry.Backoff, run.attempt)

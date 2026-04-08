@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/gitops"
 	"github.com/cego/gitte/output"
 
@@ -16,6 +17,9 @@ import (
 func newGitopsCmd() *cobra.Command {
 	var discover bool
 	var noRebase bool
+	var filter []string
+	var exclude []string
+	var retry int
 
 	cmd := &cobra.Command{
 		Use:   "gitops",
@@ -43,14 +47,20 @@ SSH concurrency:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mode := outputMode()
 			warnings, addWarning := newWarnCollector()
+
+			cfg, err := config.FilterProjectsByGlob(globalCfg, filter, exclude)
+			if err != nil {
+				return err
+			}
+
 			if discover {
-				if err := gitops.Discover(globalCtx, globalCfg, globalCwd, mode, addWarning); err != nil {
+				if err := gitops.Discover(globalCtx, cfg, globalCwd, mode, addWarning); err != nil {
 					gitops.PrintWarnings(mode, warnings())
 					return err
 				}
 			}
 			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
-			err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode), addWarning)
+			err = gitops.Sync(globalCtx, cfg, globalCwd, mode, nr, retry, makePromptFn(mode), addWarning)
 			gitops.PrintWarnings(mode, warnings())
 			return err
 		},
@@ -58,6 +68,9 @@ SSH concurrency:
 
 	cmd.Flags().BoolVar(&discover, "discover", false, "also discover and sync repos from configured sources")
 	cmd.Flags().BoolVar(&noRebase, "no-rebase", false, "skip auto-rebase onto default branch (also: GITTE_NO_REBASE=true)")
+	cmd.Flags().StringArrayVar(&filter, "filter", nil, "only sync projects matching these glob patterns (can be repeated)")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "exclude projects matching these glob patterns (can be repeated)")
+	cmd.Flags().IntVar(&retry, "retry", 0, "number of automatic retries for transient errors (SSH timeouts, etc.)")
 	return cmd
 }
 

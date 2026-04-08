@@ -22,13 +22,18 @@ type View interface {
 	// Recognised prefixes: "skipped", "detached: …", "stale: …".
 	// Other values ("cloned", "pulled", "up to date") are treated as ok detail text.
 	SetDetail(name, detail string)
+	// SetCommits records the new commits pulled for a project (one-line format).
+	// Called after a successful pull; commits are shown in the final summary.
+	SetCommits(name string, commits []string)
+	// OnReset is called when a task is re-queued for retry.
+	OnReset(name string)
 	Wait()
 }
 
 // newView picks the right view implementation based on output mode.
 func newView(mode output.OutputMode, title string, taskNames []string, dirs map[string]string, cancel context.CancelFunc) View {
 	if mode == output.ModePlain {
-		return &plainView{title: title, details: make(map[string]string), dirs: dirs}
+		return &plainView{title: title, details: make(map[string]string), commits: make(map[string][]string), dirs: dirs}
 	}
 	return newTUIView(title, taskNames, cancel)
 }
@@ -36,11 +41,12 @@ func newView(mode output.OutputMode, title string, taskNames []string, dirs map[
 // ---- Plain view --------------------------------------------------------
 
 type plainView struct {
-	mu        sync.Mutex
-	title     string
+	mu         sync.Mutex
+	title      string
 	printedHdr bool
-	details   map[string]string
-	dirs      map[string]string // taskName → relative local dir
+	details    map[string]string
+	commits    map[string][]string
+	dirs       map[string]string // taskName → relative local dir
 }
 
 func (v *plainView) OnStart(name string) {
@@ -60,6 +66,7 @@ func (v *plainView) OnStart(name string) {
 func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {
 	v.mu.Lock()
 	detail := v.details[name]
+	commits := v.commits[name]
 	v.mu.Unlock()
 
 	if err != nil {
@@ -80,12 +87,27 @@ func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {
 		}
 		_, _ = fmt.Fprintf(os.Stdout, "[%s] OK (%s) %s\n", name, fmtDuration(elapsed), d)
 	}
+	for _, c := range commits {
+		_, _ = fmt.Fprintf(os.Stdout, "  %s\n", c)
+	}
 }
 
 func (v *plainView) SetDetail(name, detail string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.details[name] = detail
+}
+
+func (v *plainView) SetCommits(name string, commits []string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.commits[name] = commits
+}
+
+func (v *plainView) OnReset(name string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	delete(v.commits, name)
 }
 
 func (v *plainView) Wait() {}
@@ -109,6 +131,7 @@ type goEntry struct {
 	state   goState
 	elapsed time.Duration
 	detail  string
+	commits []string
 }
 
 // goUpdateMsg is sent through the listen loop (OnStart / OnFinish).
@@ -125,6 +148,15 @@ type goDetailMsg struct {
 	state  goState
 	detail string
 }
+
+// goCommitsMsg is sent directly via p.Send() by SetCommits.
+type goCommitsMsg struct {
+	name    string
+	commits []string
+}
+
+// goResetMsg is sent directly via p.Send() by OnReset.
+type goResetMsg struct{ name string }
 
 type goDoneMsg struct{}
 type goTickMsg time.Time
@@ -185,6 +217,14 @@ func (v *tuiView) SetDetail(name, detail string) {
 		state = goStateStale
 	}
 	v.program.Send(goDetailMsg{name: name, state: state, detail: detail})
+}
+
+func (v *tuiView) SetCommits(name string, commits []string) {
+	v.program.Send(goCommitsMsg{name: name, commits: commits})
+}
+
+func (v *tuiView) OnReset(name string) {
+	v.program.Send(goResetMsg{name: name})
 }
 
 // Wait closes the message channel (signalling no more updates), waits until
@@ -301,6 +341,20 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				e.state = msg.state
 			}
 			e.detail = msg.detail
+		}
+
+	case goCommitsMsg:
+		if i, ok := m.index[msg.name]; ok {
+			m.entries[i].commits = msg.commits
+		}
+
+	case goResetMsg:
+		if i, ok := m.index[msg.name]; ok {
+			e := m.entries[i]
+			e.state = goStatePending
+			e.detail = ""
+			e.commits = nil
+			e.elapsed = 0
 		}
 
 	case goUpdateMsg:
@@ -454,12 +508,12 @@ func (m *gitopsModel) renderProgressBar(width int) string {
 }
 
 // noteworthyEntries returns entries that need attention after a sync —
-// failed, skipped (local changes), detached HEAD, or stale branch.
-// All goStateOK entries are excluded regardless of detail (pulled, cloned, up to date).
+// failed, skipped (local changes), detached HEAD, stale branch, or OK entries
+// that have new commits to display.
 func (m *gitopsModel) noteworthyEntries() []*goEntry {
 	var out []*goEntry
 	for _, e := range m.entries {
-		if e.state == goStateOK {
+		if e.state == goStateOK && len(e.commits) == 0 {
 			continue
 		}
 		out = append(out, e)
@@ -487,6 +541,9 @@ func (m *gitopsModel) printSummary() {
 	}
 	for _, e := range noteworthy {
 		fmt.Println(m.renderEntry(e, width))
+		for _, c := range e.commits {
+			fmt.Println(goDimStyle.Render("    " + c))
+		}
 	}
 }
 

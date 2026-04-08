@@ -90,6 +90,8 @@ func init() {
 		newListCmd(),
 		newSourcesCmd(),
 		newTokenCmd(),
+		newStatusCmd(),
+		newDoctorCmd(),
 	)
 
 	// --config accepts a file path
