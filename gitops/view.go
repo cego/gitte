@@ -130,10 +130,11 @@ type goDoneMsg struct{}
 type goTickMsg time.Time
 
 type tuiView struct {
-	program   *tea.Program
-	msgCh     chan goUpdateMsg
-	doneCh    chan error
-	drainedCh chan struct{} // closed by listen() after the last buffered message is consumed
+	program    *tea.Program
+	msgCh      chan goUpdateMsg
+	doneCh     chan error
+	drainedCh  chan struct{} // closed by listen() after the last buffered message is consumed
+	finalModel *gitopsModel
 }
 
 func newTUIView(title string, taskNames []string, cancel context.CancelFunc) *tuiView {
@@ -148,7 +149,10 @@ func newTUIView(title string, taskNames []string, cancel context.CancelFunc) *tu
 		drainedCh: drainedCh,
 	}
 	go func() {
-		_, err := p.Run()
+		fm, err := p.Run()
+		if gm, ok := fm.(*gitopsModel); ok {
+			v.finalModel = gm
+		}
 		v.doneCh <- err
 	}()
 	return v
@@ -185,12 +189,16 @@ func (v *tuiView) SetDetail(name, detail string) {
 
 // Wait closes the message channel (signalling no more updates), waits until
 // the listen goroutine has delivered the last buffered message to BubbleTea
-// (ensuring the final frame is rendered), then quits the program.
+// (ensuring the final frame is rendered), then quits the program and prints
+// a filtered summary of noteworthy entries.
 func (v *tuiView) Wait() {
 	close(v.msgCh)
 	<-v.drainedCh    // last message consumed → renderer has the final frame
 	v.program.Quit() // safe to quit now
 	<-v.doneCh
+	if v.finalModel != nil {
+		v.finalModel.printSummary()
+	}
 }
 
 // ---- BubbleTea model ---------------------------------------------------
@@ -234,6 +242,7 @@ type gitopsModel struct {
 	drainOnce   sync.Once
 	cancel      context.CancelFunc
 	width       int
+	height      int
 	startedAt   time.Time
 	finishedAt  time.Time
 }
@@ -270,6 +279,7 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		m.height = msg.Height
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
@@ -329,6 +339,30 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// progressMode reports whether there are too many entries to show in the
+// terminal grid — i.e. they would not fit even at maximum column count.
+func (m *gitopsModel) progressMode() bool {
+	if m.height == 0 {
+		return false
+	}
+	available := m.height - 4 // title + blank line + some margin
+	if available < 1 {
+		return true
+	}
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+	nCols := width / 60
+	if nCols < 1 {
+		nCols = 1
+	}
+	if nCols > 4 {
+		nCols = 4
+	}
+	return len(m.entries) > available*nCols
+}
+
 func (m *gitopsModel) View() string {
 	var b strings.Builder
 	title := m.title
@@ -347,6 +381,11 @@ func (m *gitopsModel) View() string {
 	width := m.width
 	if width <= 0 {
 		width = 80
+	}
+
+	if m.progressMode() {
+		b.WriteString(m.renderProgressBar(width) + "\n")
+		return b.String()
 	}
 
 	const minColW = 60
@@ -377,6 +416,77 @@ func (m *gitopsModel) View() string {
 	}
 
 	return b.String()
+}
+
+func (m *gitopsModel) renderProgressBar(width int) string {
+	total := len(m.entries)
+	done, running, failed := 0, 0, 0
+	for _, e := range m.entries {
+		switch e.state {
+		case goStateOK, goStateSkipped, goStateDetached, goStateStale:
+			done++
+		case goStateFailed:
+			done++
+			failed++
+		case goStateRunning:
+			running++
+		}
+	}
+
+	counts := fmt.Sprintf("  %d/%d", done, total)
+	if running > 0 {
+		counts += fmt.Sprintf("  running:%d", running)
+	}
+	if failed > 0 {
+		counts += goFailStyle.Render(fmt.Sprintf("  failed:%d", failed))
+	}
+
+	barW := width - visibleWidth(counts) - 3 // "[" + "]" + space
+	if barW < 4 {
+		barW = 4
+	}
+	filled := 0
+	if total > 0 {
+		filled = barW * done / total
+	}
+	bar := goOKStyle.Render(strings.Repeat("█", filled)) + goDimStyle.Render(strings.Repeat("░", barW-filled))
+	return "[" + bar + "]" + counts
+}
+
+// noteworthyEntries returns entries that changed or have issues —
+// i.e. anything that is not simply "up to date".
+func (m *gitopsModel) noteworthyEntries() []*goEntry {
+	var out []*goEntry
+	for _, e := range m.entries {
+		if e.state == goStateOK && (e.detail == "" || e.detail == "up to date") {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// printSummary prints a filtered final state after the TUI exits.
+// Only noteworthy entries are shown; if all repos are up to date a single
+// success line is printed instead.
+func (m *gitopsModel) printSummary() {
+	noteworthy := m.noteworthyEntries()
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+	if len(noteworthy) == 0 {
+		elapsed := m.finishedAt.Sub(m.startedAt)
+		fmt.Printf("%s All %d repositories up to date  %s\n",
+			goOKStyle.Render("✓"),
+			len(m.entries),
+			goDimStyle.Render("("+fmtDuration(elapsed)+")"),
+		)
+		return
+	}
+	for _, e := range noteworthy {
+		fmt.Println(m.renderEntry(e, width))
+	}
 }
 
 func (m *gitopsModel) renderEntry(e *goEntry, colW int) string {
