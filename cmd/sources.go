@@ -81,6 +81,7 @@ func newSourcesAddCmd() *cobra.Command {
 
 func newSourcesAddGitlabCmd() *cobra.Command {
 	var tokenEnv, tokenCmd string
+	var useKeyring bool
 	cmd := &cobra.Command{
 		Use:   "gitlab <host> <group> [group...]",
 		Short: "Add GitLab groups to local discovery sources",
@@ -95,7 +96,8 @@ Examples:
   gitte sources add gitlab gitlab.example.com mygroup
   gitte sources add gitlab gitlab.example.com groupA groupB
   gitte sources add gitlab gitlab.example.com mygroup --token-env MY_TOKEN
-  gitte sources add gitlab gitlab.example.com mygroup --token-cmd "pass show gitlab/token"`,
+  gitte sources add gitlab gitlab.example.com mygroup --token-cmd "pass show gitlab/token"
+  gitte sources add gitlab gitlab.example.com mygroup --use-keyring`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := args[0]
@@ -121,6 +123,9 @@ Examples:
 				} else if tokenCmd != "" {
 					override.Sources.Gitlab[i].TokenCmd = tokenCmd
 					override.Sources.Gitlab[i].TokenEnv = ""
+				} else if useKeyring {
+					override.Sources.Gitlab[i].TokenEnv = ""
+					override.Sources.Gitlab[i].TokenCmd = ""
 				}
 				added = len(override.Sources.Gitlab[i].Groups) - before
 				break
@@ -143,20 +148,22 @@ Examples:
 				fmt.Printf("All groups already configured for %s\n", host)
 			} else {
 				fmt.Printf("Added %d GitLab group(s) under %s\n", added, host)
-				if tokenEnv == "" && tokenCmd == "" {
-					fmt.Printf("Token: using system keyring. Run 'gitte token set gitlab %s' to store one.\n", host)
-				}
+			}
+			if tokenEnv == "" && tokenCmd == "" {
+				fmt.Printf("Token: using system keyring for %s. Run 'gitte token set gitlab %s' if not already stored.\n", host, host)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "", "env var containing the API token")
 	cmd.Flags().StringVar(&tokenCmd, "token-cmd", "", "shell command to retrieve the API token")
+	cmd.Flags().BoolVar(&useKeyring, "use-keyring", false, "switch to keyring lookup (clears token-env and token-cmd)")
 	return cmd
 }
 
 func newSourcesAddGithubCmd() *cobra.Command {
 	var tokenEnv, tokenCmd string
+	var useKeyring bool
 	cmd := &cobra.Command{
 		Use:   "github <host> <org> [org...]",
 		Short: "Add GitHub orgs to local discovery sources",
@@ -171,7 +178,8 @@ Examples:
   gitte sources add github github.com myorg
   gitte sources add github github.com orgA orgB
   gitte sources add github github.com myorg --token-env MY_GITHUB_TOKEN
-  gitte sources add github github.com myorg --token-cmd "pass show github/token"`,
+  gitte sources add github github.com myorg --token-cmd "pass show github/token"
+  gitte sources add github github.com myorg --use-keyring`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host := args[0]
@@ -197,6 +205,9 @@ Examples:
 				} else if tokenCmd != "" {
 					override.Sources.Github[i].TokenCmd = tokenCmd
 					override.Sources.Github[i].TokenEnv = ""
+				} else if useKeyring {
+					override.Sources.Github[i].TokenEnv = ""
+					override.Sources.Github[i].TokenCmd = ""
 				}
 				added = len(override.Sources.Github[i].Orgs) - before
 				break
@@ -219,15 +230,16 @@ Examples:
 				fmt.Printf("All orgs already configured for %s\n", host)
 			} else {
 				fmt.Printf("Added %d GitHub org(s) under %s\n", added, host)
-				if tokenEnv == "" && tokenCmd == "" {
-					fmt.Printf("Token: using system keyring. Run 'gitte token set github %s' to store one.\n", host)
-				}
+			}
+			if tokenEnv == "" && tokenCmd == "" {
+				fmt.Printf("Token: using system keyring for %s. Run 'gitte token set github %s' if not already stored.\n", host, host)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "", "env var containing the API token")
 	cmd.Flags().StringVar(&tokenCmd, "token-cmd", "", "shell command to retrieve the API token")
+	cmd.Flags().BoolVar(&useKeyring, "use-keyring", false, "switch to keyring lookup (clears token-env and token-cmd)")
 	return cmd
 }
 
