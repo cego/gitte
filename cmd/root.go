@@ -44,13 +44,17 @@ with dependency resolution.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if cmd.Name() == "__complete" || cmd.Name() == "__completeNoDesc" {
-			return nil
-		}
+		// Skip config loading when generating completion scripts (no .gitte.yml needed).
 		if p := cmd.Parent(); p != nil && p.Name() == "completion" {
 			return nil
 		}
-		return initGlobals()
+		err := initGlobals()
+		// During tab completion, swallow errors so a missing config doesn't
+		// produce noisy output — completions will simply be empty.
+		if cmd.Name() == "__complete" || cmd.Name() == "__completeNoDesc" {
+			return nil
+		}
+		return err
 	},
 }
 
