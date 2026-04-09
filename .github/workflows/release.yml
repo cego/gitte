@@ -94,7 +94,7 @@ jobs:
           rm /tmp/ppa_key
 
       - name: Update Homebrew formula
-        if: github.ref_type == 'tag' && !contains(github.ref_name, '-rc.')
+        if: github.ref_type == 'tag'
         env:
           VERSION: ${{ github.ref_name }}
         run: |
