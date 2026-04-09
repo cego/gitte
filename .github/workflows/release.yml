@@ -92,29 +92,21 @@ jobs:
             ppa/ deploy@gitte-ppa.cego.dk:/var/www/ppa/
           rm /tmp/ppa_key
 
-      - name: Generate Homebrew tap token
-        if: github.ref_type == 'tag' && !contains(github.ref_name, '-rc.')
-        id: tap-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.TAP_APP_ID }}
-          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
-          owner: cego
-          repositories: homebrew-tap
-
-      - name: Update Homebrew tap
+      - name: Update Homebrew formula
         if: github.ref_type == 'tag' && !contains(github.ref_name, '-rc.')
         env:
           VERSION: ${{ github.ref_name }}
-          TAP_TOKEN: ${{ steps.tap-token.outputs.token }}
         run: |
           SHA_DARWIN_AMD64=$(sha256sum bin/gitte-darwin-amd64.tar.gz | awk '{print $1}')
           SHA_DARWIN_ARM64=$(sha256sum bin/gitte-darwin-arm64.tar.gz | awk '{print $1}')
           SHA_LINUX_AMD64=$(sha256sum bin/gitte-linux-amd64.tar.gz | awk '{print $1}')
           SHA_LINUX_ARM64=$(sha256sum bin/gitte-linux-arm64.tar.gz | awk '{print $1}')
 
-          git clone "https://x-access-token:${TAP_TOKEN}@github.com/cego/homebrew-tap.git" tap
-          cd tap
+          git config user.email "noc+gitte@cego.dk"
+          git config user.name "CI"
+          git fetch origin main
+          git checkout main
+
           mkdir -p Formula
 
           cat > Formula/gitte.rb << EOF
@@ -154,8 +146,6 @@ jobs:
           end
           EOF
 
-          git config user.email "noc+gitte@cego.dk"
-          git config user.name "CI"
           git add Formula/gitte.rb
-          git commit -m "gitte ${VERSION}"
-          git push
+          git commit -m "Update Homebrew formula for ${VERSION}"
+          git push origin main
