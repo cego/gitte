@@ -50,6 +50,7 @@ jobs:
 
       - name: Publish to APT (gitte-ppa.cego.dk)
         if: github.ref_type == 'tag'
+        continue-on-error: true
         env:
           VERSION: ${{ github.ref_name }}
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
