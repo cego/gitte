@@ -86,6 +86,7 @@ jobs:
 
           mkdir -p ppa
           rclone copy "r2:${R2_BUCKET}/" ppa/
+          gpg --export --armor "noc+gitte@cego.dk" > ppa/gpg.key
 
           for ARCH in amd64 arm64; do
             SRCBIN="bin/linux-${ARCH}/gitte"
