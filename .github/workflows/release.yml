@@ -105,8 +105,8 @@ jobs:
 
           git config user.email "noc+gitte@cego.dk"
           git config user.name "CI"
-          git fetch origin main
-          git checkout main
+          git fetch origin 2.x
+          git checkout 2.x
 
           mkdir -p Formula
 
@@ -149,4 +149,4 @@ jobs:
 
           git add Formula/gitte.rb
           git commit -m "Update Homebrew formula for ${VERSION}"
-          git push origin main
+          git push origin 2.x
