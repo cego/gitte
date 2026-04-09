@@ -20,8 +20,8 @@ Gitte is a developer environment orchestration tool for teams working across man
 ### Homebrew (macOS and Linux)
 
 ```bash
-brew tap cego/tap
-brew install gitte
+brew tap cego/gitte https://github.com/cego/gitte
+brew install cego/gitte/gitte
 ```
 
 ### APT (Debian and Ubuntu)
