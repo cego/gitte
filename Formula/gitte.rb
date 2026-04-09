@@ -7,20 +7,20 @@ class Gitte < Formula
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/cego/gitte/releases/download/2.0.0-rc.11/gitte-darwin-arm64.tar.gz"
-      sha256 "ce22eb556ee3c89e1b2df14375521fdc882e35c8c0eb73a8b595bfaa7bca4488"
+      sha256 "247a728960485e921dc031215aba4a704ec1e5d68f92b3e78e0259245b238e4a"
     else
       url "https://github.com/cego/gitte/releases/download/2.0.0-rc.11/gitte-darwin-amd64.tar.gz"
-      sha256 "36959be08b375b480e837dec1144e5854121c8b39787b162ce26ef9065fab2a1"
+      sha256 "011d3e69d32cf581a2f61a27a5e12acb0e6df90638364ba9ebfc1b441af0c128"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
       url "https://github.com/cego/gitte/releases/download/2.0.0-rc.11/gitte-linux-arm64.tar.gz"
-      sha256 "19bc2c1e55609cf634d6092a1ac747695bbcd41c347b0aeed173a6bde109f328"
+      sha256 "a401def4d36d92567f630502d04db51d82aaec2ccbc0955b360eff231d6c75cf"
     else
       url "https://github.com/cego/gitte/releases/download/2.0.0-rc.11/gitte-linux-amd64.tar.gz"
-      sha256 "8b4a42e4be32715868995e31e30fe5f9fe9a9ceeed0352db97edfba1729a7ae4"
+      sha256 "76243d27f89936257304942684212b2c9c05f11290b4db66e86339cd2437cb04"
     end
   end
 
