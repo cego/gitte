@@ -90,7 +90,9 @@ jobs:
           for ARCH in amd64 arm64; do
             SRCBIN="bin/linux-${ARCH}/gitte"
             PKGDIR="pkg/gitte_${VERSION}_${ARCH}"
-            mkdir -p "${PKGDIR}/DEBIAN" "${PKGDIR}/usr/local/bin"
+            mkdir -p "${PKGDIR}/DEBIAN" "${PKGDIR}/usr/local/bin" \
+              "${PKGDIR}/usr/share/bash-completion/completions" \
+              "${PKGDIR}/usr/share/zsh/vendor-completions"
             cat > "${PKGDIR}/DEBIAN/control" << EOF
           Name: gitte
           Package: gitte
@@ -103,6 +105,8 @@ jobs:
           Website: https://github.com/cego/gitte
           EOF
             cp "${SRCBIN}" "${PKGDIR}/usr/local/bin/"
+            bin/linux-amd64/gitte completion bash > "${PKGDIR}/usr/share/bash-completion/completions/gitte"
+            bin/linux-amd64/gitte completion zsh  > "${PKGDIR}/usr/share/zsh/vendor-completions/_gitte"
             dpkg-deb --root-owner-group --build "${PKGDIR}" ppa/
           done
 
@@ -177,6 +181,7 @@ jobs:
 
             def install
               bin.install "gitte"
+              generate_completions_from_executable(bin/"gitte", "completion")
             end
 
             test do

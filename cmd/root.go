@@ -44,6 +44,12 @@ with dependency resolution.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Name() == "__complete" || cmd.Name() == "__completeNoDesc" {
+			return nil
+		}
+		if p := cmd.Parent(); p != nil && p.Name() == "completion" {
+			return nil
+		}
 		return initGlobals()
 	},
 }
