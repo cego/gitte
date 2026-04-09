@@ -141,6 +141,7 @@ jobs:
 
           git config user.email "noc+gitte@cego.dk"
           git config user.name "CI"
+          git config --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/cego/gitte"
           git fetch origin main
           git checkout main
