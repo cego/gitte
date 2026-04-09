@@ -1,6 +1,7 @@
 package tokens
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -39,7 +40,7 @@ func Resolve(kind, host, tokenEnv, tokenCmd string) (string, error) {
 		return token, nil
 	}
 	if tokenCmd != "" {
-		out, err := exec.Command("sh", "-c", tokenCmd).Output()
+		out, err := exec.CommandContext(context.Background(), "sh", "-c", tokenCmd).Output()
 		if err != nil {
 			return "", fmt.Errorf("token_cmd for %s failed: %w", host, err)
 		}

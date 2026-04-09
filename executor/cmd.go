@@ -88,8 +88,8 @@ func ExecuteSyncInDirWithOutputHandler(
 	go func() {
 		select {
 		case <-ctx.Done():
-			stdoutPipe.Close()
-			stderrPipe.Close()
+			_ = stdoutPipe.Close()
+			_ = stderrPipe.Close()
 		case <-pipeDone:
 		}
 	}()

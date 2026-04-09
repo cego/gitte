@@ -69,7 +69,7 @@ func fetchGitlabPage(req *http.Request, host, group string) ([]gitlabProject, st
 	if err != nil {
 		return nil, "", fmt.Errorf("gitlab API request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		hint := ""

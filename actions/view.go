@@ -1612,7 +1612,7 @@ func writeToTempFile(text, taskName string) copyResult {
 	if err != nil {
 		return copyResult{err: fmt.Errorf("failed to create temp file: %w", err)}
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.WriteString(text); err != nil {
 		return copyResult{err: fmt.Errorf("failed to write temp file: %w", err)}
 	}

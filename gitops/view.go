@@ -36,11 +36,11 @@ func newView(mode output.OutputMode, title string, taskNames []string, dirs map[
 // ---- Plain view --------------------------------------------------------
 
 type plainView struct {
-	mu        sync.Mutex
-	title     string
+	mu         sync.Mutex
+	title      string
 	printedHdr bool
-	details   map[string]string
-	dirs      map[string]string // taskName → relative local dir
+	details    map[string]string
+	dirs       map[string]string // taskName → relative local dir
 }
 
 func (v *plainView) OnStart(name string) {
@@ -430,6 +430,7 @@ func (m *gitopsModel) renderProgressBar(width int) string {
 			failed++
 		case goStateRunning:
 			running++
+		case goStatePending:
 		}
 	}
 

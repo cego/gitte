@@ -58,7 +58,7 @@ func fetchGithubPage(req *http.Request, host, org string) ([]githubRepo, error) 
 	if err != nil {
 		return nil, fmt.Errorf("github API request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		hint := ""
