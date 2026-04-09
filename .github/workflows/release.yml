@@ -62,6 +62,8 @@ jobs:
 
           DESCRIPTION="Developer environment orchestration tool"
 
+          mkdir -p ppa
+
           for ARCH in amd64 arm64; do
             SRCBIN="bin/linux-${ARCH}/gitte"
             PKGDIR="pkg/gitte_${VERSION}_${ARCH}"
@@ -93,10 +95,20 @@ jobs:
             ppa/ deploy@gitte-ppa.cego.dk:/var/www/ppa/
           rm /tmp/ppa_key
 
+      - name: Generate app token for formula push
+        if: github.ref_type == 'tag'
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: gitte
+
       - name: Update Homebrew formula
         if: github.ref_type == 'tag'
         env:
           VERSION: ${{ github.ref_name }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           SHA_DARWIN_AMD64=$(sha256sum bin/gitte-darwin-amd64.tar.gz | awk '{print $1}')
           SHA_DARWIN_ARM64=$(sha256sum bin/gitte-darwin-arm64.tar.gz | awk '{print $1}')
@@ -105,8 +117,9 @@ jobs:
 
           git config user.email "noc+gitte@cego.dk"
           git config user.name "CI"
-          git fetch origin 2.x
-          git checkout 2.x
+          git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/cego/gitte"
+          git fetch origin main
+          git checkout main
 
           mkdir -p Formula
 
@@ -149,4 +162,4 @@ jobs:
 
           git add Formula/gitte.rb
           git commit -m "Update Homebrew formula for ${VERSION}"
-          git push origin 2.x
+          git push origin main
