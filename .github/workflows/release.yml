@@ -40,11 +40,28 @@ jobs:
         run: GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/darwin-arm64/gitte .
       - run: tar czf bin/gitte-darwin-arm64.tar.gz -C bin/darwin-arm64 gitte
 
+      - name: Import GPG key
+        if: github.ref_type == 'tag'
+        run: echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Sign release archives
+        if: github.ref_type == 'tag'
+        run: |
+          for f in bin/gitte-*; do
+            gpg --batch --default-key "noc+gitte@cego.dk" --detach-sign --armor "$f"
+          done
+
       - name: Create GitHub Release
         if: github.ref_type == 'tag'
         run: |
-          gh release create "${GITHUB_REF_NAME}" bin/gitte-*.tar.gz bin/gitte-*.zip --generate-notes ||
-          gh release upload "${GITHUB_REF_NAME}" bin/gitte-*.tar.gz bin/gitte-*.zip --clobber
+          PRERELEASE_FLAG=""
+          if [[ "${GITHUB_REF_NAME}" == *"-rc."* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "${GITHUB_REF_NAME}" bin/gitte-* --generate-notes ${PRERELEASE_FLAG} ||
+          gh release upload "${GITHUB_REF_NAME}" bin/gitte-* --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -53,16 +70,22 @@ jobs:
         continue-on-error: true
         env:
           VERSION: ${{ github.ref_name }}
-          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-          PPA_SSH_KEY: ${{ secrets.PPA_SSH_KEY }}
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          sudo apt-get install -y dpkg-dev apt-utils
-
-          echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+          sudo apt-get install -y dpkg-dev apt-utils rclone
 
           DESCRIPTION="Developer environment orchestration tool"
 
           mkdir -p ppa
+          rclone copy "r2:${R2_BUCKET}/" ppa/
 
           for ARCH in amd64 arm64; do
             SRCBIN="bin/linux-${ARCH}/gitte"
@@ -89,11 +112,12 @@ jobs:
           (cd ppa && gpg --default-key "noc+gitte@cego.dk" -abs -o - Release > Release.gpg)
           (cd ppa && gpg --default-key "noc+gitte@cego.dk" --clearsign -o - Release > InRelease)
 
-          echo "${PPA_SSH_KEY}" > /tmp/ppa_key
-          chmod 600 /tmp/ppa_key
-          rsync -az -e "ssh -i /tmp/ppa_key -o StrictHostKeyChecking=no" \
-            ppa/ deploy@gitte-ppa.cego.dk:/var/www/ppa/
-          rm /tmp/ppa_key
+          rclone copy ppa/ "r2:${R2_BUCKET}/"
+
+          curl -sf -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}'
 
       - name: Generate app token for formula push
         if: github.ref_type == 'tag'
