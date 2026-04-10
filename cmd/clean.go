@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
@@ -81,28 +82,55 @@ func newCleanAllCmd() *cobra.Command {
 	}
 }
 
-// runCleanUntracked runs git clean -fdx in every configured project that exists on disk.
+// runCleanUntracked runs git clean -fdx concurrently across all configured
+// projects that exist on disk, showing progress via cleanView.
 func runCleanUntracked(ctx context.Context, cfg *config.GitteConfig, cwd string) error {
+	type repoWork struct {
+		name string
+		path string
+	}
+	var repos []repoWork
 	for _, name := range sortedProjectNames(cfg) {
 		proj := cfg.Projects[name]
 		projectPath, ok := resolveProjectPath(cwd, name, proj)
 		if !ok {
 			continue
 		}
-		res, err := executor.ExecuteSyncInDir(ctx, projectPath, "git", "clean", "-fdx")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: [%s] git clean: %v\n", name, err)
-			continue
-		}
-		if res.ExitCode != 0 {
-			fmt.Fprintf(os.Stderr, "warning: [%s] git clean failed (exit %d): %s\n",
-				name, res.ExitCode, strings.TrimSpace(string(res.Stderr)))
-			continue
-		}
-		if out := strings.TrimSpace(string(res.Stdout)); out != "" {
-			fmt.Printf("[%s] %s\n", name, out)
-		}
+		repos = append(repos, repoWork{name, projectPath})
 	}
+
+	repoNames := make([]string, len(repos))
+	for i, r := range repos {
+		repoNames[i] = r.name
+	}
+
+	view := newCleanView(outputMode(), []cleanPhaseSpec{{Title: "Untracked", Repos: repoNames}})
+
+	var wg sync.WaitGroup
+	for _, r := range repos {
+		wg.Add(1)
+		go func(r repoWork) {
+			defer wg.Done()
+			view.OnStart("Untracked", r.name)
+			res, err := executor.ExecuteSyncInDir(ctx, r.path, "git", "clean", "-fdx")
+			if err != nil {
+				view.OnFinish("Untracked", r.name, "", err)
+				return
+			}
+			if res.ExitCode != 0 {
+				view.OnFinish("Untracked", r.name, "",
+					fmt.Errorf("exit %d: %s", res.ExitCode, strings.TrimSpace(string(res.Stderr))))
+				return
+			}
+			detail := strings.TrimSpace(string(res.Stdout))
+			if detail == "" {
+				detail = "nothing to clean"
+			}
+			view.OnFinish("Untracked", r.name, detail, nil)
+		}(r)
+	}
+	wg.Wait()
+	view.Wait()
 	return nil
 }
 
