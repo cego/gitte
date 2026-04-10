@@ -109,15 +109,13 @@ gitte run up+build                # run up then build, all groups, all enabled p
 
 Use `*` or `all` as a wildcard. Combine multiple values with `+`.
 
-### clean flags
-
-Reports repos matching each condition — useful for spotting what needs attention.
+### clean subcommands
 
 ```bash
-gitte clean --untracked        # list repos with untracked files
-gitte clean --local-changes    # list repos with local changes
-gitte clean --master           # list repos on the default branch
-gitte clean --non-gitte        # list directories not managed by gitte
+gitte clean untracked       # remove untracked files (git clean -fdx)
+gitte clean local-changes   # reset repos with local changes (prompts first)
+gitte clean master          # checkout the default branch in all repos
+gitte clean all             # run all three in sequence
 ```
 
 ## Configuration

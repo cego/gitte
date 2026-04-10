@@ -107,16 +107,21 @@ gitte validate
 
 ## gitte clean
 
-Report repo state. Each flag prints repos matching that condition.
+Destructive cleanup operations on project repositories.
 
 ```bash
-gitte clean --untracked       # list repos with untracked files
-gitte clean --local-changes   # list repos with local changes
-gitte clean --master          # list repos currently on the default branch
-gitte clean --non-gitte       # list directories not managed by gitte
+gitte clean untracked       # run git clean -fdx in every repo
+gitte clean local-changes   # run git reset --hard in repos with local changes (prompts first)
+gitte clean master          # run git checkout <default_branch> in every repo
+gitte clean all             # run untracked → local-changes → master in sequence
 ```
 
-Multiple flags can be combined.
+`gitte clean local-changes` shows all affected repos, then asks:
+`Reset all, handle individually, or cancel? [all/individually/cancel]`
+
+If `individually`, you are prompted per repo: `Reset <name>? [y/N]`
+
+Operations run on all configured projects regardless of toggle state.
 
 ---
 
