@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/cego/gitte/output"
 )
 
 // ---- states ----------------------------------------------------------------
@@ -316,4 +319,108 @@ func colsForWidth(width int) int {
 		return 2
 	}
 	return 1
+}
+
+// ---- view wrapper ----------------------------------------------------------
+
+// cleanView wraps the BubbleTea program (TUI mode) or prints plain lines
+// (plain mode) for the clean subcommands.
+type cleanView struct {
+	// TUI fields (nil/zero in plain mode)
+	program    *tea.Program
+	msgCh      chan cleanMsg
+	doneCh     chan error
+	drainedCh  chan struct{}
+	finalModel *cleanModel
+	// shared
+	mode output.OutputMode
+}
+
+// newCleanView creates a cleanView for the given phases. In TUI mode the
+// BubbleTea program is started immediately. In plain mode no program is started.
+func newCleanView(mode output.OutputMode, specs []cleanPhaseSpec) *cleanView {
+	v := &cleanView{mode: mode}
+	if mode == output.ModePlain {
+		return v
+	}
+	msgCh := make(chan cleanMsg, 100)
+	drainedCh := make(chan struct{})
+	m := newCleanModel(specs, msgCh, drainedCh)
+	p := tea.NewProgram(m)
+	v.program = p
+	v.msgCh = msgCh
+	v.doneCh = make(chan error, 1)
+	v.drainedCh = drainedCh
+	go func() {
+		fm, err := p.Run()
+		if cm, ok := fm.(*cleanModel); ok {
+			v.finalModel = cm
+		}
+		v.doneCh <- err
+	}()
+	return v
+}
+
+// OnStart marks a repo as running within its phase.
+func (v *cleanView) OnStart(phase, repo string) {
+	if v.mode == output.ModePlain {
+		return
+	}
+	v.msgCh <- cleanMsg{phase: phase, repo: repo, state: cleanStateRunning}
+}
+
+// SetDetail updates the detail text for a running repo (e.g. "cleaning…").
+// In plain mode this is a no-op; detail is printed by OnFinish.
+func (v *cleanView) SetDetail(phase, repo, detail string) {
+	if v.mode == output.ModePlain {
+		return
+	}
+	v.msgCh <- cleanMsg{phase: phase, repo: repo, state: cleanStateRunning, detail: detail}
+}
+
+// OnFinish marks a repo as completed. detail is shown alongside the ✓/✗ icon.
+// In plain mode it prints "[clean:<phase>] <repo>: <detail>" to stdout (or stderr on error).
+func (v *cleanView) OnFinish(phase, repo, detail string, err error) {
+	if v.mode == output.ModePlain {
+		phaseKey := strings.ToLower(strings.ReplaceAll(phase, " ", "-"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[clean:%s] %s: failed: %v\n", phaseKey, repo, err)
+		} else {
+			fmt.Printf("[clean:%s] %s: %s\n", phaseKey, repo, detail)
+		}
+		return
+	}
+	state := cleanStateOK
+	if err != nil {
+		state = cleanStateFailed
+		if detail == "" {
+			detail = err.Error()
+		}
+	}
+	v.msgCh <- cleanMsg{phase: phase, repo: repo, state: state, detail: detail}
+}
+
+// AdvancePhase signals the model to move to the next phase section.
+// Call this after all repos in the current phase have reported OnFinish.
+// Only meaningful in TUI mode; in plain mode it is a no-op.
+func (v *cleanView) AdvancePhase() {
+	if v.mode != output.ModePlain && v.program != nil {
+		v.program.Send(cleanAdvanceMsg{})
+	}
+}
+
+// Wait closes the message channel, waits for the final message to be rendered,
+// quits the BubbleTea program, then prints the final frame so it remains visible.
+// In plain mode it is a no-op.
+func (v *cleanView) Wait() {
+	if v.mode == output.ModePlain {
+		return
+	}
+	close(v.msgCh)
+	<-v.drainedCh    // last message consumed → final frame rendered
+	v.program.Quit() // safe to quit now
+	<-v.doneCh
+	if v.finalModel != nil {
+		fmt.Print(v.finalModel.View())
+	}
 }
