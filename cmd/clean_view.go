@@ -297,6 +297,7 @@ func cleanTruncateToVisualWidth(s string, maxWidth int) string {
 			continue
 		}
 		if width >= maxWidth {
+			b.WriteString("\x1b[0m") // reset to avoid color bleed into adjacent columns
 			break
 		}
 		b.WriteRune(r)
