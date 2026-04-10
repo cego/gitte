@@ -65,9 +65,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Publish to APT (gitte-ppa.cego.dk)
+      - name: Publish to APT (gitte-apt.cego.dk)
         if: github.ref_type == 'tag'
-        continue-on-error: true
         env:
           VERSION: ${{ github.ref_name }}
           RCLONE_CONFIG_R2_TYPE: s3

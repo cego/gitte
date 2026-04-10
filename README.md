@@ -27,8 +27,8 @@ brew install cego/gitte/gitte
 ### APT (Debian and Ubuntu)
 
 ```bash
-curl -fsSL https://gitte-ppa.cego.dk/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/gitte.gpg
-echo "deb [signed-by=/etc/apt/keyrings/gitte.gpg] https://gitte-ppa.cego.dk ./" | sudo tee /etc/apt/sources.list.d/gitte.list
+curl -fsSL https://gitte-apt.cego.dk/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/gitte.gpg
+echo "deb [signed-by=/etc/apt/keyrings/gitte.gpg] https://gitte-apt.cego.dk ./" | sudo tee /etc/apt/sources.list.d/gitte.list
 sudo apt update
 sudo apt install gitte
 ```
