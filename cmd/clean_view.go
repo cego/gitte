@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,6 +43,9 @@ type cleanPhaseSpec struct {
 
 // ---- messages --------------------------------------------------------------
 
+// cleanMsg carries a state change for one repo within a phase.
+// state must be cleanStateRunning, cleanStateOK, or cleanStateFailed;
+// cleanStatePending is the initial state set by newCleanModel, never sent.
 type cleanMsg struct {
 	phase  string // matches cleanPhaseSpec.Title
 	repo   string
@@ -48,6 +53,9 @@ type cleanMsg struct {
 	detail string
 }
 
+// cleanAdvanceMsg is sent via program.Send() (not through msgCh) to increment
+// activePhase. Because it bypasses the channel, it never interferes with the
+// listen() goroutine that is already waiting for the next cleanMsg.
 type cleanAdvanceMsg struct{} // advance to next phase
 type cleanDoneMsg struct{}    // all messages consumed
 type cleanTickMsg time.Time
@@ -161,7 +169,140 @@ func (m *cleanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *cleanModel) View() string {
-	return ""
+	var b strings.Builder
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+
+	for i, phase := range m.phases {
+		isUpcoming := i > m.activePhase
+		header := renderPhaseHeader(phase.title, width)
+		if isUpcoming {
+			b.WriteString(cleanDimStyle.Render(header) + "\n")
+			continue
+		}
+		b.WriteString(cleanSectionStyle.Render(header) + "\n")
+
+		colCount := colsForWidth(width)
+		colW := width / colCount
+
+		lines := make([]string, len(phase.entries))
+		for j, e := range phase.entries {
+			lines[j] = m.renderEntry(e, colW)
+		}
+
+		nRows := (len(lines) + colCount - 1) / colCount
+		for row := 0; row < nRows; row++ {
+			for col := 0; col < colCount; col++ {
+				idx := col*nRows + row
+				if idx >= len(lines) {
+					break
+				}
+				b.WriteString(lines[idx])
+			}
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func renderPhaseHeader(title string, width int) string {
+	prefix := "── " + title + " "
+	fill := width - len([]rune(prefix))
+	if fill < 0 {
+		fill = 0
+	}
+	return prefix + strings.Repeat("─", fill)
+}
+
+func (m *cleanModel) renderEntry(e *cleanEntry, colW int) string {
+	var icon, nameStr, extra string
+	switch e.state {
+	case cleanStatePending:
+		icon = cleanPendingStyle.Render("○")
+		nameStr = cleanDimStyle.Render(e.name)
+	case cleanStateRunning:
+		frame := cleanSpinnerFrames[m.spinnerTick%len(cleanSpinnerFrames)]
+		icon = cleanRunningStyle.Render(frame)
+		nameStr = cleanLabelStyle.Render(e.name)
+		if e.detail != "" {
+			extra = cleanDimStyle.Render("  " + e.detail)
+		}
+	case cleanStateOK:
+		icon = cleanOKStyle.Render("✓")
+		nameStr = cleanOKStyle.Render(e.name)
+		if e.detail != "" {
+			extra = cleanDimStyle.Render("  " + e.detail)
+		}
+	case cleanStateFailed:
+		icon = cleanFailStyle.Render("✗")
+		nameStr = cleanFailStyle.Render(e.name)
+		if e.detail != "" {
+			extra = cleanFailStyle.Render("  " + e.detail)
+		}
+	}
+	line := fmt.Sprintf(" %s %s%s", icon, nameStr, extra)
+	return cleanFitToWidth(line, colW)
+}
+
+// cleanFitToWidth pads or truncates s to exactly width visible characters.
+func cleanFitToWidth(s string, width int) string {
+	vis := cleanVisibleWidth(s)
+	if vis < width {
+		return s + strings.Repeat(" ", width-vis)
+	}
+	return cleanTruncateToVisualWidth(s, width)
+}
+
+// cleanVisibleWidth returns the display width of s, ignoring ANSI escape codes.
+func cleanVisibleWidth(s string) int {
+	width := 0
+	inEscape := false
+	for _, r := range s {
+		if inEscape {
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+		if r == '\x1b' {
+			inEscape = true
+			continue
+		}
+		width++
+	}
+	return width
+}
+
+// cleanTruncateToVisualWidth truncates s to at most maxWidth visible characters,
+// preserving ANSI escape codes that appear before the truncation point.
+func cleanTruncateToVisualWidth(s string, maxWidth int) string {
+	var b strings.Builder
+	width := 0
+	inEscape := false
+	for _, r := range s {
+		if inEscape {
+			b.WriteRune(r)
+			if r == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+		if r == '\x1b' {
+			inEscape = true
+			b.WriteRune(r)
+			continue
+		}
+		if width >= maxWidth {
+			break
+		}
+		b.WriteRune(r)
+		width++
+	}
+	return b.String()
 }
 
 // colsForWidth returns the number of columns based on terminal width.
