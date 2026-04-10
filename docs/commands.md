@@ -10,18 +10,17 @@ Full pipeline: startup checks → git sync → actions.
 
 ```bash
 gitte run up
-gitte run up prod
-gitte run up myservice prod
-gitte run up frontend+backend prod
-gitte run up * prod
+gitte run up local
+gitte run up local myservice
+gitte run up local frontend+backend
 gitte run up+build
 gitte run up --discover    # also fetch repos from configured sources first
 ```
 
 Arguments:
 1. **action** — action name(s), `+`-separated. Required.
-2. **projects** — project name(s) or `*` for all. Optional, defaults to all enabled.
-3. **group** — group name or `*` for all. Optional, defaults to all.
+2. **group** — group name or `*` for all. Optional, defaults to all.
+3. **projects** — project name(s) or `*` for all. Optional, defaults to all enabled.
 
 ---
 
@@ -31,8 +30,8 @@ Run actions only, skipping startup checks and git sync. Same argument syntax as 
 
 ```bash
 gitte actions up
-gitte actions up prod
-gitte actions down myservice prod
+gitte actions up local
+gitte actions down local myservice
 ```
 
 ---
@@ -108,13 +107,55 @@ gitte validate
 
 ## gitte clean
 
-Clean up project repositories.
+Report repo state. Each flag prints repos matching that condition.
 
 ```bash
-gitte clean --untracked       # remove untracked files (git clean -fdx)
-gitte clean --local-changes   # discard uncommitted changes (prompts for confirmation)
-gitte clean --master          # checkout the default branch in all repos
-gitte clean --non-gitte       # remove directories not managed by gitte (prompts)
+gitte clean --untracked       # list repos with untracked files
+gitte clean --local-changes   # list repos with local changes
+gitte clean --master          # list repos currently on the default branch
+gitte clean --non-gitte       # list directories not managed by gitte
 ```
 
-Multiple flags can be combined. If no flags are given, all operations run.
+Multiple flags can be combined.
+
+---
+
+## gitte list
+
+List all enabled projects and their available actions and groups.
+
+```bash
+gitte list        # enabled projects only
+gitte list -a     # include disabled projects
+```
+
+---
+
+## gitte sources
+
+Manage local discovery sources — the GitLab groups and GitHub orgs that `gitte gitops --discover` queries. Sources are stored in `.gitte-override.yml` so they stay local to your machine.
+
+```bash
+gitte sources                                          # list configured sources
+gitte sources add gitlab gitlab.example.com mygroup    # add a GitLab group
+gitte sources add github github.com myorg              # add a GitHub org
+gitte sources remove gitlab gitlab.example.com mygroup # remove a group
+```
+
+Tokens for discovery are looked up from the system keyring automatically. See `gitte token`.
+
+---
+
+## gitte token
+
+Store and retrieve API tokens for GitLab and GitHub hosts in the system keyring (macOS Keychain or GNOME Keyring on Linux).
+
+```bash
+gitte token set gitlab gitlab.example.com   # store a token (prompts for input)
+gitte token set github github.com
+gitte token get gitlab gitlab.example.com   # print the stored token (diagnostic)
+gitte token delete gitlab gitlab.example.com
+gitte token list                            # show keyring status for all configured sources
+```
+
+Tokens are used automatically during `gitte gitops --discover`. If the keyring is unavailable (headless servers), use `token_env` or `token_cmd` in the source config instead.

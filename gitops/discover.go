@@ -30,7 +30,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 
 	var sources []sourceEntry
 	for _, src := range cfg.Sources.Gitlab {
-		token, err := tokens.Resolve("gitlab", src.Host, src.TokenEnv, src.TokenCmd)
+		token, err := tokens.Resolve(ctx, "gitlab", src.Host, src.TokenEnv, src.TokenCmd)
 		if err != nil {
 			return fmt.Errorf("resolving token for %s: %w", src.Host, err)
 		}
@@ -45,7 +45,7 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 		}
 	}
 	for _, src := range cfg.Sources.Github {
-		token, err := tokens.Resolve("github", src.Host, src.TokenEnv, src.TokenCmd)
+		token, err := tokens.Resolve(ctx, "github", src.Host, src.TokenEnv, src.TokenCmd)
 		if err != nil {
 			return fmt.Errorf("resolving token for %s: %w", src.Host, err)
 		}

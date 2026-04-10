@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	keyring "github.com/zalando/go-keyring"
 )
+
+const tokenCmdTimeout = 10 * time.Second
 
 const service = "gitte"
 
@@ -35,12 +38,14 @@ func Delete(kind, host string) error {
 // Resolve returns the token to use for a source. The keyring is always tried
 // first. If it has no entry or is unavailable, falls back to token_cmd then
 // token_env. Returns ("", nil) when no token is found anywhere.
-func Resolve(kind, host, tokenEnv, tokenCmd string) (string, error) {
+func Resolve(ctx context.Context, kind, host, tokenEnv, tokenCmd string) (string, error) {
 	if token, err := Get(kind, host); err == nil && token != "" {
 		return token, nil
 	}
 	if tokenCmd != "" {
-		out, err := exec.CommandContext(context.Background(), "sh", "-c", tokenCmd).Output()
+		tctx, cancel := context.WithTimeout(ctx, tokenCmdTimeout)
+		defer cancel()
+		out, err := exec.CommandContext(tctx, "sh", "-c", tokenCmd).Output() //nolint:gosec
 		if err != nil {
 			return "", fmt.Errorf("token_cmd for %s failed: %w", host, err)
 		}

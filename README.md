@@ -63,19 +63,19 @@ projects:
     actions:
       up:
         groups:
-          prod: ["docker", "compose", "up", "-d"]
+          local: ["docker", "compose", "up", "-d"]
       down:
         groups:
-          prod: ["docker", "compose", "down"]
+          local: ["docker", "compose", "down"]
 ```
 
 Then run:
 
 ```bash
-gitte run up prod
+gitte run up local
 ```
 
-Gitte will run startup checks, pull all repos, then execute the `up` action for group `prod` on all enabled projects.
+Gitte will run startup checks, pull all repos, then execute the `up` action for group `local` on all enabled projects.
 
 ## Commands
 
@@ -85,35 +85,39 @@ Gitte will run startup checks, pull all repos, then execute the `up` action for 
 | `gitte actions [action] [group] [projects]` | Run actions only (skip startup and git sync) |
 | `gitte startup` | Run startup checks only |
 | `gitte gitops [--discover]` | Clone/pull all repos; `--discover` also fetches from configured sources |
+| `gitte list` | List all projects and their available actions |
 | `gitte toggle` | Interactive TUI to enable/disable projects |
 | `gitte features list` | List all feature gates and their enabled state |
 | `gitte features enable <gate>` | Enable a feature gate |
 | `gitte features disable <gate>` | Disable a feature gate |
+| `gitte sources` | Manage local discovery sources (GitLab groups / GitHub orgs) |
+| `gitte token set <gitlab\|github> <host>` | Store an API token in the system keyring |
 | `gitte validate` | Validate config: schema, cycles, missing references |
-| `gitte clean [flags]` | Cleanup repos (see below) |
+| `gitte clean [flags]` | Report repo state (see below) |
 
 ### Argument syntax
 
 Arguments to `run` and `actions` are positional: `action [group] [projects]`.
 
 ```bash
-gitte run up                      # up on all enabled projects, all groups
-gitte run up myservice            # up on myservice only, all groups
-gitte run up myservice prod       # up on myservice, group prod only
-gitte run up frontend+backend prod  # up on frontend and backend, group prod
-gitte run up * prod               # up on all enabled projects, group prod
-gitte run up+build                # run up then build on all projects
+gitte run up                      # up action, all groups, all enabled projects
+gitte run up local                # up action, group local, all enabled projects
+gitte run up local myservice      # up action, group local, project myservice only
+gitte run up local frontend+backend  # up action, group local, projects frontend and backend
+gitte run up+build                # run up then build, all groups, all enabled projects
 ```
 
 Use `*` or `all` as a wildcard. Combine multiple values with `+`.
 
 ### clean flags
 
+Reports repos matching each condition — useful for spotting what needs attention.
+
 ```bash
-gitte clean --untracked        # git clean -fdx in all repos
-gitte clean --local-changes    # discard uncommitted changes (prompts for confirmation)
-gitte clean --master           # checkout default branch in all repos
-gitte clean --non-gitte        # remove directories not managed by gitte (prompts)
+gitte clean --untracked        # list repos with untracked files
+gitte clean --local-changes    # list repos with local changes
+gitte clean --master           # list repos on the default branch
+gitte clean --non-gitte        # list directories not managed by gitte
 ```
 
 ## Configuration
@@ -127,6 +131,7 @@ See [docs/config.md](./docs/config.md) for the full configuration reference.
 | `GITTE_CWD` | process cwd | Override the working directory |
 | `GITTE_NO_TTY` | `0` | Set to `1` to force plain-text output (no TUI) |
 | `GITTE_NO_NEEDS` | `0` | Set to `1` to ignore `needs` dependencies |
+| `GITTE_NO_REBASE` | `false` | Set to `true` to skip auto-rebase onto default branch |
 | `GITTE_MAX_TASK_PARALLELIZATION` | unlimited | Cap the number of concurrent tasks |
 
 ## Global flags

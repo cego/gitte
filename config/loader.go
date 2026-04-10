@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -151,8 +152,11 @@ func LoadAndMergeConfig(fd FileDefinition) (*GitteConfig, error) {
 	}
 
 	// Try to load override
-	overridePath := filepath.Join(fd.Directory, OverridePath)
-	if overrideData, err := os.ReadFile(overridePath); err == nil {
+	overrideData, err := tryReadFile(filepath.Join(fd.Directory, OverridePath))
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", OverridePath, err)
+	}
+	if overrideData != nil {
 		overrideCfg, err := LoadGitteConfigFromYAML(overrideData)
 		if err != nil {
 			return nil, err
