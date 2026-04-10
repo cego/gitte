@@ -19,13 +19,6 @@ func newCleanCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "clean",
 		Short: "Cleanup repositories",
-		Long: `Cleanup operations on project repositories.
-
-Subcommands:
-  untracked     Remove untracked files (git clean -fdx)
-  local-changes Reset repos with local changes (git reset --hard)
-  master        Checkout the default branch in all repos
-  all           Run all of the above in sequence`,
 	}
 	cmd.AddCommand(
 		newCleanUntrackedCmd(),
@@ -104,6 +97,10 @@ func runCleanUntracked(ctx context.Context, cfg *config.GitteConfig, cwd string)
 		if res.ExitCode != 0 {
 			fmt.Fprintf(os.Stderr, "warning: [%s] git clean failed (exit %d): %s\n",
 				name, res.ExitCode, strings.TrimSpace(string(res.Stderr)))
+			continue
+		}
+		if out := strings.TrimSpace(string(res.Stdout)); out != "" {
+			fmt.Printf("[%s] %s\n", name, out)
 		}
 	}
 	return nil
@@ -147,11 +144,14 @@ func runCleanLocalChanges(ctx context.Context, cfg *config.GitteConfig, cwd stri
 	fmt.Print("\nReset all, handle individually, or cancel? [all/individually/cancel]: ")
 	scanner.Scan()
 	choice := strings.TrimSpace(strings.ToLower(scanner.Text()))
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("reading stdin: %w", err)
+	}
 
 	switch choice {
 	case "all":
 		for _, r := range dirty {
-			if err := hardReset(ctx, r.name, r.path); err != nil {
+			if err := hardReset(ctx, r.path); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: [%s] %v\n", r.name, err)
 			}
 		}
@@ -161,7 +161,7 @@ func runCleanLocalChanges(ctx context.Context, cfg *config.GitteConfig, cwd stri
 			scanner.Scan()
 			answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
 			if answer == "y" || answer == "yes" {
-				if err := hardReset(ctx, r.name, r.path); err != nil {
+				if err := hardReset(ctx, r.path); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: [%s] %v\n", r.name, err)
 				}
 			}
@@ -199,7 +199,7 @@ func runCleanMaster(ctx context.Context, cfg *config.GitteConfig, cwd string) er
 }
 
 // hardReset runs git reset --hard in dir, returning an error on failure.
-func hardReset(ctx context.Context, name, dir string) error {
+func hardReset(ctx context.Context, dir string) error {
 	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "reset", "--hard")
 	if err != nil {
 		return fmt.Errorf("git reset --hard: %w", err)
