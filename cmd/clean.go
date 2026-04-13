@@ -234,8 +234,15 @@ func runCleanLocalChanges(ctx context.Context, cfg *config.GitteConfig, cwd stri
 	return nil
 }
 
-// runCleanMaster checks out the default branch in every configured project.
+// runCleanMaster checks out the default branch concurrently across all
+// configured projects, showing progress via cleanView.
 func runCleanMaster(ctx context.Context, cfg *config.GitteConfig, cwd string) error {
+	type repoWork struct {
+		name   string
+		path   string
+		branch string
+	}
+	var repos []repoWork
 	for _, name := range sortedProjectNames(cfg) {
 		proj := cfg.Projects[name]
 		projectPath, ok := resolveProjectPath(cwd, name, proj)
@@ -246,16 +253,37 @@ func runCleanMaster(ctx context.Context, cfg *config.GitteConfig, cwd string) er
 		if branch == "" {
 			branch = "master"
 		}
-		res, err := executor.ExecuteSyncInDir(ctx, projectPath, "git", "checkout", branch)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: [%s] git checkout %s: %v\n", name, branch, err)
-			continue
-		}
-		if res.ExitCode != 0 {
-			fmt.Fprintf(os.Stderr, "warning: [%s] git checkout %s failed (exit %d): %s\n",
-				name, branch, res.ExitCode, strings.TrimSpace(string(res.Stderr)))
-		}
+		repos = append(repos, repoWork{name, projectPath, branch})
 	}
+
+	repoNames := make([]string, len(repos))
+	for i, r := range repos {
+		repoNames[i] = r.name
+	}
+
+	view := newCleanView(outputMode(), []cleanPhaseSpec{{Title: "Master", Repos: repoNames}})
+
+	var wg sync.WaitGroup
+	for _, r := range repos {
+		wg.Add(1)
+		go func(r repoWork) {
+			defer wg.Done()
+			view.OnStart("Master", r.name)
+			res, err := executor.ExecuteSyncInDir(ctx, r.path, "git", "checkout", r.branch)
+			if err != nil {
+				view.OnFinish("Master", r.name, "", err)
+				return
+			}
+			if res.ExitCode != 0 {
+				view.OnFinish("Master", r.name, "",
+					fmt.Errorf("exit %d: %s", res.ExitCode, strings.TrimSpace(string(res.Stderr))))
+				return
+			}
+			view.OnFinish("Master", r.name, "→ "+r.branch, nil)
+		}(r)
+	}
+	wg.Wait()
+	view.Wait()
 	return nil
 }
 
