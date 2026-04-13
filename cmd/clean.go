@@ -72,11 +72,9 @@ func newCleanAllCmd() *cobra.Command {
 			if err := runCleanUntracked(globalCtx, globalRawCfg, globalCwd); err != nil {
 				return err
 			}
-			fmt.Println()
 			if err := runCleanLocalChanges(globalCtx, globalRawCfg, globalCwd, os.Stdin); err != nil {
 				return err
 			}
-			fmt.Println()
 			return runCleanMaster(globalCtx, globalRawCfg, globalCwd)
 		},
 	}
