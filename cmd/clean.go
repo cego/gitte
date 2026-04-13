@@ -134,35 +134,68 @@ func runCleanUntracked(ctx context.Context, cfg *config.GitteConfig, cwd string)
 	return nil
 }
 
-// runCleanLocalChanges finds repos with local changes, prompts the user, then resets.
+// runCleanLocalChanges scans repos for local changes (with TUI), then
+// prompts the user interactively (in plain text) and resets chosen repos.
 func runCleanLocalChanges(ctx context.Context, cfg *config.GitteConfig, cwd string, stdin io.Reader) error {
+	type repoWork struct {
+		name string
+		path string
+	}
 	type dirtyRepo struct {
 		name string
 		path string
 	}
-	var dirty []dirtyRepo
 
+	var repos []repoWork
 	for _, name := range sortedProjectNames(cfg) {
 		proj := cfg.Projects[name]
 		projectPath, ok := resolveProjectPath(cwd, name, proj)
 		if !ok {
 			continue
 		}
-		res, err := executor.ExecuteSyncInDir(ctx, projectPath, "git", "status", "--porcelain")
-		if err != nil || res.ExitCode != 0 {
-			continue
-		}
-		if len(strings.TrimSpace(string(res.Stdout))) > 0 {
-			dirty = append(dirty, dirtyRepo{name: name, path: projectPath})
-		}
+		repos = append(repos, repoWork{name, projectPath})
 	}
+
+	repoNames := make([]string, len(repos))
+	for i, r := range repos {
+		repoNames[i] = r.name
+	}
+
+	view := newCleanView(outputMode(), []cleanPhaseSpec{{Title: "Local Changes", Repos: repoNames}})
+
+	var mu sync.Mutex
+	var dirty []dirtyRepo
+
+	var wg sync.WaitGroup
+	for _, r := range repos {
+		wg.Add(1)
+		go func(r repoWork) {
+			defer wg.Done()
+			view.OnStart("Local Changes", r.name)
+			res, err := executor.ExecuteSyncInDir(ctx, r.path, "git", "status", "--porcelain")
+			if err != nil || res.ExitCode != 0 {
+				view.OnFinish("Local Changes", r.name, "error", nil)
+				return
+			}
+			if len(strings.TrimSpace(string(res.Stdout))) > 0 {
+				view.OnFinish("Local Changes", r.name, "has local changes", nil)
+				mu.Lock()
+				dirty = append(dirty, dirtyRepo{r.name, r.path})
+				mu.Unlock()
+			} else {
+				view.OnFinish("Local Changes", r.name, "clean", nil)
+			}
+		}(r)
+	}
+	wg.Wait()
+	view.Wait() // TUI exits here; prompt runs below in plain text
 
 	if len(dirty) == 0 {
 		fmt.Println("No repos with local changes.")
 		return nil
 	}
 
-	fmt.Println("Repos with local changes:")
+	fmt.Println("\nRepos with local changes:")
 	for _, r := range dirty {
 		fmt.Printf("  %s\n", r.name)
 	}
