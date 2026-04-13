@@ -6,6 +6,22 @@ An optional `.gitte-override.yml` in the same directory is deep-merged on top, u
 
 ---
 
+## Table of contents
+
+- [Top-level structure](#top-level-structure)
+- [startup](#startup)
+- [projects](#projects)
+- [templates](#templates)
+- [groupIncludes](#groupincludes)
+- [retry](#retry)
+- [actionOverride](#actionoverride)
+- [searchFor](#searchfor)
+- [feature\_gates](#feature_gates)
+- [sources](#sources)
+- [Remote configuration](#remote-configuration)
+
+---
+
 ## Top-level structure
 
 ```yaml
