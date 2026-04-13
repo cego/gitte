@@ -143,6 +143,8 @@ func (m *cleanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if ei, ok := phase.index[msg.repo]; ok {
 				e := phase.entries[ei]
 				switch msg.state {
+				case cleanStatePending:
+					// not sent by workers; initial state is set by newCleanModel
 				case cleanStateRunning:
 					if e.state == cleanStatePending {
 						e.state = cleanStateRunning

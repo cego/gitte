@@ -184,7 +184,7 @@ func runCleanLocalChanges(ctx context.Context, cfg *config.GitteConfig, cwd stri
 			if len(strings.TrimSpace(string(res.Stdout))) > 0 {
 				view.OnFinish("Local Changes", r.name, "has local changes", nil)
 				mu.Lock()
-				dirty = append(dirty, dirtyRepo{r.name, r.path})
+				dirty = append(dirty, dirtyRepo(r))
 				mu.Unlock()
 			} else {
 				view.OnFinish("Local Changes", r.name, "clean", nil)
