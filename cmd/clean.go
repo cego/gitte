@@ -171,8 +171,13 @@ func runCleanLocalChanges(ctx context.Context, cfg *config.GitteConfig, cwd stri
 			defer wg.Done()
 			view.OnStart("Local Changes", r.name)
 			res, err := executor.ExecuteSyncInDir(ctx, r.path, "git", "status", "--porcelain")
-			if err != nil || res.ExitCode != 0 {
-				view.OnFinish("Local Changes", r.name, "error", nil)
+			if err != nil {
+				view.OnFinish("Local Changes", r.name, "", err)
+				return
+			}
+			if res.ExitCode != 0 {
+				view.OnFinish("Local Changes", r.name, "",
+					fmt.Errorf("exit %d: %s", res.ExitCode, strings.TrimSpace(string(res.Stderr))))
 				return
 			}
 			if len(strings.TrimSpace(string(res.Stdout))) > 0 {
