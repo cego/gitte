@@ -1,62 +1,166 @@
-## Other commands
+# Commands
 
-Besides the main `run` command, other commands can be used in certain scenarios.
+All commands support the global flags `--config <path>`, `--cwd <path>`, and `--no-tty`.
 
-### Git operations
+---
 
-```
-$ gitte gitops
-```
+## gitte run
 
-All projects will pull the latest changes if there are no local changes.
+Full pipeline: startup checks → git sync → actions.
 
-### Running actions without startup checks and gitops
-
-```
-$ gitte actions up cego.dk
-```
-
-All projects will run the action `up` with the group `cego.dk` in this case. Arguments can be specified as shown in
-
-### Running startup checks alone
-
-```
-$ gitte startup
+```bash
+gitte run up
+gitte run up local
+gitte run up local myservice
+gitte run up local frontend+backend
+gitte run up+build
+gitte run up --discover    # also fetch repos from configured sources first
 ```
 
-### Cleanup projects
+Arguments:
+1. **action** — action name(s), `+`-separated. Required.
+2. **group** — group name or `*` for all. Optional, defaults to all.
+3. **projects** — project name(s) or `*` for all. Optional, defaults to all enabled.
 
-To clean up projects, use the `clean` command.
+---
 
-```
-$ gitte clean
-```
+## gitte actions
 
-It can be run with 4 different options:
+Run actions only, skipping startup checks and git sync. Same argument syntax as `run`.
 
-- `untracked` will remove all untracked files in all projects. (`git clean -fdx`)
-- `local-changes` will remove local-changes in all projects. Will ask for confirmation before deleting anything.
-- `master` will checkout the default branch in all projects.
-- `non-gitte` will remove folders that gitte did not create. Will ask for confirmation before deleting anything.
-
-If no option is specified, it will do all of the above.
-
-### Listing all projects and their actions
-
-```
-$ gitte list
+```bash
+gitte actions up
+gitte actions up local
+gitte actions down local myservice
 ```
 
-### Validate the config and dependency graph
+---
+
+## gitte startup
+
+Run startup checks only.
+
+```bash
+gitte startup
+```
+
+Exits non-zero if any check fails. In TTY mode shows a live progress list; in non-TTY mode prints structured lines:
 
 ```
-$ gitte validate
+[startup:git-present] RUNNING
+[startup:git-present] OK (12ms)
+[startup:docker-version] RUNNING
+[startup:docker-version] FAILED (45ms): shell script exited with code 1
+hint: Docker must be at least version 25.0.0
 ```
 
-### Other
+---
 
-For more information on other options, try running
+## gitte gitops
 
+Clone or pull all configured projects.
+
+```bash
+gitte gitops
+gitte gitops --discover    # also fetch repos from configured sources
 ```
-$ gitte --help
+
+- Repos are cloned into `<workspace>/<host>/<namespace>/<repo>`.
+- If a repo has local changes, it is skipped (with a warning).
+- Only fast-forward pulls are performed.
+
+---
+
+## gitte toggle
+
+Open an interactive TUI to enable or disable projects on this machine. Projects marked `defaultDisabled: true` in the config are off by default and must be explicitly enabled here.
+
+```bash
+gitte toggle
 ```
+
+State is saved to `.gitte-state.yml`.
+
+---
+
+## gitte features
+
+Manage feature gates — opt-in behaviours that inject environment variables into matching action runs.
+
+```bash
+gitte features list                 # show all gates and their state
+gitte features enable HOT_RELOAD    # enable a gate
+gitte features disable HOT_RELOAD   # disable a gate
+```
+
+---
+
+## gitte validate
+
+Parse and validate the configuration file. Reports schema errors, unknown template references, unknown `needs` targets, and dependency cycles. Exits non-zero if any errors are found.
+
+```bash
+gitte validate
+```
+
+---
+
+## gitte clean
+
+Destructive cleanup operations on project repositories.
+
+```bash
+gitte clean untracked       # run git clean -fdx in every repo
+gitte clean local-changes   # run git reset --hard in repos with local changes (prompts first)
+gitte clean master          # run git checkout <default_branch> in every repo
+gitte clean all             # run untracked → local-changes → master in sequence
+```
+
+`gitte clean local-changes` shows all affected repos, then asks:
+`Reset all, handle individually, or cancel? [all/individually/cancel]`
+
+If `individually`, you are prompted per repo: `Reset <name>? [y/N]`
+
+Operations run on all configured projects regardless of toggle state.
+
+---
+
+## gitte list
+
+List all enabled projects and their available actions and groups.
+
+```bash
+gitte list        # enabled projects only
+gitte list -a     # include disabled projects
+```
+
+---
+
+## gitte sources
+
+Manage local discovery sources — the GitLab groups and GitHub orgs that `gitte gitops --discover` queries. Sources are stored in `.gitte-override.yml` so they stay local to your machine.
+
+```bash
+gitte sources                                          # list configured sources
+gitte sources add gitlab gitlab.example.com mygroup    # add a GitLab group
+gitte sources add github github.com myorg              # add a GitHub org
+gitte sources remove gitlab gitlab.example.com mygroup # remove a group
+```
+
+Tokens for discovery are looked up from the system keyring automatically. See `gitte token`.
+
+---
+
+## gitte token
+
+Store and retrieve API tokens for GitLab and GitHub hosts in the system keyring (macOS Keychain or GNOME Keyring on Linux).
+
+```bash
+gitte token set gitlab gitlab.example.com   # store a token (prompts for input)
+gitte token set github github.com
+gitte token get gitlab gitlab.example.com   # print the stored token (diagnostic)
+gitte token delete gitlab gitlab.example.com
+gitte token list                            # show keyring status for all configured sources
+```
+
+Tokens are used automatically during `gitte gitops --discover`. If the keyring is unavailable (headless servers), use `token_env` or `token_cmd` in the source config instead.

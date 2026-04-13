@@ -1,0 +1,195 @@
+---
+name: release
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build linux-amd64
+        run: GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/linux-amd64/gitte .
+      - run: tar czf bin/gitte-linux-amd64.tar.gz -C bin/linux-amd64 gitte
+
+      - name: Build linux-arm64
+        run: GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/linux-arm64/gitte .
+      - run: tar czf bin/gitte-linux-arm64.tar.gz -C bin/linux-arm64 gitte
+
+      - name: Build windows-amd64
+        run: GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/windows-amd64/gitte.exe .
+      - run: (cd bin/windows-amd64 && zip ../gitte-windows-amd64.zip gitte.exe)
+
+      - name: Build darwin-amd64
+        run: GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/darwin-amd64/gitte .
+      - run: tar czf bin/gitte-darwin-amd64.tar.gz -C bin/darwin-amd64 gitte
+
+      - name: Build darwin-arm64
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o bin/darwin-arm64/gitte .
+      - run: tar czf bin/gitte-darwin-arm64.tar.gz -C bin/darwin-arm64 gitte
+
+      - name: Import GPG key
+        if: github.ref_type == 'tag'
+        run: echo "${GPG_PRIVATE_KEY}" | gpg --batch --import
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
+      - name: Sign release archives
+        if: github.ref_type == 'tag'
+        run: |
+          for f in bin/gitte-*; do
+            gpg --batch --default-key "noc+gitte@cego.dk" --detach-sign --armor "$f"
+          done
+
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        run: |
+          PRERELEASE_FLAG=""
+          if [[ "${GITHUB_REF_NAME}" == *"-rc."* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "${GITHUB_REF_NAME}" bin/gitte-* --generate-notes ${PRERELEASE_FLAG} ||
+          gh release upload "${GITHUB_REF_NAME}" bin/gitte-* --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to APT (gitte-apt.cego.dk)
+        if: github.ref_type == 'tag'
+        env:
+          VERSION: ${{ github.ref_name }}
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          sudo apt-get install -y dpkg-dev apt-utils rclone
+
+          DESCRIPTION="Developer environment orchestration tool"
+
+          mkdir -p ppa
+          rclone copy "r2:${R2_BUCKET}/" ppa/
+          gpg --export --armor "noc+gitte@cego.dk" > ppa/gpg.key
+
+          for ARCH in amd64 arm64; do
+            SRCBIN="bin/linux-${ARCH}/gitte"
+            PKGDIR="pkg/gitte_${VERSION}_${ARCH}"
+            mkdir -p "${PKGDIR}/DEBIAN" "${PKGDIR}/usr/local/bin" \
+              "${PKGDIR}/usr/share/bash-completion/completions" \
+              "${PKGDIR}/usr/share/zsh/vendor-completions"
+            cat > "${PKGDIR}/DEBIAN/control" << EOF
+          Name: gitte
+          Package: gitte
+          Version: ${VERSION}
+          Architecture: ${ARCH}
+          Author: Cego A/S <noc+gitte@cego.dk>
+          Maintainer: Cego A/S <noc+gitte@cego.dk>
+          Description: ${DESCRIPTION}
+          Homepage: https://github.com/cego/gitte
+          Website: https://github.com/cego/gitte
+          EOF
+            cp "${SRCBIN}" "${PKGDIR}/usr/local/bin/"
+            bin/linux-amd64/gitte completion bash > "${PKGDIR}/usr/share/bash-completion/completions/gitte"
+            bin/linux-amd64/gitte completion zsh  > "${PKGDIR}/usr/share/zsh/vendor-completions/_gitte"
+            dpkg-deb --root-owner-group --build "${PKGDIR}" ppa/
+          done
+
+          (cd ppa && dpkg-scanpackages --multiversion . > Packages)
+          (cd ppa && gzip -k -f Packages)
+          (cd ppa && apt-ftparchive release . > Release)
+          (cd ppa && gpg --default-key "noc+gitte@cego.dk" -abs -o - Release > Release.gpg)
+          (cd ppa && gpg --default-key "noc+gitte@cego.dk" --clearsign -o - Release > InRelease)
+
+          rclone copy ppa/ "r2:${R2_BUCKET}/"
+
+          curl -sf -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}'
+
+      - name: Generate app token for formula push
+        if: github.ref_type == 'tag'
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: gitte
+
+      - name: Update Homebrew formula
+        if: github.ref_type == 'tag'
+        env:
+          VERSION: ${{ github.ref_name }}
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          SHA_DARWIN_AMD64=$(sha256sum bin/gitte-darwin-amd64.tar.gz | awk '{print $1}')
+          SHA_DARWIN_ARM64=$(sha256sum bin/gitte-darwin-arm64.tar.gz | awk '{print $1}')
+          SHA_LINUX_AMD64=$(sha256sum bin/gitte-linux-amd64.tar.gz | awk '{print $1}')
+          SHA_LINUX_ARM64=$(sha256sum bin/gitte-linux-arm64.tar.gz | awk '{print $1}')
+
+          git config user.email "noc+gitte@cego.dk"
+          git config user.name "CI"
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/cego/gitte"
+          git fetch origin main
+          git checkout main
+
+          mkdir -p Formula
+
+          cat > Formula/gitte.rb << EOF
+          class Gitte < Formula
+            desc "Developer environment orchestration tool"
+            homepage "https://github.com/cego/gitte"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/cego/gitte/releases/download/${VERSION}/gitte-darwin-arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "https://github.com/cego/gitte/releases/download/${VERSION}/gitte-darwin-amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/cego/gitte/releases/download/${VERSION}/gitte-linux-arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "https://github.com/cego/gitte/releases/download/${VERSION}/gitte-linux-amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "gitte"
+              generate_completions_from_executable(bin/"gitte", "completion")
+            end
+
+            test do
+              system "#{bin}/gitte", "--version"
+            end
+          end
+          EOF
+
+          git add Formula/gitte.rb
+          git commit -m "Update Homebrew formula for ${VERSION}"
+          git push origin main

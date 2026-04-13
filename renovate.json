@@ -1,17 +1,15 @@
 {
-	"extends": ["config:js-app", ":disableDependencyDashboard"],
+	"extends": ["config:base", ":disableDependencyDashboard"],
 	"packageRules": [
 		{
-			"matchManagers": ["npm"],
-			"matchDepTypes": ["dependencies"],
+			"matchManagers": ["gomod"],
 			"matchUpdateTypes": ["minor", "patch"],
-			"groupName": "All npm dependencies"
+			"groupName": "All Go dependencies"
 		},
 		{
-			"matchManagers": ["npm"],
-			"matchDepTypes": ["devDependencies"],
+			"matchManagers": ["github-actions"],
 			"matchUpdateTypes": ["minor", "patch"],
-			"groupName": "All npm devDependencies"
+			"groupName": "All GitHub Actions"
 		}
 	]
 }

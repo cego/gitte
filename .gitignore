@@ -10,3 +10,6 @@ tests/**/*.js
 test
 cego-gitte-*.tgz
 ppa/
+gitte
+gitte.yml
+.worktrees/

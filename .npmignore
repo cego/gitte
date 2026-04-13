@@ -1,5 +1,0 @@
-*
-!src/**/*.js
-!bin/**/*.js
-!package.json
-!package-lock.json

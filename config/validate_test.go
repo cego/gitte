@@ -1,0 +1,87 @@
+package config
+
+import (
+	"testing"
+)
+
+func TestValidateConfig_ValidConfig(t *testing.T) {
+	cfg := &GitteConfig{
+		Projects: map[string]ProjectConfig{
+			"database": {
+				Remote:        "git@github.com:example/database.git",
+				DefaultBranch: "main",
+			},
+		},
+	}
+
+	result := ValidateConfig(cfg)
+	if result.HasErrors() {
+		t.Errorf("unexpected errors: %v", result.Errors)
+	}
+}
+
+func TestValidateConfig_MissingRemote(t *testing.T) {
+	cfg := &GitteConfig{
+		Projects: map[string]ProjectConfig{
+			"database": {
+				DefaultBranch: "main",
+			},
+		},
+	}
+
+	result := ValidateConfig(cfg)
+	if !result.HasErrors() {
+		t.Error("expected error for missing remote")
+	}
+}
+
+func TestValidateConfig_CycleDetection(t *testing.T) {
+	cfg := &GitteConfig{
+		Projects: map[string]ProjectConfig{
+			"a": {
+				Remote: "git@github.com:example/a.git",
+				Actions: map[string]ProjectAction{
+					"up": {Needs: []string{"b"}},
+				},
+			},
+			"b": {
+				Remote: "git@github.com:example/b.git",
+				Actions: map[string]ProjectAction{
+					"up": {Needs: []string{"a"}},
+				},
+			},
+		},
+	}
+
+	result := ValidateConfig(cfg)
+	if !result.HasErrors() {
+		t.Error("expected cycle error")
+	}
+
+	found := false
+	for _, e := range result.Errors {
+		if e.Field == "needs" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected error in 'needs' field, got: %v", result.Errors)
+	}
+}
+
+func TestValidateConfig_UnknownTemplateRef(t *testing.T) {
+	cfg := &GitteConfig{
+		Projects: map[string]ProjectConfig{
+			"a": {
+				Remote:  "git@github.com:example/a.git",
+				Extends: "nonexistent-template",
+			},
+		},
+	}
+
+	result := ValidateConfig(cfg)
+	if !result.HasErrors() {
+		t.Error("expected error for unknown template reference")
+	}
+}
