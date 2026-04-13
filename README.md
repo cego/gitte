@@ -2,7 +2,7 @@
 
 [![license](https://img.shields.io/github/license/cego/gitte)](https://github.com/cego/gitte)
 
-**Developer environment orchestration for teams working across many git repositories.**
+**Monorepo-like development across many git repositories — without the monorepo.**
 
 Gitte keeps all your repos in sync, runs startup checks to verify your local machine is ready, and executes ordered actions (build, up, down, …) across projects with dependency resolution and parallel execution.
 
