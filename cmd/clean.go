@@ -14,6 +14,7 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 func newCleanCmd() *cobra.Command {
@@ -203,28 +204,27 @@ func runCleanLocalChanges(ctx context.Context, cfg *config.GitteConfig, cwd stri
 		fmt.Printf("  %s\n", r.name)
 	}
 
-	scanner := bufio.NewScanner(stdin)
-
-	fmt.Print("\nReset all, handle individually, or cancel? [all/individually/cancel]: ")
-	scanner.Scan()
-	choice := strings.TrimSpace(strings.ToLower(scanner.Text()))
-	if err := scanner.Err(); err != nil {
+	fmt.Print("\nReset [a]ll / [i]ndividually / [C]ancel? ")
+	choice, err := readKey(stdin)
+	if err != nil {
 		return fmt.Errorf("reading stdin: %w", err)
 	}
 
 	switch choice {
-	case "all":
+	case "a":
 		for _, r := range dirty {
 			if err := hardReset(ctx, r.path); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: [%s] %v\n", r.name, err)
 			}
 		}
-	case "individually":
+	case "i":
 		for _, r := range dirty {
-			fmt.Printf("Reset %s? [y/N]: ", r.name)
-			scanner.Scan()
-			answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
-			if answer == "y" || answer == "yes" {
+			fmt.Printf("Reset %s? [y/N] ", r.name)
+			answer, err := readKey(stdin)
+			if err != nil {
+				return fmt.Errorf("reading stdin: %w", err)
+			}
+			if answer == "y" {
 				if err := hardReset(ctx, r.path); err != nil {
 					fmt.Fprintf(os.Stderr, "warning: [%s] %v\n", r.name, err)
 				}
@@ -301,6 +301,43 @@ func hardReset(ctx context.Context, dir string) error {
 			res.ExitCode, strings.TrimSpace(string(res.Stderr)))
 	}
 	return nil
+}
+
+// readKey reads a single keypress and returns it as a lowercase string.
+// When stdin is a terminal it switches to raw mode so the user does not need
+// to press Enter; the character is echoed followed by a newline.
+// Falls back to line-reading for non-TTY stdin (pipes, tests).
+func readKey(stdin io.Reader) (string, error) {
+	if f, ok := stdin.(*os.File); ok {
+		if fd := int(f.Fd()); term.IsTerminal(fd) {
+			old, err := term.MakeRaw(fd)
+			if err == nil {
+				defer term.Restore(fd, old) //nolint:errcheck
+				buf := make([]byte, 1)
+				if _, err := f.Read(buf); err != nil {
+					return "", err
+				}
+				ch := buf[0]
+				switch ch {
+				case 3: // Ctrl+C — treat as cancel
+					fmt.Println()
+					return "", nil
+				case '\r', '\n': // Enter — default (empty → caller uses default)
+					fmt.Println()
+					return "", nil
+				}
+				fmt.Printf("%c\n", ch)
+				return strings.ToLower(string(ch)), nil
+			}
+		}
+	}
+	// non-TTY fallback: read a full line
+	scanner := bufio.NewScanner(stdin)
+	scanner.Scan()
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(strings.ToLower(scanner.Text())), nil
 }
 
 // sortedProjectNames returns project names in alphabetical order.
