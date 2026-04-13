@@ -107,7 +107,7 @@ gitte validate
 
 ## gitte clean
 
-Destructive cleanup operations on project repositories.
+Destructive cleanup operations on project repositories. All subcommands show a live progress TUI while running (plain-text lines in non-TTY mode).
 
 ```bash
 gitte clean untracked       # run git clean -fdx in every repo
@@ -116,10 +116,13 @@ gitte clean master          # run git checkout <default_branch> in every repo
 gitte clean all             # run untracked → local-changes → master in sequence
 ```
 
-`gitte clean local-changes` shows all affected repos, then asks:
-`Reset all, handle individually, or cancel? [all/individually/cancel]`
+`gitte clean local-changes` shows all affected repos, then prompts for a single keypress:
 
-If `individually`, you are prompted per repo: `Reset <name>? [y/N]`
+```
+Reset [a]ll / [i]ndividually / [C]ancel?
+```
+
+If `i` (individually), you are prompted per repo with a single keypress: `Reset <name>? [y/N]`
 
 Operations run on all configured projects regardless of toggle state.
 
