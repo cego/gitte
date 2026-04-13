@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -84,12 +83,10 @@ type cleanModel struct {
 	activePhase int
 	msgCh       <-chan cleanMsg
 	spinnerTick int
-	drainedCh   chan struct{}
-	drainOnce   sync.Once
 	width       int
 }
 
-func newCleanModel(specs []cleanPhaseSpec, msgCh <-chan cleanMsg, drainedCh chan struct{}) *cleanModel {
+func newCleanModel(specs []cleanPhaseSpec, msgCh <-chan cleanMsg) *cleanModel {
 	phases := make([]cleanPhaseModel, len(specs))
 	idx := make(map[string]int, len(specs))
 	for i, spec := range specs {
@@ -106,7 +103,6 @@ func newCleanModel(specs []cleanPhaseSpec, msgCh <-chan cleanMsg, drainedCh chan
 		phases:     phases,
 		phaseIndex: idx,
 		msgCh:      msgCh,
-		drainedCh:  drainedCh,
 	}
 }
 
@@ -121,7 +117,6 @@ func (m *cleanModel) listen() tea.Cmd {
 	return func() tea.Msg {
 		msg, ok := <-m.msgCh
 		if !ok {
-			m.drainOnce.Do(func() { close(m.drainedCh) })
 			return cleanDoneMsg{}
 		}
 		return msg
@@ -330,27 +325,25 @@ type cleanView struct {
 	program    *tea.Program
 	msgCh      chan cleanMsg
 	doneCh     chan error
-	drainedCh  chan struct{}
 	finalModel *cleanModel
 	// shared
 	mode output.OutputMode
 }
 
 // newCleanView creates a cleanView for the given phases. In TUI mode the
-// BubbleTea program is started immediately. In plain mode no program is started.
+// BubbleTea program is started immediately in alt-screen mode so the initial
+// render never pollutes the terminal scrollback. In plain mode no program is started.
 func newCleanView(mode output.OutputMode, specs []cleanPhaseSpec) *cleanView {
 	v := &cleanView{mode: mode}
 	if mode == output.ModePlain {
 		return v
 	}
 	msgCh := make(chan cleanMsg, 100)
-	drainedCh := make(chan struct{})
-	m := newCleanModel(specs, msgCh, drainedCh)
-	p := tea.NewProgram(m)
+	m := newCleanModel(specs, msgCh)
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	v.program = p
 	v.msgCh = msgCh
 	v.doneCh = make(chan error, 1)
-	v.drainedCh = drainedCh
 	go func() {
 		fm, err := p.Run()
 		if cm, ok := fm.(*cleanModel); ok {
@@ -409,16 +402,15 @@ func (v *cleanView) AdvancePhase() {
 	}
 }
 
-// Wait closes the message channel, waits for the final message to be rendered,
-// quits the BubbleTea program, then prints the final frame so it remains visible.
+// Wait closes the message channel, blocks until the BubbleTea program exits,
+// then prints the final frame to the primary screen. Alt-screen mode clears
+// the TUI on exit, so we must reprint to leave the results visible.
 // In plain mode it is a no-op.
 func (v *cleanView) Wait() {
 	if v.mode == output.ModePlain {
 		return
 	}
 	close(v.msgCh)
-	<-v.drainedCh    // last message consumed → final frame rendered
-	v.program.Quit() // safe to quit now
 	<-v.doneCh
 	if v.finalModel != nil {
 		fmt.Print(v.finalModel.View())
