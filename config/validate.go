@@ -86,6 +86,11 @@ func ValidateConfig(cfg *GitteConfig) *ValidationResult {
 		validateEnvWhen(result, fmt.Sprintf("feature_gates.%s.effects.env_when", gateName), gate.Effects.EnvWhen)
 	}
 
+	// Validate env_when condition types in templates
+	for tmplName, tmpl := range cfg.Templates {
+		validateEnvWhen(result, fmt.Sprintf("templates.%s.env_when", tmplName), tmpl.EnvWhen)
+	}
+
 	return result
 }
 
