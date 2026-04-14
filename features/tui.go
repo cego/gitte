@@ -9,8 +9,8 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/state"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type screen int
@@ -231,7 +231,7 @@ func (m *featuresModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.screen == screenGateList {
 			return m.updateGateList(msg)
 		}
@@ -241,16 +241,21 @@ func (m *featuresModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the current screen.
-func (m *featuresModel) View() string {
+func (m *featuresModel) View() tea.View {
+	var s string
 	if m.screen == screenScopeTree {
-		return m.viewScopeTree()
+		s = m.viewScopeTree()
+	} else {
+		s = m.viewGateList()
 	}
-	return m.viewGateList()
+	v := tea.NewView(s)
+	v.AltScreen = true
+	return v
 }
 
-func (m *featuresModel) updateGateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyCtrlC, tea.KeyEsc:
+func (m *featuresModel) updateGateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.Key().Code {
+	case tea.KeyEsc:
 		m.save()
 		return m, tea.Quit
 	case tea.KeyUp:
@@ -271,7 +276,7 @@ func (m *featuresModel) updateGateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	default:
 		switch msg.String() {
-		case "q":
+		case "ctrl+c", "q":
 			m.save()
 			return m, tea.Quit
 		case "k":
@@ -287,12 +292,8 @@ func (m *featuresModel) updateGateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *featuresModel) updateScopeTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyCtrlC:
-		m.applyScopeChanges()
-		m.save()
-		return m, tea.Quit
+func (m *featuresModel) updateScopeTree(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.Key().Code {
 	case tea.KeyEsc:
 		m.applyScopeChanges()
 		m.screen = screenGateList
@@ -307,14 +308,14 @@ func (m *featuresModel) updateScopeTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.scopeMoveNextPage()
 	case tea.KeySpace, tea.KeyEnter:
 		m.scopeToggle()
-	case tea.KeyCtrlZ:
-		m.scopeUndo()
 	default:
 		switch msg.String() {
-		case "q":
+		case "ctrl+c", "q":
 			m.applyScopeChanges()
 			m.save()
 			return m, tea.Quit
+		case "ctrl+z":
+			m.scopeUndo()
 		case "k":
 			m.scopeMovePrev()
 		case "j":
@@ -554,7 +555,7 @@ func Run(cfg *config.GitteConfig, cwd string, st *state.GitteState) error {
 		return ErrNoFeatureGates
 	}
 	model := newFeaturesModel(cfg, cwd, st)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model)
 	_, err := p.Run()
 	return err
 }

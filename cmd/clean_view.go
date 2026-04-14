@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/cego/gitte/output"
 )
@@ -168,7 +168,7 @@ func (m *cleanModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *cleanModel) View() string {
+func (m *cleanModel) View() tea.View {
 	var b strings.Builder
 	width := m.width
 	if width <= 0 {
@@ -206,7 +206,9 @@ func (m *cleanModel) View() string {
 		b.WriteString("\n")
 	}
 
-	return b.String()
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
 }
 
 func renderPhaseHeader(title string, width int) string {
@@ -342,7 +344,7 @@ func newCleanView(mode output.OutputMode, specs []cleanPhaseSpec) *cleanView {
 	}
 	msgCh := make(chan cleanMsg, 100)
 	m := newCleanModel(specs, msgCh)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 	v.program = p
 	v.msgCh = msgCh
 	v.doneCh = make(chan error, 1)
@@ -415,6 +417,6 @@ func (v *cleanView) Wait() {
 	close(v.msgCh)
 	<-v.doneCh
 	if v.finalModel != nil {
-		fmt.Print(v.finalModel.View())
+		fmt.Print(v.finalModel.View().Content)
 	}
 }

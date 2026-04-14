@@ -14,7 +14,7 @@ import (
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/state"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 )
 

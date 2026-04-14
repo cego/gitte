@@ -15,8 +15,8 @@ import (
 	"github.com/cego/gitte/executor"
 	"github.com/cego/gitte/output"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"golang.org/x/term"
 )
 
@@ -779,7 +779,7 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateCollapsed()
 		return m, m.listen()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Route all key events to the quick solve overlay when it is active.
 		if m.quickSolve != nil {
 			return m.updateQuickSolve(msg)
@@ -860,7 +860,7 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // updateQuickSolve handles key events while the quick solve overlay is open.
-func (m *actionsModel) updateQuickSolve(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *actionsModel) updateQuickSolve(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	qs := m.quickSolve
 	switch qs.step {
 	case qsStepMenu:
@@ -1062,12 +1062,12 @@ var (
 
 var actSpinFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-func (m *actionsModel) View() string {
+func (m *actionsModel) View() tea.View {
 	if m.width == 0 {
-		return "Loading...\n"
+		return tea.NewView("Loading...\n")
 	}
 	if m.quickSolve != nil {
-		return m.renderQuickSolveView()
+		return tea.NewView(m.renderQuickSolveView())
 	}
 
 	leftW := 48
@@ -1173,7 +1173,7 @@ func (m *actionsModel) View() string {
 	}
 	b.WriteString(actHelpStyle.Render(strings.Join(parts, "  ")))
 
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 // renderQuickSolveView renders the full screen with the quick solve modal overlaying the body.

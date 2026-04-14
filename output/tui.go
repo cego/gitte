@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // TaskState holds the display state of a single task
@@ -123,7 +123,7 @@ func (m *runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.listenForUpdates()
 		}
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -192,9 +192,9 @@ var (
 	tuiLogStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 )
 
-func (m *runModel) View() string {
+func (m *runModel) View() tea.View {
 	if m.width == 0 {
-		return "Loading..."
+		return tea.NewView("Loading...")
 	}
 
 	var b strings.Builder
@@ -254,7 +254,7 @@ func (m *runModel) View() string {
 	}
 	b.WriteString(tuiHelpStyle.Render(helpStr))
 
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 func (m *runModel) renderTaskList(width int) []string {

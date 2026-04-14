@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // View handles startup check output in either plain or TUI mode.
@@ -229,7 +229,7 @@ func (m *startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			if m.cancel != nil {
 				m.cancel()
@@ -261,7 +261,7 @@ func (m *startupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *startupModel) View() string {
+func (m *startupModel) View() tea.View {
 	var b strings.Builder
 	title := "Startup checks"
 	if !m.startedAt.IsZero() {
@@ -305,7 +305,7 @@ func (m *startupModel) View() string {
 		b.WriteString("\n")
 	}
 
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 func (m *startupModel) renderEntry(c *checkEntry, colW int) string {
