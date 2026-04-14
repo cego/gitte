@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/cego/gitte/output"
 )
@@ -281,7 +281,7 @@ func (m *gitopsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
 			if m.cancel != nil {
 				m.cancel()
@@ -363,7 +363,7 @@ func (m *gitopsModel) progressMode() bool {
 	return len(m.entries) > available*nCols
 }
 
-func (m *gitopsModel) View() string {
+func (m *gitopsModel) View() tea.View {
 	var b strings.Builder
 	title := m.title
 	if title == "" {
@@ -385,7 +385,7 @@ func (m *gitopsModel) View() string {
 
 	if m.progressMode() {
 		b.WriteString(m.renderProgressBar(width) + "\n")
-		return b.String()
+		return tea.NewView(b.String())
 	}
 
 	const minColW = 60
@@ -415,7 +415,7 @@ func (m *gitopsModel) View() string {
 		b.WriteString("\n")
 	}
 
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 func (m *gitopsModel) renderProgressBar(width int) string {

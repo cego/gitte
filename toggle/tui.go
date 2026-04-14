@@ -8,8 +8,8 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/state"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // ProjectItem holds the mutable toggle state for one project.
@@ -189,9 +189,9 @@ func (m *toggleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+	case tea.KeyPressMsg:
+		switch msg.Key().Code {
+		case tea.KeyEsc:
 			m.saveState()
 			return m, tea.Quit
 
@@ -211,7 +211,7 @@ func (m *toggleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toggleCurrent()
 		default:
 			switch msg.String() {
-			case "q":
+			case "ctrl+c", "q":
 				m.saveState()
 				return m, tea.Quit
 			case "k":
@@ -234,7 +234,7 @@ func (m *toggleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *toggleModel) View() string {
+func (m *toggleModel) View() tea.View {
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("Gitte Project Toggle"))
@@ -263,7 +263,9 @@ func (m *toggleModel) View() string {
 		b.WriteString(helpStyle.Render("No projects found in configuration."))
 		b.WriteString("\n\n")
 		b.WriteString(helpStyle.Render("Press q/esc to quit"))
-		return b.String()
+		v := tea.NewView(b.String())
+		v.AltScreen = true
+		return v
 	}
 
 	start, end := m.getVisibleRange()
@@ -340,7 +342,9 @@ func (m *toggleModel) View() string {
 		"↑↓/jk: nav  PgUp/PgDown: page  g/G: top/bottom  Space: toggle  r: reset  R: reset all  q: quit",
 	))
 
-	return b.String()
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
 }
 
 // ── navigation ───────────────────────────────────────────────────────────────
@@ -499,7 +503,7 @@ func (m *toggleModel) getVisibleRange() (start, end int) {
 // Run starts the toggle TUI.
 func Run(cfg *config.GitteConfig, cwd string, st *state.GitteState) error {
 	model := newToggleModel(cfg, cwd, st)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model)
 	_, err := p.Run()
 	return err
 }
