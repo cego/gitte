@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -274,6 +275,8 @@ func runGroupTask(
 
 	env := buildEnv(cfg, st, projName, proj)
 
+	emitTaskPreamble(ctx, handler, taskName, taskDir, cmds, proj, cfg, st, projName)
+
 	wrappedHandler := &searchForHandler{
 		inner:      handler,
 		searchFors: searchFors,
@@ -293,6 +296,56 @@ func runGroupTask(
 	}
 
 	return nil
+}
+
+// emitTaskPreamble writes a short header to the task log showing the working
+// directory, command, and any env vars injected by gitte (project env, env_when,
+// feature gates). It is emitted before the command starts so the log is
+// self-contained for debugging.
+func emitTaskPreamble(
+	ctx context.Context,
+	handler executor.OutputHandler,
+	taskName, taskDir string,
+	cmds []string,
+	proj config.ProjectConfig,
+	cfg *config.GitteConfig,
+	st *state.GitteState,
+	projName string,
+) {
+	emit := func(line string) {
+		_ = handler.HandleOutput(ctx, executor.Output{
+			Output:  []byte(line),
+			CmdName: taskName,
+			Stream:  executor.StdoutStream,
+		})
+	}
+
+	emit("  dir: " + taskDir)
+	emit("  cmd: " + strings.Join(cmds, " "))
+
+	// Collect only the vars gitte injects (not all of os.Environ).
+	injected := make(map[string]string)
+	for k, v := range proj.Env {
+		injected[k] = v
+	}
+	for k, v := range config.ResolveEnvWhen(proj.EnvWhen, runtime.GOARCH) {
+		injected[k] = v
+	}
+	for k, v := range extraEnvForProject(cfg, st, projName, proj) {
+		injected[k] = v
+	}
+	if len(injected) > 0 {
+		keys := make([]string, 0, len(injected))
+		for k := range injected {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, k+"="+injected[k])
+		}
+		emit("  env: " + strings.Join(parts, " "))
+	}
 }
 
 // extraEnvForProject returns the env vars injected by feature gates for a project.

@@ -820,6 +820,9 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else if res.method == "file" {
 					m.clipboardMsg = "saved to " + res.path
 					m.clipboardOK = true
+				} else if res.method == "osc52" {
+					m.clipboardMsg = "sent via OSC 52 (terminal clipboard)"
+					m.clipboardOK = true
 				} else {
 					m.clipboardMsg = "copied to clipboard"
 					m.clipboardOK = true
@@ -1536,16 +1539,22 @@ type copyResult struct {
 	err    error
 }
 
-// copyToClipboardOrFile tries: OSC 52 → native clipboard tools → temp file.
+// copyToClipboardOrFile tries: native clipboard tools → OSC 52 → temp file.
+// Native tools are tried first because they give a real exit-code signal.
+// OSC 52 has no feedback mechanism (terminals silently ignore unsupported
+// sequences), so it is used as a best-effort fallback for SSH sessions where
+// native tools are unavailable.
 func copyToClipboardOrFile(ctx context.Context, text, taskName string) copyResult {
-	// 1. OSC 52: works over SSH in modern terminals (iTerm2, kitty, WezTerm, etc.).
-	if tryOSC52(text) {
+	// 1. Native clipboard tools — reliable success/failure via exit code.
+	if tryNativeClipboard(ctx, text) {
 		return copyResult{method: "clipboard"}
 	}
 
-	// 2. Native clipboard tools.
-	if tryNativeClipboard(ctx, text) {
-		return copyResult{method: "clipboard"}
+	// 2. OSC 52: best-effort for SSH sessions. The sequence is written to the
+	// terminal but there is no way to confirm the terminal honored it. We fall
+	// through to a temp file only if stdout is not a terminal at all.
+	if tryOSC52(text) {
+		return copyResult{method: "osc52"}
 	}
 
 	// 3. Fallback: write to temp file.
