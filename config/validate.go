@@ -76,6 +76,21 @@ func ValidateConfig(cfg *GitteConfig) *ValidationResult {
 		}
 	}
 
+	// Validate env_when condition types in projects
+	for projName, proj := range cfg.Projects {
+		validateEnvWhen(result, fmt.Sprintf("projects.%s.env_when", projName), proj.EnvWhen)
+	}
+
+	// Validate env_when condition types in feature gates
+	for gateName, gate := range cfg.FeatureGates {
+		validateEnvWhen(result, fmt.Sprintf("feature_gates.%s.effects.env_when", gateName), gate.Effects.EnvWhen)
+	}
+
+	// Validate env_when condition types in templates
+	for tmplName, tmpl := range cfg.Templates {
+		validateEnvWhen(result, fmt.Sprintf("templates.%s.env_when", tmplName), tmpl.EnvWhen)
+	}
+
 	return result
 }
 
@@ -121,6 +136,23 @@ func detectNeedsCycles(cfg *GitteConfig) [][]string {
 		allCycles = append(allCycles, cycles...)
 	}
 	return allCycles
+}
+
+var knownConditionTypes = map[string]bool{
+	"arch": true,
+}
+
+func validateEnvWhen(result *ValidationResult, field string, entries map[string]EnvWhenEntry) {
+	for varName, entry := range entries {
+		for i, c := range entry.Conditions {
+			if !knownConditionTypes[c.Type] {
+				result.AddError(
+					fmt.Sprintf("%s.%s.conditions[%d].type", field, varName, i),
+					fmt.Sprintf("unknown condition type %q; known types: arch", c.Type),
+				)
+			}
+		}
+	}
 }
 
 // findCyclesInGraph uses DFS to find cycles in a directed graph

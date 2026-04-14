@@ -79,11 +79,20 @@ type allDoneMsg struct{}
 
 type tuiTickMsg time.Time
 
+type failureRecord struct {
+	name    string
+	errMsg  string
+	hint    string
+	elapsed time.Duration
+}
+
 type tuiView struct {
 	program   *tea.Program
 	msgCh     chan tuiUpdateMsg
 	doneCh    chan error
 	drainedCh chan struct{} // closed by listen() after the last buffered message is consumed
+	mu        sync.Mutex
+	failures  []failureRecord
 }
 
 func newTUIView(checkNames []string, cancel context.CancelFunc) *tuiView {
@@ -116,30 +125,56 @@ func (v *tuiView) OnFinish(name string, err error, elapsed time.Duration) {
 	state := checkOK
 	if err != nil {
 		state = checkFailed
+		errMsg, hint := splitErrHint(err)
+		v.mu.Lock()
+		v.failures = append(v.failures, failureRecord{name: name, errMsg: errMsg, hint: hint, elapsed: elapsed})
+		v.mu.Unlock()
 	}
 	v.msgCh <- tuiUpdateMsg{name: name, state: state, elapsed: elapsed, err: err}
 }
 
 // Wait closes the message channel (signalling no more updates), waits until
 // the listen goroutine has delivered the last buffered message to BubbleTea
-// (ensuring the final frame is rendered), then quits the program.
+// (ensuring the final frame is rendered), then quits the program and prints
+// a summary of any failed checks.
 func (v *tuiView) Wait() {
 	close(v.msgCh)
 	<-v.drainedCh    // last message consumed → renderer has the final frame
 	v.program.Quit() // safe to quit now
 	<-v.doneCh
+	v.printFailureSummary()
+}
+
+// printFailureSummary prints a clean per-failure block after the TUI exits.
+func (v *tuiView) printFailureSummary() {
+	v.mu.Lock()
+	failures := v.failures
+	v.mu.Unlock()
+	if len(failures) == 0 {
+		return
+	}
+	fmt.Println()
+	for _, f := range failures {
+		fmt.Printf(" %s %s  %s\n", failStyle.Render("✗"), failStyle.Render(f.name), dimStyle.Render(fmtDuration(f.elapsed)))
+		fmt.Printf("   %s\n", dimStyle.Render(f.errMsg))
+		if f.hint != "" {
+			fmt.Printf("   %s %s\n", hintLabelStyle.Render("hint:"), f.hint)
+		}
+		fmt.Println()
+	}
 }
 
 // ---- BubbleTea model ---------------------------------------------------
 
 var (
-	pendingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	runningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
-	okStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	failStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	labelStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-	titleStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170"))
-	dimStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	pendingStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	runningStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
+	okStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	failStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	labelStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	titleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170"))
+	dimStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	hintLabelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
 )
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -290,7 +325,7 @@ func (m *startupModel) renderEntry(c *checkEntry, colW int) string {
 	case checkFailed:
 		icon = failStyle.Render("✗")
 		nameStr = failStyle.Render(c.name)
-		extra = failStyle.Render("  FAILED: " + c.err.Error())
+		extra = dimStyle.Render("  " + fmtDuration(c.elapsed))
 	}
 
 	line := fmt.Sprintf(" %s %s%s", icon, nameStr, extra)
@@ -357,6 +392,19 @@ func truncateToVisualWidth(s string, maxWidth int) string {
 		vis++
 	}
 	return result.String()
+}
+
+// splitErrHint splits an error message of the form "msg\nhint: hint" into its
+// two parts. If there is no hint suffix the second return value is empty.
+// Startup checks emit hints by appending "\nhint: <text>" to their error
+// message (see startup.go where checks call check.GetHint()).
+func splitErrHint(err error) (string, string) {
+	const sep = "\nhint: "
+	msg := err.Error()
+	if i := strings.Index(msg, sep); i >= 0 {
+		return msg[:i], msg[i+len(sep):]
+	}
+	return msg, ""
 }
 
 func fmtDuration(d time.Duration) string {

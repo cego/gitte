@@ -257,3 +257,155 @@ func TestResolveTemplates_EmptyNeedsClearsInherited(t *testing.T) {
 		t.Errorf("expected empty needs after explicit override, got %v", up.Needs)
 	}
 }
+
+func TestResolveTemplates_EnvWhenFromTemplate(t *testing.T) {
+	cfg := &GitteConfig{
+		Templates: map[string]Template{
+			"base": {
+				EnvWhen: map[string]EnvWhenEntry{
+					"BUILD_FROM_SOURCE": {
+						Value: "false",
+						Conditions: []EnvWhenCondition{
+							{Type: "arch", Arch: []string{"amd64"}},
+						},
+					},
+				},
+			},
+		},
+		Projects: map[string]ProjectConfig{
+			"myservice": {
+				Remote:  "git@github.com:example/myservice.git",
+				Extends: "base",
+			},
+		},
+	}
+
+	if err := ResolveTemplates(cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	proj := cfg.Projects["myservice"]
+	entry, ok := proj.EnvWhen["BUILD_FROM_SOURCE"]
+	if !ok {
+		t.Fatal("expected BUILD_FROM_SOURCE in env_when")
+	}
+	if entry.Value != "false" {
+		t.Errorf("expected value 'false', got %q", entry.Value)
+	}
+	if len(entry.Conditions) != 1 || entry.Conditions[0].Type != "arch" {
+		t.Errorf("unexpected conditions: %v", entry.Conditions)
+	}
+}
+
+func TestResolveTemplates_EnvWhenProjectOverridesTemplate(t *testing.T) {
+	cfg := &GitteConfig{
+		Templates: map[string]Template{
+			"base": {
+				EnvWhen: map[string]EnvWhenEntry{
+					"BUILD_FROM_SOURCE": {
+						Value: "false",
+						Conditions: []EnvWhenCondition{
+							{Type: "arch", Arch: []string{"amd64"}},
+						},
+					},
+				},
+			},
+		},
+		Projects: map[string]ProjectConfig{
+			"myservice": {
+				Remote:  "git@github.com:example/myservice.git",
+				Extends: "base",
+				EnvWhen: map[string]EnvWhenEntry{
+					"BUILD_FROM_SOURCE": {
+						Value: "custom",
+						Conditions: []EnvWhenCondition{
+							{Type: "arch", Arch: []string{"amd64", "arm64"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := ResolveTemplates(cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	entry := cfg.Projects["myservice"].EnvWhen["BUILD_FROM_SOURCE"]
+	if entry.Value != "custom" {
+		t.Errorf("expected project to win, got value %q", entry.Value)
+	}
+	if len(entry.Conditions[0].Arch) != 2 {
+		t.Errorf("expected 2 arch values, got %v", entry.Conditions[0].Arch)
+	}
+}
+
+func TestResolveTemplates_EnvWhenMergeDisjointKeys(t *testing.T) {
+	cfg := &GitteConfig{
+		Templates: map[string]Template{
+			"base": {
+				EnvWhen: map[string]EnvWhenEntry{
+					"FROM_TEMPLATE": {Value: "t"},
+				},
+			},
+		},
+		Projects: map[string]ProjectConfig{
+			"myservice": {
+				Remote:  "git@github.com:example/myservice.git",
+				Extends: "base",
+				EnvWhen: map[string]EnvWhenEntry{
+					"FROM_PROJECT": {Value: "p"},
+				},
+			},
+		},
+	}
+
+	if err := ResolveTemplates(cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	proj := cfg.Projects["myservice"]
+	if proj.EnvWhen["FROM_TEMPLATE"].Value != "t" {
+		t.Error("expected FROM_TEMPLATE from template")
+	}
+	if proj.EnvWhen["FROM_PROJECT"].Value != "p" {
+		t.Error("expected FROM_PROJECT from project")
+	}
+}
+
+func TestResolveTemplates_EnvWhenMultiLevelInheritance(t *testing.T) {
+	// grandparent → parent → project: env_when propagates through the chain.
+	cfg := &GitteConfig{
+		Templates: map[string]Template{
+			"grandparent": {
+				EnvWhen: map[string]EnvWhenEntry{
+					"FROM_GRANDPARENT": {Value: "gp"},
+				},
+			},
+			"parent": {
+				Extends: []string{"grandparent"},
+				EnvWhen: map[string]EnvWhenEntry{
+					"FROM_PARENT": {Value: "p"},
+				},
+			},
+		},
+		Projects: map[string]ProjectConfig{
+			"myservice": {
+				Remote:  "git@github.com:example/myservice.git",
+				Extends: "parent",
+			},
+		},
+	}
+
+	if err := ResolveTemplates(cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	proj := cfg.Projects["myservice"]
+	if proj.EnvWhen["FROM_GRANDPARENT"].Value != "gp" {
+		t.Errorf("expected FROM_GRANDPARENT to propagate through parent, got %v", proj.EnvWhen)
+	}
+	if proj.EnvWhen["FROM_PARENT"].Value != "p" {
+		t.Errorf("expected FROM_PARENT in resolved project, got %v", proj.EnvWhen)
+	}
+}
