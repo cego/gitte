@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -83,5 +84,62 @@ func TestValidateConfig_UnknownTemplateRef(t *testing.T) {
 	result := ValidateConfig(cfg)
 	if !result.HasErrors() {
 		t.Error("expected error for unknown template reference")
+	}
+}
+
+func TestValidateConfig_EnvWhenUnknownConditionType(t *testing.T) {
+	cfg := &GitteConfig{
+		Projects: map[string]ProjectConfig{
+			"myservice": {
+				Remote: "git@github.com:example/myservice.git",
+				EnvWhen: map[string]EnvWhenEntry{
+					"FOO": {
+						Value: "bar",
+						Conditions: []EnvWhenCondition{
+							{Type: "not_a_real_type"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := ValidateConfig(cfg)
+	if !result.HasErrors() {
+		t.Fatal("expected validation error for unknown condition type")
+	}
+
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e.Field, "env_when") && strings.Contains(e.Message, "not_a_real_type") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected error mentioning env_when and 'not_a_real_type', got: %v", result.Errors)
+	}
+}
+
+func TestValidateConfig_EnvWhenValidArchType(t *testing.T) {
+	cfg := &GitteConfig{
+		Projects: map[string]ProjectConfig{
+			"myservice": {
+				Remote: "git@github.com:example/myservice.git",
+				EnvWhen: map[string]EnvWhenEntry{
+					"FOO": {
+						Value: "bar",
+						Conditions: []EnvWhenCondition{
+							{Type: "arch", Arch: []string{"amd64"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := ValidateConfig(cfg)
+	if result.HasErrors() {
+		t.Errorf("expected no errors, got: %v", result.Errors)
 	}
 }
