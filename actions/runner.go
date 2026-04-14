@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -322,6 +323,9 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName 
 		for k, v := range gate.Effects.Env {
 			extra[k] = v
 		}
+		for k, v := range config.ResolveEnvWhen(gate.Effects.EnvWhen, runtime.GOARCH) {
+			extra[k] = v
+		}
 	}
 
 	if len(extra) == 0 {
@@ -335,9 +339,10 @@ func buildEnv(cfg *config.GitteConfig, st *state.GitteState, projName string, pr
 	base := os.Environ()
 
 	projEnv := proj.Env
+	projEnvWhen := config.ResolveEnvWhen(proj.EnvWhen, runtime.GOARCH)
 	featureEnv := extraEnvForProject(cfg, st, projName, proj)
 
-	if len(projEnv) == 0 && len(featureEnv) == 0 {
+	if len(projEnv) == 0 && len(projEnvWhen) == 0 && len(featureEnv) == 0 {
 		return base
 	}
 
@@ -350,6 +355,9 @@ func buildEnv(cfg *config.GitteConfig, st *state.GitteState, projName string, pr
 	}
 	// Project/template env (lowest priority after OS env)
 	for k, v := range projEnv {
+		envMap[k] = v
+	}
+	for k, v := range projEnvWhen {
 		envMap[k] = v
 	}
 	// Feature gate env (highest priority, overrides project env)
