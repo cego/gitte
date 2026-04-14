@@ -34,6 +34,7 @@ type Template struct {
 	Extends []string                 `yaml:"extends,omitempty"`
 	Vars    map[string]string        `yaml:"vars,omitempty"`
 	Env     map[string]string        `yaml:"env,omitempty"`
+	EnvWhen map[string]EnvWhenEntry  `yaml:"env_when,omitempty"`
 	Actions map[string]ProjectAction `yaml:"actions,omitempty"`
 }
 
@@ -46,6 +47,7 @@ type ProjectConfig struct {
 	Extends         string                   `yaml:"extends,omitempty"`
 	Vars            map[string]string        `yaml:"vars,omitempty"`
 	Env             map[string]string        `yaml:"env,omitempty"`
+	EnvWhen         map[string]EnvWhenEntry  `yaml:"env_when,omitempty"`
 }
 
 // ProjectAction represents an action (build/up/down/purge) for a project
@@ -60,6 +62,21 @@ type ProjectAction struct {
 type SearchFor struct {
 	Regex string `yaml:"regex"`
 	Hint  string `yaml:"hint"`
+}
+
+// EnvWhenEntry is a single entry in an env_when map.
+// The variable is only injected when all Conditions pass.
+// An empty Conditions list means always inject (equivalent to plain env).
+type EnvWhenEntry struct {
+	Value      string             `yaml:"value"`
+	Conditions []EnvWhenCondition `yaml:"conditions,omitempty"`
+}
+
+// EnvWhenCondition is one condition in an EnvWhenEntry.
+// Type is the discriminator; currently only "arch" is supported.
+type EnvWhenCondition struct {
+	Type string   `yaml:"type"`
+	Arch []string `yaml:"arch,omitempty"`
 }
 
 // ActionOverride allows per-action configuration overrides
@@ -88,7 +105,8 @@ type FeatureGate struct {
 
 // FeatureEffects defines what a feature gate does when enabled
 type FeatureEffects struct {
-	Env map[string]string `yaml:"env,omitempty"`
+	Env     map[string]string       `yaml:"env,omitempty"`
+	EnvWhen map[string]EnvWhenEntry `yaml:"env_when,omitempty"`
 }
 
 // FeatureScope defines which projects a feature gate applies to
