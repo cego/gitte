@@ -2,6 +2,7 @@ package startup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -56,7 +57,7 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	if runErr != nil && mode != output.ModePlain {
 		// TUI view already printed a human-readable failure summary; return a
 		// terse sentinel so root.go only prints "startup checks failed".
-		return fmt.Errorf("startup checks failed")
+		return errors.New("startup checks failed")
 	}
 	return runErr
 }

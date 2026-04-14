@@ -143,3 +143,38 @@ func TestValidateConfig_EnvWhenValidArchType(t *testing.T) {
 		t.Errorf("expected no errors, got: %v", result.Errors)
 	}
 }
+
+func TestValidateConfig_EnvWhenFeatureGateUnknownConditionType(t *testing.T) {
+	cfg := &GitteConfig{
+		FeatureGates: map[string]FeatureGate{
+			"my-feature": {
+				Effects: FeatureEffects{
+					EnvWhen: map[string]EnvWhenEntry{
+						"FOO": {
+							Value: "bar",
+							Conditions: []EnvWhenCondition{
+								{Type: "not_a_real_type"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := ValidateConfig(cfg)
+	if !result.HasErrors() {
+		t.Fatal("expected validation error for unknown condition type in feature gate")
+	}
+
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e.Field, "env_when") && strings.Contains(e.Message, "not_a_real_type") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected error mentioning env_when and 'not_a_real_type', got: %v", result.Errors)
+	}
+}

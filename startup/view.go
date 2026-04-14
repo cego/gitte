@@ -158,7 +158,7 @@ func (v *tuiView) printFailureSummary() {
 		fmt.Printf(" %s %s  %s\n", failStyle.Render("✗"), failStyle.Render(f.name), dimStyle.Render(fmtDuration(f.elapsed)))
 		fmt.Printf("   %s\n", dimStyle.Render(f.errMsg))
 		if f.hint != "" {
-			fmt.Printf("   %s %s\n", hintLabelStyle.Render("hint:"), hintTextStyle.Render(f.hint))
+			fmt.Printf("   %s %s\n", hintLabelStyle.Render("hint:"), f.hint)
 		}
 		fmt.Println()
 	}
@@ -175,7 +175,6 @@ var (
 	titleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("170"))
 	dimStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	hintLabelStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	hintTextStyle  = lipgloss.NewStyle()
 )
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -397,6 +396,8 @@ func truncateToVisualWidth(s string, maxWidth int) string {
 
 // splitErrHint splits an error message of the form "msg\nhint: hint" into its
 // two parts. If there is no hint suffix the second return value is empty.
+// Startup checks emit hints by appending "\nhint: <text>" to their error
+// message (see startup.go where checks call check.GetHint()).
 func splitErrHint(err error) (string, string) {
 	const sep = "\nhint: "
 	msg := err.Error()

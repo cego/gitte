@@ -372,3 +372,40 @@ func TestResolveTemplates_EnvWhenMergeDisjointKeys(t *testing.T) {
 		t.Error("expected FROM_PROJECT from project")
 	}
 }
+
+func TestResolveTemplates_EnvWhenMultiLevelInheritance(t *testing.T) {
+	// grandparent → parent → project: env_when propagates through the chain.
+	cfg := &GitteConfig{
+		Templates: map[string]Template{
+			"grandparent": {
+				EnvWhen: map[string]EnvWhenEntry{
+					"FROM_GRANDPARENT": {Value: "gp"},
+				},
+			},
+			"parent": {
+				Extends: []string{"grandparent"},
+				EnvWhen: map[string]EnvWhenEntry{
+					"FROM_PARENT": {Value: "p"},
+				},
+			},
+		},
+		Projects: map[string]ProjectConfig{
+			"myservice": {
+				Remote:  "git@github.com:example/myservice.git",
+				Extends: "parent",
+			},
+		},
+	}
+
+	if err := ResolveTemplates(cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	proj := cfg.Projects["myservice"]
+	if proj.EnvWhen["FROM_GRANDPARENT"].Value != "gp" {
+		t.Errorf("expected FROM_GRANDPARENT to propagate through parent, got %v", proj.EnvWhen)
+	}
+	if proj.EnvWhen["FROM_PARENT"].Value != "p" {
+		t.Errorf("expected FROM_PARENT in resolved project, got %v", proj.EnvWhen)
+	}
+}

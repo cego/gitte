@@ -357,6 +357,8 @@ func buildEnv(cfg *config.GitteConfig, st *state.GitteState, projName string, pr
 	for k, v := range projEnv {
 		envMap[k] = v
 	}
+	// env_when overrides env for the same key on matching arch; on non-matching
+	// arch the key from env remains (or is absent if not in env).
 	for k, v := range projEnvWhen {
 		envMap[k] = v
 	}
