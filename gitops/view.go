@@ -487,7 +487,21 @@ func (m *gitopsModel) printSummary() {
 		return
 	}
 	for _, e := range noteworthy {
-		fmt.Println(m.renderEntry(e, width))
+		if e.state == goStateFailed {
+			fmt.Printf(" %s %s  %s\n",
+				goFailStyle.Render("✗"),
+				goFailStyle.Render(strings.TrimPrefix(e.name, "gitops:")),
+				goDimStyle.Render(fmtDuration(e.elapsed)),
+			)
+			for _, line := range strings.Split(strings.TrimSpace(e.detail), "\n") {
+				if line != "" {
+					fmt.Printf("   %s\n", goDimStyle.Render(line))
+				}
+			}
+			fmt.Println()
+		} else {
+			fmt.Println(m.renderEntry(e, width))
+		}
 	}
 }
 
@@ -526,7 +540,6 @@ func (m *gitopsModel) renderEntry(e *goEntry, colW int) string {
 	case goStateFailed:
 		icon = goFailStyle.Render("✗")
 		nameStr = goFailStyle.Render(label)
-		extra = goFailStyle.Render("  " + e.detail)
 	}
 
 	line := fmt.Sprintf(" %s %s%s", icon, nameStr, extra)
@@ -564,6 +577,9 @@ func visibleWidth(s string) int {
 }
 
 func truncateToVisualWidth(s string, maxWidth int) string {
+	if maxWidth < 1 {
+		return ""
+	}
 	var result strings.Builder
 	vis := 0
 	inEsc := false
@@ -583,8 +599,8 @@ func truncateToVisualWidth(s string, maxWidth int) string {
 			escBuf.WriteRune(r)
 			continue
 		}
-		if vis >= maxWidth {
-			result.WriteString("\x1b[0m")
+		if vis >= maxWidth-1 {
+			result.WriteString("\x1b[0m…")
 			return result.String()
 		}
 		result.WriteRune(r)
