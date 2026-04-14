@@ -813,18 +813,28 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			if m.focusTask != "" {
 				text := m.buildCopyText(m.focusTask)
-				res := copyToClipboardOrFile(context.Background(), text, m.focusTask)
-				if res.err != nil {
-					m.clipboardMsg = res.err.Error()
+				method, err := copyToClipboard(context.Background(), text)
+				if err != nil {
+					m.clipboardMsg = "no clipboard tool available — use w to save to file"
 					m.clipboardOK = false
-				} else if res.method == "file" {
-					m.clipboardMsg = "saved to " + res.path
-					m.clipboardOK = true
-				} else if res.method == "osc52" {
+				} else if method == "osc52" {
 					m.clipboardMsg = "sent via OSC 52 (terminal clipboard)"
 					m.clipboardOK = true
 				} else {
 					m.clipboardMsg = "copied to clipboard"
+					m.clipboardOK = true
+				}
+				m.clipboardMsgExpiry = time.Now().Add(4 * time.Second)
+			}
+		case "w":
+			if m.focusTask != "" {
+				text := m.buildCopyText(m.focusTask)
+				res := writeToTempFile(text, m.focusTask)
+				if res.err != nil {
+					m.clipboardMsg = res.err.Error()
+					m.clipboardOK = false
+				} else {
+					m.clipboardMsg = "saved to " + res.path
 					m.clipboardOK = true
 				}
 				m.clipboardMsgExpiry = time.Now().Add(4 * time.Second)
@@ -1149,6 +1159,7 @@ func (m *actionsModel) View() tea.View {
 	if m.focusTask != "" {
 		parts = append(parts, "Enter/f: all logs")
 		parts = append(parts, "c: copy logs")
+		parts = append(parts, "w: save to file")
 	} else {
 		parts = append(parts, "Enter/f: focus logs")
 	}
@@ -1532,33 +1543,25 @@ func stripActANSI(s string) string {
 	return b.String()
 }
 
-// copyResult holds the outcome of a copy operation.
+// copyResult holds the outcome of a file-save operation.
 type copyResult struct {
-	method string // "clipboard", "file"
-	path   string // only set when method == "file"
-	err    error
+	path string
+	err  error
 }
 
-// copyToClipboardOrFile tries: native clipboard tools → OSC 52 → temp file.
-// Native tools are tried first because they give a real exit-code signal.
-// OSC 52 has no feedback mechanism (terminals silently ignore unsupported
-// sequences), so it is used as a best-effort fallback for SSH sessions where
-// native tools are unavailable.
-func copyToClipboardOrFile(ctx context.Context, text, taskName string) copyResult {
-	// 1. Native clipboard tools — reliable success/failure via exit code.
+// copyToClipboard tries native clipboard tools first, then OSC 52 as a
+// best-effort fallback for SSH sessions. Returns the method used ("clipboard"
+// or "osc52"), or an error if no tool is available.
+func copyToClipboard(ctx context.Context, text string) (string, error) {
 	if tryNativeClipboard(ctx, text) {
-		return copyResult{method: "clipboard"}
+		return "clipboard", nil
 	}
-
-	// 2. OSC 52: best-effort for SSH sessions. The sequence is written to the
-	// terminal but there is no way to confirm the terminal honored it. We fall
-	// through to a temp file only if stdout is not a terminal at all.
+	// OSC 52 has no feedback mechanism — terminals silently ignore unsupported
+	// sequences — but it is useful over SSH where native tools are absent.
 	if tryOSC52(text) {
-		return copyResult{method: "osc52"}
+		return "osc52", nil
 	}
-
-	// 3. Fallback: write to temp file.
-	return writeToTempFile(text, taskName)
+	return "", fmt.Errorf("no clipboard tool available")
 }
 
 // tryOSC52 writes the OSC 52 escape sequence to stdout.
@@ -1625,7 +1628,7 @@ func writeToTempFile(text, taskName string) copyResult {
 	if _, err := f.WriteString(text); err != nil {
 		return copyResult{err: fmt.Errorf("failed to write temp file: %w", err)}
 	}
-	return copyResult{method: "file", path: f.Name()}
+	return copyResult{path: f.Name()}
 }
 
 func fmtActionDuration(d time.Duration) string {
