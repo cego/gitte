@@ -115,6 +115,8 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 		return discoverErr
 	}
 
+	allRepos = dedupRepos(allRepos)
+
 	if len(allRepos) == 0 {
 		return nil
 	}
@@ -160,6 +162,23 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 	runErr := syncExec.Execute(ctx)
 	syncView.Wait()
 	return runErr
+}
+
+// dedupRepos removes repos with duplicate Host+Path, preserving first-seen order.
+// Overlapping source configs (e.g. a repo reachable via two groups) would otherwise
+// produce colliding task names in the sync phase.
+func dedupRepos(repos []DiscoveredRepo) []DiscoveredRepo {
+	seen := make(map[string]bool, len(repos))
+	out := repos[:0]
+	for _, r := range repos {
+		key := r.Host + "/" + r.Path
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, r)
+	}
+	return out
 }
 
 // syncTransientDetailed clones or pulls a single transiently-discovered remote,

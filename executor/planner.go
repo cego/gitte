@@ -14,10 +14,11 @@ func ValidateNoCycles(tasks []Task) error {
 
 	taskSet := make(map[string]bool)
 	for _, t := range tasks {
-		taskSet[t.Name] = true
-		if _, ok := inDegree[t.Name]; !ok {
-			inDegree[t.Name] = 0
+		if taskSet[t.Name] {
+			return fmt.Errorf("duplicate task name %q", t.Name)
 		}
+		taskSet[t.Name] = true
+		inDegree[t.Name] = 0
 	}
 
 	for _, t := range tasks {
