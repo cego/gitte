@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -40,6 +41,23 @@ func TestValidateNoCycles_UnknownDep(t *testing.T) {
 	}
 	if err := ValidateNoCycles(tasks); err == nil {
 		t.Error("expected error for unknown dep, got nil")
+	}
+}
+
+func TestValidateNoCycles_DuplicateNames(t *testing.T) {
+	tasks := []Task{
+		{Name: "a"},
+		{Name: "a"},
+	}
+	err := ValidateNoCycles(tasks)
+	if err == nil {
+		t.Fatal("expected error for duplicate task names, got nil")
+	}
+	if strings.Contains(err.Error(), "cycle") {
+		t.Errorf("duplicate names must not be reported as a cycle, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "a") {
+		t.Errorf("error should name the duplicate task, got: %v", err)
 	}
 }
 
