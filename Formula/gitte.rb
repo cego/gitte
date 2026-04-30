@@ -1,26 +1,26 @@
 class Gitte < Formula
   desc "Developer environment orchestration tool"
   homepage "https://github.com/cego/gitte"
-  version "2.1.1"
+  version "2.1.2"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/cego/gitte/releases/download/2.1.1/gitte-darwin-arm64.tar.gz"
-      sha256 "5216d03b31c3d644d2fdd0ec78992f2bdaf855c1163c5c67d0205d92b0f91beb"
+      url "https://github.com/cego/gitte/releases/download/2.1.2/gitte-darwin-arm64.tar.gz"
+      sha256 "571a39cfe08b8d23d602f9b59234b060e4775d800c446375f49207b56eba3671"
     else
-      url "https://github.com/cego/gitte/releases/download/2.1.1/gitte-darwin-amd64.tar.gz"
-      sha256 "caa6fb63c482a952c230dfd78c2f14c2addd36e6085783c0407ea54757075e83"
+      url "https://github.com/cego/gitte/releases/download/2.1.2/gitte-darwin-amd64.tar.gz"
+      sha256 "530077411f6d4bb2265aff668c9bc8d2a19cd1ad560214ac9e37e460e3b2ffa6"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/cego/gitte/releases/download/2.1.1/gitte-linux-arm64.tar.gz"
-      sha256 "b803a7a9d6ef5ab68af327c158a09c49bd04c9d5364abc14bfa1ee3cfaeee3d3"
+      url "https://github.com/cego/gitte/releases/download/2.1.2/gitte-linux-arm64.tar.gz"
+      sha256 "9165abded42a51da22c378d1ae9833a239b18c6aa91a1c329761e782f290af81"
     else
-      url "https://github.com/cego/gitte/releases/download/2.1.1/gitte-linux-amd64.tar.gz"
-      sha256 "a3daf39af3a3a1c9c3f801eb87695cf9c4848d75970129d2291bab75c3a29590"
+      url "https://github.com/cego/gitte/releases/download/2.1.2/gitte-linux-amd64.tar.gz"
+      sha256 "f98368ff133b3fa13cfab8027dbed3f1c565668bf712165163da09eaed617862"
     end
   end
 
