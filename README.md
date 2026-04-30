@@ -37,13 +37,6 @@ Gitte keeps all your repos in sync, runs startup checks to verify your local mac
 
 ## Installation
 
-### Homebrew (macOS and Linux)
-
-```bash
-brew tap cego/gitte https://github.com/cego/gitte
-brew install cego/gitte/gitte
-```
-
 ### APT (Debian and Ubuntu)
 
 ```bash
@@ -51,6 +44,13 @@ curl -fsSL https://gitte-apt.cego.dk/gpg.key | sudo gpg --dearmor -o /etc/apt/ke
 echo "deb [signed-by=/etc/apt/keyrings/gitte.gpg] https://gitte-apt.cego.dk ./" | sudo tee /etc/apt/sources.list.d/gitte.list
 sudo apt update
 sudo apt install gitte
+```
+
+### Homebrew (macOS and Linux)
+
+```bash
+brew tap cego/gitte https://github.com/cego/gitte
+brew install cego/gitte/gitte
 ```
 
 ### Binary download
