@@ -811,21 +811,25 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focusTask != "" {
 				text := m.buildCopyText(m.focusTask)
 				method, err := copyToClipboard(context.Background(), text)
+				// Truncation only happens on the OSC 52 fallback; native
+				// tools handle large payloads in full.
+				osc52Used := method == copyMethodOSC52 || method == copyMethodOSC52Tmux || method == copyMethodOSC52Screen
+				suffix := ""
+				if err == nil && osc52Used && len(text) > osc52SafeLimit {
+					suffix = " (last 64 KB only — press w for full log)"
+				}
 				switch {
-				case err != nil && len(text) > osc52SafeLimit:
-					m.clipboardMsg = "log too large for terminal clipboard — press w to save to file"
-					m.clipboardOK = false
 				case err != nil:
 					m.clipboardMsg = "no clipboard tool available — press w to save to file"
 					m.clipboardOK = false
 				case method == copyMethodOSC52Tmux:
-					m.clipboardMsg = "sent via OSC 52 (tmux pass-through)"
+					m.clipboardMsg = "sent via OSC 52 (tmux pass-through)" + suffix
 					m.clipboardOK = true
 				case method == copyMethodOSC52Screen:
-					m.clipboardMsg = "sent via OSC 52 (GNU screen)"
+					m.clipboardMsg = "sent via OSC 52 (GNU screen)" + suffix
 					m.clipboardOK = true
 				case method == copyMethodOSC52:
-					m.clipboardMsg = "sent via OSC 52 (terminal clipboard)"
+					m.clipboardMsg = "sent via OSC 52 (terminal clipboard)" + suffix
 					m.clipboardOK = true
 				default:
 					m.clipboardMsg = "copied to clipboard"

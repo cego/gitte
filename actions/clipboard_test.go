@@ -3,11 +3,13 @@ package actions
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"os/exec"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 type seamOverrides struct {
@@ -148,7 +150,7 @@ func TestTryOSC52_SkipsWhenNotTTY(t *testing.T) {
 	}
 }
 
-func TestTryOSC52_SkipsWhenPayloadOverLimit(t *testing.T) {
+func TestTryOSC52_TruncatesOversizedPayloadToTail(t *testing.T) {
 	var buf bytes.Buffer
 	withSeams(t, seamOverrides{
 		env:        map[string]string{},
@@ -156,13 +158,44 @@ func TestTryOSC52_SkipsWhenPayloadOverLimit(t *testing.T) {
 		osc52IsTTY: boolPtr(true),
 	})
 
-	big := strings.Repeat("a", osc52SafeLimit+1)
+	// Build a payload whose tail is identifiable: padding + marker.
+	tail := "TAIL_MARKER_" + strings.Repeat("z", 100)
+	pad := strings.Repeat("a", osc52SafeLimit)
+	big := pad + tail
+
 	method, ok := tryOSC52(big)
-	if ok || method != copyMethodUnknown {
-		t.Fatalf("expected skip when over limit, got method=%v ok=%v", method, ok)
+	if !ok || method != copyMethodOSC52 {
+		t.Fatalf("expected OSC 52 success with truncation, got method=%v ok=%v", method, ok)
 	}
-	if buf.Len() != 0 {
-		t.Errorf("expected no output when over limit, wrote %d bytes", buf.Len())
+	if buf.Len() == 0 {
+		t.Fatal("expected truncated emission, got nothing")
+	}
+	// The emitted base64 payload must contain the tail marker (the head
+	// is the part that got dropped).
+	if !strings.Contains(buf.String(), b64Of(tail)) {
+		t.Errorf("expected emitted sequence to contain base64 of tail marker; got bytes len=%d", buf.Len())
+	}
+}
+
+func TestTryOSC52_TruncationRespectsRuneBoundaries(t *testing.T) {
+	var buf bytes.Buffer
+	withSeams(t, seamOverrides{
+		env:        map[string]string{},
+		osc52Out:   &buf,
+		osc52IsTTY: boolPtr(true),
+	})
+
+	// "é" is 2 bytes (0xC3 0xA9) in UTF-8. Build a payload such that the
+	// naive byte-cut would land mid-rune.
+	body := strings.Repeat("é", osc52SafeLimit) // 2 * limit bytes
+	method, ok := tryOSC52(body)
+	if !ok || method != copyMethodOSC52 {
+		t.Fatalf("expected OSC 52 success, got method=%v ok=%v", method, ok)
+	}
+	// Decode the emitted base64 and ensure it is valid UTF-8.
+	decoded := decodeOSC52(t, buf.String())
+	if !utf8Valid(decoded) {
+		t.Errorf("expected truncation to respect rune boundaries, got invalid UTF-8")
 	}
 }
 
@@ -200,6 +233,21 @@ func TestNativeCandidates_LinuxWaylandSocketMissing(t *testing.T) {
 	names := candNames(nativeCandidates())
 	if contains(names, "wl-copy") {
 		t.Errorf("expected wl-copy excluded when socket missing, got %v", names)
+	}
+}
+
+func TestNativeCandidates_LinuxWaylandNoRuntimeDir(t *testing.T) {
+	withSeams(t, seamOverrides{
+		env: map[string]string{
+			"WAYLAND_DISPLAY": "wayland-0",
+			// XDG_RUNTIME_DIR intentionally unset.
+		},
+		runtimeOS: "linux",
+	})
+
+	names := candNames(nativeCandidates())
+	if contains(names, "wl-copy") {
+		t.Errorf("expected wl-copy excluded when XDG_RUNTIME_DIR unset, got %v", names)
 	}
 }
 
@@ -347,6 +395,56 @@ func TestCopyToClipboard_AllBackendsFail(t *testing.T) {
 	}
 }
 
+func TestCopyToClipboard_OversizeFallsBackToTruncatedOSC52(t *testing.T) {
+	// SSH-like situation: no native tool works, OSC 52 is a TTY.
+	// Oversized payload should produce a truncated OSC 52 success — better
+	// than copying nothing.
+	var buf bytes.Buffer
+	withSeams(t, seamOverrides{
+		env: map[string]string{
+			"SSH_TTY": "/dev/pts/0",
+		},
+		osc52Out:   &buf,
+		osc52IsTTY: boolPtr(true),
+		runtimeOS:  "linux",
+		nativeRun: func(ctx context.Context, c nativeCmd, text string) error {
+			return errors.New("should not reach")
+		},
+		lookPath: func(string) (string, error) { return "", errors.New("nope") },
+	})
+
+	big := strings.Repeat("a", osc52SafeLimit+1024)
+	method, err := copyToClipboard(context.Background(), big)
+	if err != nil {
+		t.Fatalf("expected success via truncated OSC 52, got %v", err)
+	}
+	if method != copyMethodOSC52 {
+		t.Errorf("expected OSC 52 method, got %v", method)
+	}
+	if buf.Len() == 0 {
+		t.Errorf("expected truncated emission, got nothing")
+	}
+}
+
+func TestCopyToClipboard_OversizeFailsWhenNotTTY(t *testing.T) {
+	// Without a TTY we can't even truncate-and-send via OSC 52.
+	withSeams(t, seamOverrides{
+		env:        map[string]string{},
+		osc52IsTTY: boolPtr(false),
+		runtimeOS:  "linux",
+		nativeRun: func(ctx context.Context, c nativeCmd, text string) error {
+			return errors.New("boom")
+		},
+		lookPath: func(string) (string, error) { return "", errors.New("not found") },
+	})
+
+	big := strings.Repeat("a", osc52SafeLimit+1)
+	_, err := copyToClipboard(context.Background(), big)
+	if err == nil {
+		t.Fatal("expected error when no TTY and no native tool")
+	}
+}
+
 // --- WaitDelay handling: xclip/xsel daemonize, hold the original stdin pipe;
 // exec.ErrWaitDelay is the foreground-exit signal and should count as success.
 
@@ -385,3 +483,28 @@ func contains(s []string, x string) bool {
 	}
 	return false
 }
+
+func b64Of(s string) string {
+	return base64.StdEncoding.EncodeToString([]byte(s))
+}
+
+// decodeOSC52 extracts and base64-decodes the payload from a raw OSC 52
+// sequence ("\x1b]52;c;<base64>\x07"). Fails the test on shape mismatch.
+func decodeOSC52(t *testing.T, seq string) string {
+	t.Helper()
+	const prefix = "\x1b]52;c;"
+	const suffix = "\x07"
+	i := strings.Index(seq, prefix)
+	j := strings.LastIndex(seq, suffix)
+	if i < 0 || j <= i+len(prefix) {
+		t.Fatalf("not a recognisable OSC 52 sequence: %q", seq)
+	}
+	enc := seq[i+len(prefix) : j]
+	out, err := base64.StdEncoding.DecodeString(enc)
+	if err != nil {
+		t.Fatalf("OSC 52 payload not valid base64: %v", err)
+	}
+	return string(out)
+}
+
+func utf8Valid(s string) bool { return utf8.ValidString(s) }

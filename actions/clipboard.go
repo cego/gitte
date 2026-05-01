@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	osc52 "github.com/aymanbagabas/go-osc52/v2"
 	"golang.org/x/term"
@@ -47,7 +48,8 @@ var (
 type nativeCmd struct {
 	name  string
 	args  []string
-	stdin bool // true: pipe text via stdin; false: pass text as final argv
+	stdin bool   // true: pipe text via stdin; false: pass text as final argv
+	path  string // resolved by tryNativeClipboard before nativeRun is called
 }
 
 // copyToClipboard copies text using the most appropriate backend.
@@ -87,15 +89,23 @@ func inSSH() bool {
 // tryOSC52 emits an OSC 52 escape sequence using the go-osc52 library,
 // auto-wrapping for tmux ($TMUX) or GNU screen ($STY + $TERM=screen*).
 //
-// Skips (without writing) when stderr is not a TTY or when the payload exceeds
-// osc52SafeLimit — most terminals silently drop oversized sequences, so it is
-// better to surface failure than to claim success.
+// Skips (without writing) when stderr is not a TTY. Payloads over the safe
+// limit are truncated to the *last* osc52SafeLimit bytes — for build/task
+// logs the tail is where the error usually lives, so it is the most useful
+// part to recover. The view-layer toast tells the user that truncation
+// occurred and the 'w' keybinding is still available for the full log.
 func tryOSC52(text string) (copyMethod, bool) {
 	if !osc52IsTTY() {
 		return copyMethodUnknown, false
 	}
 	if len(text) > osc52SafeLimit {
-		return copyMethodUnknown, false
+		start := len(text) - osc52SafeLimit
+		// Walk forward to the next valid UTF-8 rune start so we never split
+		// a multi-byte rune and produce U+FFFD on paste.
+		for start < len(text) && !utf8.RuneStart(text[start]) {
+			start++
+		}
+		text = text[start:]
 	}
 
 	seq := osc52.New(text)
@@ -157,9 +167,10 @@ func isWaylandLive() bool {
 	}
 	rd := getEnv("XDG_RUNTIME_DIR")
 	if rd == "" {
-		// No way to verify the socket; proceed optimistically. The per-attempt
-		// timeout bounds any misfire.
-		return true
+		// Can't verify the socket. Modern user sessions always set
+		// XDG_RUNTIME_DIR, so its absence reliably indicates wl-copy will
+		// fail. Skip rather than waste a 2 s timeout on a doomed attempt.
+		return false
 	}
 	return statFile(rd+"/"+wd) == nil
 }
@@ -170,11 +181,12 @@ func isWaylandLive() bool {
 // while WaitDelay force-closes pipes — the clipboard already received the data.
 func tryNativeClipboard(parent context.Context, cands []nativeCmd, text string) bool {
 	for _, c := range cands {
-		if _, err := lookPath(c.name); err != nil {
+		p, err := lookPath(c.name)
+		if err != nil {
 			continue
 		}
-		err := nativeRun(parent, c, text)
-		if err == nil || errors.Is(err, exec.ErrWaitDelay) {
+		c.path = p
+		if err := nativeRun(parent, c, text); err == nil || errors.Is(err, exec.ErrWaitDelay) {
 			return true
 		}
 	}
@@ -191,7 +203,10 @@ func realNativeRun(parent context.Context, c nativeCmd, text string) error {
 	if !c.stdin {
 		argv = append(argv, text)
 	}
-	cmd := exec.CommandContext(ctx, c.name, argv...) //nolint:gosec
+	// c.path was resolved by tryNativeClipboard via lookPath so
+	// exec.CommandContext does not repeat the PATH search and there is no
+	// TOCTOU between lookup and invocation.
+	cmd := exec.CommandContext(ctx, c.path, argv...) //nolint:gosec
 	cmd.WaitDelay = time.Second
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
