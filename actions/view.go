@@ -2,11 +2,9 @@ package actions
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 	"sync"
@@ -17,7 +15,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"golang.org/x/term"
 )
 
 // TaskInfo carries metadata needed for tree display.
@@ -814,13 +811,23 @@ func (m *actionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focusTask != "" {
 				text := m.buildCopyText(m.focusTask)
 				method, err := copyToClipboard(context.Background(), text)
-				if err != nil {
-					m.clipboardMsg = "no clipboard tool available — use w to save to file"
+				switch {
+				case err != nil && len(text) > osc52SafeLimit:
+					m.clipboardMsg = "log too large for terminal clipboard — press w to save to file"
 					m.clipboardOK = false
-				} else if method == "osc52" {
+				case err != nil:
+					m.clipboardMsg = "no clipboard tool available — press w to save to file"
+					m.clipboardOK = false
+				case method == copyMethodOSC52Tmux:
+					m.clipboardMsg = "sent via OSC 52 (tmux pass-through)"
+					m.clipboardOK = true
+				case method == copyMethodOSC52Screen:
+					m.clipboardMsg = "sent via OSC 52 (GNU screen)"
+					m.clipboardOK = true
+				case method == copyMethodOSC52:
 					m.clipboardMsg = "sent via OSC 52 (terminal clipboard)"
 					m.clipboardOK = true
-				} else {
+				default:
 					m.clipboardMsg = "copied to clipboard"
 					m.clipboardOK = true
 				}
@@ -1547,72 +1554,6 @@ func stripActANSI(s string) string {
 type copyResult struct {
 	path string
 	err  error
-}
-
-// copyToClipboard tries native clipboard tools first, then OSC 52 as a
-// best-effort fallback for SSH sessions. Returns the method used ("clipboard"
-// or "osc52"), or an error if no tool is available.
-func copyToClipboard(ctx context.Context, text string) (string, error) {
-	if tryNativeClipboard(ctx, text) {
-		return "clipboard", nil
-	}
-	// OSC 52 has no feedback mechanism — terminals silently ignore unsupported
-	// sequences — but it is useful over SSH where native tools are absent.
-	if tryOSC52(text) {
-		return "osc52", nil
-	}
-	return "", fmt.Errorf("no clipboard tool available")
-}
-
-// tryOSC52 writes the OSC 52 escape sequence to stdout.
-// Returns true if stdout is a terminal (sequence was written).
-func tryOSC52(text string) bool {
-	if !isTermFile(os.Stdout) {
-		return false
-	}
-	encoded := base64Encode(text)
-	// OSC 52: \x1b]52;c;<base64>\x07
-	_, err := fmt.Fprintf(os.Stdout, "\x1b]52;c;%s\x07", encoded)
-	return err == nil
-}
-
-func base64Encode(s string) string {
-	return base64.StdEncoding.EncodeToString([]byte(s))
-}
-
-func isTermFile(f *os.File) bool {
-	return term.IsTerminal(int(f.Fd()))
-}
-
-// tryNativeClipboard tries OS clipboard tools. Returns true on success.
-func tryNativeClipboard(ctx context.Context, text string) bool {
-	stdinTools := [][]string{
-		{"wl-copy"},
-		{"xclip", "-selection", "clipboard"},
-		{"xsel", "--clipboard", "--input"},
-		{"pbcopy"},
-	}
-	for _, args := range stdinTools {
-		cmd, err := exec.LookPath(args[0])
-		if err != nil {
-			continue
-		}
-		c := exec.CommandContext(ctx, cmd, args[1:]...) //nolint:gosec
-		c.Stdin = strings.NewReader(text)
-		if err := c.Run(); err == nil {
-			return true
-		}
-	}
-
-	// KDE klipper via qdbus.
-	if qdbus, err := exec.LookPath("qdbus"); err == nil {
-		c := exec.CommandContext(ctx, qdbus, "org.kde.klipper", "/klipper", //nolint:gosec
-			"org.kde.klipper.klipper.setClipboardContents", text)
-		if err := c.Run(); err == nil {
-			return true
-		}
-	}
-	return false
 }
 
 // writeToTempFile writes text to a temp file and returns the path.
