@@ -170,10 +170,13 @@ func TestTryOSC52_TruncatesOversizedPayloadToTail(t *testing.T) {
 	if buf.Len() == 0 {
 		t.Fatal("expected truncated emission, got nothing")
 	}
-	// The emitted base64 payload must contain the tail marker (the head
-	// is the part that got dropped).
-	if !strings.Contains(buf.String(), b64Of(tail)) {
-		t.Errorf("expected emitted sequence to contain base64 of tail marker; got bytes len=%d", buf.Len())
+	// Decode the emitted base64 payload and assert the kept portion ends
+	// with the tail marker (the head is what got dropped). A substring
+	// check on the raw base64 would be unreliable: the tail's encoding
+	// shifts depending on whether it starts on a 3-byte block boundary.
+	decoded := decodeOSC52(t, buf.String())
+	if !strings.HasSuffix(decoded, tail) {
+		t.Errorf("expected decoded payload to end with tail marker, got %d bytes (last %d: %q)", len(decoded), len(tail), lastN(decoded, len(tail)))
 	}
 }
 
@@ -185,17 +188,25 @@ func TestTryOSC52_TruncationRespectsRuneBoundaries(t *testing.T) {
 		osc52IsTTY: boolPtr(true),
 	})
 
-	// "é" is 2 bytes (0xC3 0xA9) in UTF-8. Build a payload such that the
-	// naive byte-cut would land mid-rune.
-	body := strings.Repeat("é", osc52SafeLimit) // 2 * limit bytes
+	// "é" is 2 bytes (0xC3 0xA9) in UTF-8. Construct a payload such that
+	// the naive byte-cut at len-osc52SafeLimit lands on the *continuation*
+	// byte of a single "é": ASCII padding of length osc52SafeLimit-1, then
+	// "é", then ASCII padding of length osc52SafeLimit-1. Total length is
+	// 2*osc52SafeLimit, so the cut at index osc52SafeLimit lands on byte
+	// 0xA9 (mid-rune).
+	body := strings.Repeat("a", osc52SafeLimit-1) + "é" + strings.Repeat("a", osc52SafeLimit-1)
 	method, ok := tryOSC52(body)
 	if !ok || method != copyMethodOSC52 {
 		t.Fatalf("expected OSC 52 success, got method=%v ok=%v", method, ok)
 	}
-	// Decode the emitted base64 and ensure it is valid UTF-8.
 	decoded := decodeOSC52(t, buf.String())
 	if !utf8Valid(decoded) {
 		t.Errorf("expected truncation to respect rune boundaries, got invalid UTF-8")
+	}
+	// The cut walked forward past the continuation byte, so the kept
+	// payload is one byte shorter than osc52SafeLimit.
+	if len(decoded) != osc52SafeLimit-1 {
+		t.Errorf("expected decoded length %d after skipping continuation byte, got %d", osc52SafeLimit-1, len(decoded))
 	}
 }
 
@@ -484,8 +495,11 @@ func contains(s []string, x string) bool {
 	return false
 }
 
-func b64Of(s string) string {
-	return base64.StdEncoding.EncodeToString([]byte(s))
+func lastN(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
 }
 
 // decodeOSC52 extracts and base64-decodes the payload from a raw OSC 52
