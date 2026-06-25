@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel"
 )
 
 func TestSetGitContextAttrs(t *testing.T) {
