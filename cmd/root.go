@@ -99,7 +99,8 @@ func Execute() {
 }
 
 // finishTelemetry records the final command status on the root span and flushes
-// pending spans. Safe to call when telemetry is disabled (handles are nil).
+// pending spans. Safe to call when telemetry was never initialized (e.g.
+// completion commands or an early config failure), where the handles remain nil.
 func finishTelemetry(err error) {
 	if globalRootSpan != nil {
 		if err != nil {

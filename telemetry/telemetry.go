@@ -100,12 +100,13 @@ func resourceAttributes(version, username, hostname string) []attribute.KeyValue
 // always non-nil and safe to call; setup failures and disabled telemetry both
 // degrade to a no-op shutdown.
 func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
-	otel.SetErrorHandler(noopErrorHandler{})
-
 	r := Resolve(cfg)
 	if !r.Enabled {
 		return func() {}
 	}
+
+	// Only mutate process-wide OTEL state once telemetry is known to be enabled.
+	otel.SetErrorHandler(noopErrorHandler{})
 
 	var opts []otlptracehttp.Option
 	if !r.UseSDKEnv {

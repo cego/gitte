@@ -12,8 +12,12 @@ import (
 func TestSetActionAttrs(t *testing.T) {
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	prev := otel.GetTracerProvider()
 	otel.SetTracerProvider(tp)
-	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+	t.Cleanup(func() {
+		otel.SetTracerProvider(prev)
+		_ = tp.Shutdown(context.Background())
+	})
 
 	_, span := tp.Tracer("test").Start(context.Background(), "action.run")
 	setActionAttrs(span, "proj:up:default", "proj", "docker compose up")
