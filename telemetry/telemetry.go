@@ -24,7 +24,10 @@ import (
 
 const tracerName = "github.com/cego/gitte"
 
-const flushTimeout = 3 * time.Second
+// flushTimeout bounds how long exit can block flushing spans. Kept short so an
+// enabled-but-unreachable endpoint (e.g. laptop with the VPN off) adds at most
+// this delay to every command.
+const flushTimeout = 1 * time.Second
 
 // Resolved is the outcome of resolving telemetry settings from config + env.
 type Resolved struct {
@@ -92,15 +95,16 @@ func resourceAttributes(version, username, hostname string) []attribute.KeyValue
 	return attrs
 }
 
-// Init configures the global tracer provider. The returned shutdown function is
-// always non-nil and safe to call; it flushes pending spans with a bounded
-// timeout. Setup failures degrade to a no-op rather than returning an error.
-func Init(ctx context.Context, cfg *config.GitteConfig, version string) (func(), error) {
+// Init configures the global tracer provider and returns a shutdown function
+// that flushes pending spans with a bounded timeout. The returned function is
+// always non-nil and safe to call; setup failures and disabled telemetry both
+// degrade to a no-op shutdown.
+func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 	otel.SetErrorHandler(noopErrorHandler{})
 
 	r := Resolve(cfg)
 	if !r.Enabled {
-		return func() {}, nil
+		return func() {}
 	}
 
 	var opts []otlptracehttp.Option
@@ -114,7 +118,7 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) (func(),
 	exporter, err := otlptracehttp.New(ctx, opts...)
 	if err != nil {
 		// Never block gitte: disable telemetry on exporter setup failure.
-		return func() {}, nil
+		return func() {}
 	}
 
 	username := ""
@@ -135,7 +139,7 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) (func(),
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 		defer cancel()
 		_ = tp.Shutdown(shutdownCtx)
-	}, nil
+	}
 }
 
 // Tracer returns gitte's tracer from the global provider (a no-op tracer when

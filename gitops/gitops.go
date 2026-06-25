@@ -260,7 +260,11 @@ func syncProject(
 	if err != nil {
 		return err
 	}
-	setGitContextAttrs(span, name, currentBranch, getHeadSHA(ctx, projectPath), dirty)
+	// Guard on IsRecording so getHeadSHA (a git exec) never runs when telemetry
+	// is disabled — the span is non-recording and would discard the attributes.
+	if span.IsRecording() {
+		setGitContextAttrs(span, currentBranch, getHeadSHA(ctx, projectPath), dirty)
+	}
 	if dirty {
 		setDetail("skipped")
 		if currentBranch != defaultBranch {
@@ -423,11 +427,11 @@ func staleDays(ctx context.Context, dir, defaultBranch string) int {
 	return 0
 }
 
-// setGitContextAttrs records git context on a span. repo is the repo name/path
-// (never the full remote URL, which can embed credentials).
-func setGitContextAttrs(span trace.Span, repo, branch, sha string, dirty bool) {
+// setGitContextAttrs records git context on a span. The caller sets gitte.repo
+// separately (the repo name/path, never the full remote URL which can embed
+// credentials) so it is present on every span, including early-return paths.
+func setGitContextAttrs(span trace.Span, branch, sha string, dirty bool) {
 	span.SetAttributes(
-		attribute.String("gitte.repo", repo),
 		attribute.String("git.branch", branch),
 		attribute.String("git.sha", sha),
 		attribute.Bool("git.dirty", dirty),

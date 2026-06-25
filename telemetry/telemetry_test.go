@@ -104,10 +104,7 @@ func TestResolve_Precedence(t *testing.T) {
 
 func TestInit_DisabledReturnsNoopShutdown(t *testing.T) {
 	t.Setenv("GITTE_TELEMETRY", "off")
-	shutdown, err := Init(context.Background(), &config.GitteConfig{}, "test")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	shutdown := Init(context.Background(), &config.GitteConfig{}, "test")
 	if shutdown == nil {
 		t.Fatal("shutdown must never be nil")
 	}
@@ -116,7 +113,7 @@ func TestInit_DisabledReturnsNoopShutdown(t *testing.T) {
 
 func TestInit_EnabledReturnsCallableShutdown(t *testing.T) {
 	// Verify that Init with a valid endpoint returns a non-nil shutdown function
-	// that can be called without panicking or hanging (bounded 3s flush).
+	// that can be called without panicking or hanging (bounded flush timeout).
 	// Note: otlptracehttp.New is lazy — it accepts any URL including unreachable
 	// endpoints without error, so Init succeeds and returns a real shutdown.
 	// The exporter-error branch (where New returns an error and Init falls back to
@@ -126,14 +123,11 @@ func TestInit_EnabledReturnsCallableShutdown(t *testing.T) {
 	prev := otel.GetTracerProvider()
 	t.Cleanup(func() { otel.SetTracerProvider(prev) })
 	cfg := &config.GitteConfig{Telemetry: config.TelemetryConfig{Endpoint: "http://localhost:4318"}}
-	shutdown, err := Init(context.Background(), cfg, "test")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	shutdown := Init(context.Background(), cfg, "test")
 	if shutdown == nil {
 		t.Fatal("shutdown must never be nil on the enabled path")
 	}
-	shutdown() // must not panic or hang beyond the 3s flush timeout
+	shutdown() // must not panic or hang beyond the flush timeout
 }
 
 func TestStartCommandSpan_NoProviderDoesNotPanic(t *testing.T) {

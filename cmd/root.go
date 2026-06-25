@@ -66,8 +66,7 @@ with dependency resolution.`,
 
 		// Telemetry: best-effort, never blocks. Stores root span context in globalCtx
 		// so it propagates through the executor into gitops/actions leaf spans.
-		shutdown, _ := telemetry.Init(globalCtx, globalCfg, cmd.Root().Version)
-		globalTelemetryShutdown = shutdown
+		globalTelemetryShutdown = telemetry.Init(globalCtx, globalCfg, cmd.Root().Version)
 		globalCtx, globalRootSpan = telemetry.StartCommandSpan(globalCtx, cmd.CommandPath(), args)
 		return nil
 	},

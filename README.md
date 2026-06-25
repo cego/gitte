@@ -174,11 +174,16 @@ See [docs/config.md](./docs/config.md) for the full configuration reference.
 ## Telemetry
 
 Gitte can export OpenTelemetry traces to an OTLP/HTTP endpoint (e.g. Elastic
-APM) to help debug failures. Traces capture the command run, per-repo git
-context (branch, commit SHA, dirty state), and per-task outcomes with errors.
-To identify which developer and machine hit a failure, the OS username
-(`user.name`) and hostname (`host.name`) are attached to every trace. Full
-remote URLs and command environment values are never collected.
+APM) to help debug failures. Traces capture per-repo git context (branch,
+commit SHA, dirty state) and per-task outcomes with errors. To identify which
+developer and machine hit a failure, the OS username (`user.name`) and hostname
+(`host.name`) are attached to every trace.
+
+**What is recorded:** the gitte CLI arguments and each action's command line are
+exported as span attributes (this is intentional — knowing what ran is the
+point). Keep secrets out of action command definitions and CLI arguments; pass
+them through environment variables, which are **not** exported. Full remote
+URLs are never collected either (repos are identified by name only).
 
 Enable it via the shared config:
 

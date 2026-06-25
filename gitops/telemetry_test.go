@@ -16,7 +16,7 @@ func TestSetGitContextAttrs(t *testing.T) {
 	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
 
 	_, span := tp.Tracer("test").Start(context.Background(), "gitops.sync")
-	setGitContextAttrs(span, "group/repo", "main", "abc123", true)
+	setGitContextAttrs(span, "main", "abc123", true)
 	span.End()
 
 	spans := exp.GetSpans()
@@ -27,8 +27,6 @@ func TestSetGitContextAttrs(t *testing.T) {
 	dirty := false
 	for _, kv := range spans[0].Attributes {
 		switch kv.Key {
-		case "gitte.repo":
-			attrs["repo"] = kv.Value.AsString()
 		case "git.branch":
 			attrs["branch"] = kv.Value.AsString()
 		case "git.sha":
@@ -37,7 +35,7 @@ func TestSetGitContextAttrs(t *testing.T) {
 			dirty = kv.Value.AsBool()
 		}
 	}
-	if attrs["repo"] != "group/repo" || attrs["branch"] != "main" || attrs["sha"] != "abc123" || !dirty {
+	if attrs["branch"] != "main" || attrs["sha"] != "abc123" || !dirty {
 		t.Fatalf("attrs = %+v dirty=%v", attrs, dirty)
 	}
 }
