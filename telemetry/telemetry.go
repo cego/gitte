@@ -1,0 +1,130 @@
+// Package telemetry wires OpenTelemetry tracing for gitte and exports spans to
+// an OTLP/HTTP endpoint (e.g. Elastic APM). It is config-driven and degrades to
+// a no-op whenever telemetry is disabled or setup fails, so it never blocks or
+// slows gitte.
+package telemetry
+
+import (
+	"context"
+	"os"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/cego/gitte/config"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
+)
+
+const tracerName = "github.com/cego/gitte"
+
+const flushTimeout = 3 * time.Second
+
+// Resolved is the outcome of resolving telemetry settings from config + env.
+type Resolved struct {
+	Enabled   bool
+	Endpoint  string            // explicit endpoint to export to; empty when UseSDKEnv
+	Headers   map[string]string // export headers (auth, etc.)
+	UseSDKEnv bool              // enable from standard OTEL_* env; let the SDK read its own config
+}
+
+// Resolve computes telemetry settings. Precedence:
+// GITTE_TELEMETRY=off > GITTE_TELEMETRY_URL > config endpoint > OTEL_EXPORTER_OTLP_* env.
+func Resolve(cfg *config.GitteConfig) Resolved {
+	if strings.EqualFold(os.Getenv("GITTE_TELEMETRY"), "off") {
+		return Resolved{}
+	}
+
+	endpoint := os.Getenv("GITTE_TELEMETRY_URL")
+	if endpoint == "" && cfg != nil {
+		endpoint = cfg.Telemetry.Endpoint
+	}
+	if endpoint != "" {
+		headers := map[string]string{}
+		if cfg != nil {
+			for k, v := range cfg.Telemetry.Headers {
+				headers[k] = v
+			}
+		}
+		return Resolved{Enabled: true, Endpoint: endpoint, Headers: headers}
+	}
+
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
+		return Resolved{Enabled: true, UseSDKEnv: true}
+	}
+
+	return Resolved{}
+}
+
+// noopErrorHandler swallows OTEL-internal errors (e.g. export failures) so they
+// never reach the user or interfere with gitte.
+type noopErrorHandler struct{}
+
+func (noopErrorHandler) Handle(error) {}
+
+// Init configures the global tracer provider. The returned shutdown function is
+// always non-nil and safe to call; it flushes pending spans with a bounded
+// timeout. Setup failures degrade to a no-op rather than returning an error.
+func Init(ctx context.Context, cfg *config.GitteConfig, version string) (func(), error) {
+	otel.SetErrorHandler(noopErrorHandler{})
+
+	r := Resolve(cfg)
+	if !r.Enabled {
+		return func() {}, nil
+	}
+
+	var opts []otlptracehttp.Option
+	if !r.UseSDKEnv {
+		opts = append(opts, otlptracehttp.WithEndpointURL(r.Endpoint))
+		if len(r.Headers) > 0 {
+			opts = append(opts, otlptracehttp.WithHeaders(r.Headers))
+		}
+	}
+
+	exporter, err := otlptracehttp.New(ctx, opts...)
+	if err != nil {
+		// Never block gitte: disable telemetry on exporter setup failure.
+		return func() {}, nil
+	}
+
+	res := resource.NewSchemaless(
+		attribute.String("service.name", "gitte"),
+		attribute.String("service.version", version),
+		attribute.String("os.type", runtime.GOOS),
+		attribute.String("os.arch", runtime.GOARCH),
+	)
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+	otel.SetTracerProvider(tp)
+
+	return func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
+		defer cancel()
+		_ = tp.Shutdown(shutdownCtx)
+	}, nil
+}
+
+// Tracer returns gitte's tracer from the global provider (a no-op tracer when
+// telemetry is disabled).
+func Tracer() trace.Tracer {
+	return otel.Tracer(tracerName)
+}
+
+// StartCommandSpan starts the root span for a gitte invocation.
+func StartCommandSpan(ctx context.Context, commandPath string, args []string) (context.Context, trace.Span) {
+	ctx, span := Tracer().Start(ctx, commandPath)
+	span.SetAttributes(
+		attribute.String("gitte.command", commandPath),
+		attribute.StringSlice("gitte.args", args),
+	)
+	return ctx, span
+}
