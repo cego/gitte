@@ -423,8 +423,8 @@ func staleDays(ctx context.Context, dir, defaultBranch string) int {
 	return 0
 }
 
-// setGitContextAttrs records non-PII git context on a span. repo is the repo
-// name/path (never the full remote URL).
+// setGitContextAttrs records git context on a span. repo is the repo name/path
+// (never the full remote URL, which can embed credentials).
 func setGitContextAttrs(span trace.Span, repo, branch, sha string, dirty bool) {
 	span.SetAttributes(
 		attribute.String("gitte.repo", repo),

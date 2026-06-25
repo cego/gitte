@@ -6,7 +6,45 @@ import (
 
 	"github.com/cego/gitte/config"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
+
+func TestResourceAttributes(t *testing.T) {
+	find := func(attrs []attribute.KeyValue, key string) (string, bool) {
+		for _, a := range attrs {
+			if string(a.Key) == key {
+				return a.Value.AsString(), true
+			}
+		}
+		return "", false
+	}
+
+	t.Run("includes username and hostname when resolved", func(t *testing.T) {
+		attrs := resourceAttributes("1.2.3", "alice", "dev-box")
+		if v, _ := find(attrs, "service.name"); v != "gitte" {
+			t.Errorf("service.name = %q, want gitte", v)
+		}
+		if v, _ := find(attrs, "service.version"); v != "1.2.3" {
+			t.Errorf("service.version = %q, want 1.2.3", v)
+		}
+		if v, ok := find(attrs, "user.name"); !ok || v != "alice" {
+			t.Errorf("user.name = %q (present=%v), want alice", v, ok)
+		}
+		if v, ok := find(attrs, "host.name"); !ok || v != "dev-box" {
+			t.Errorf("host.name = %q (present=%v), want dev-box", v, ok)
+		}
+	})
+
+	t.Run("omits username and hostname when empty", func(t *testing.T) {
+		attrs := resourceAttributes("1.2.3", "", "")
+		if _, ok := find(attrs, "user.name"); ok {
+			t.Error("user.name should be omitted when empty")
+		}
+		if _, ok := find(attrs, "host.name"); ok {
+			t.Error("host.name should be omitted when empty")
+		}
+	})
+}
 
 func TestResolve_Precedence(t *testing.T) {
 	// Save and clear env that influences resolution.

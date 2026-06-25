@@ -255,7 +255,7 @@ func taskName(key GroupKey) string {
 	return fmt.Sprintf("%s:%s:%s", key.Project, key.Action, key.Group)
 }
 
-// setActionAttrs records non-PII action context on a span.
+// setActionAttrs records action context on a span.
 func setActionAttrs(span trace.Span, taskName, project, command string) {
 	span.SetAttributes(
 		attribute.String("gitte.task", taskName),

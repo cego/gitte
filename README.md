@@ -176,7 +176,9 @@ See [docs/config.md](./docs/config.md) for the full configuration reference.
 Gitte can export OpenTelemetry traces to an OTLP/HTTP endpoint (e.g. Elastic
 APM) to help debug failures. Traces capture the command run, per-repo git
 context (branch, commit SHA, dirty state), and per-task outcomes with errors.
-No PII is collected (no hostname, OS username, or full remote URLs).
+To identify which developer and machine hit a failure, the OS username
+(`user.name`) and hostname (`host.name`) are attached to every trace. Full
+remote URLs and command environment values are never collected.
 
 Enable it via the shared config:
 

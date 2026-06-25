@@ -7,6 +7,7 @@ package telemetry
 import (
 	"context"
 	"os"
+	"os/user"
 	"runtime"
 	"strings"
 	"time"
@@ -71,6 +72,26 @@ type noopErrorHandler struct{}
 
 func (noopErrorHandler) Handle(error) {}
 
+// resourceAttributes builds the resource attributes attached to every span.
+// username and hostname identify which developer and machine produced the
+// trace (the primary signal for debugging machine-specific failures); both are
+// best-effort and omitted when they cannot be resolved.
+func resourceAttributes(version, username, hostname string) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("service.name", "gitte"),
+		attribute.String("service.version", version),
+		attribute.String("os.type", runtime.GOOS),
+		attribute.String("os.arch", runtime.GOARCH),
+	}
+	if username != "" {
+		attrs = append(attrs, attribute.String("user.name", username))
+	}
+	if hostname != "" {
+		attrs = append(attrs, attribute.String("host.name", hostname))
+	}
+	return attrs
+}
+
 // Init configures the global tracer provider. The returned shutdown function is
 // always non-nil and safe to call; it flushes pending spans with a bounded
 // timeout. Setup failures degrade to a no-op rather than returning an error.
@@ -96,12 +117,12 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) (func(),
 		return func() {}, nil
 	}
 
-	res := resource.NewSchemaless(
-		attribute.String("service.name", "gitte"),
-		attribute.String("service.version", version),
-		attribute.String("os.type", runtime.GOOS),
-		attribute.String("os.arch", runtime.GOARCH),
-	)
+	username := ""
+	if u, uerr := user.Current(); uerr == nil {
+		username = u.Username
+	}
+	hostname, _ := os.Hostname()
+	res := resource.NewSchemaless(resourceAttributes(version, username, hostname)...)
 
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
