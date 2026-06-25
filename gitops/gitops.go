@@ -18,6 +18,11 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
 	"github.com/cego/gitte/output"
+	"github.com/cego/gitte/telemetry"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // parallelLimit returns the effective parallelization cap for gitops clone/pull
@@ -182,10 +187,20 @@ func syncProject(
 	setDetail func(string),
 	addPrompt func(CheckoutPrompt),
 	warnFn func(string),
-) error {
-	localDir, err := config.LocalDirForRemote(proj.Remote)
-	if err != nil {
-		return err
+) (err error) {
+	ctx, span := telemetry.Tracer().Start(ctx, "gitops.sync")
+	span.SetAttributes(attribute.String("gitte.repo", name))
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
+	localDir, lerr := config.LocalDirForRemote(proj.Remote)
+	if lerr != nil {
+		return lerr
 	}
 	projectPath := filepath.Join(cwd, localDir)
 
@@ -245,6 +260,7 @@ func syncProject(
 	if err != nil {
 		return err
 	}
+	setGitContextAttrs(span, name, currentBranch, getHeadSHA(ctx, projectPath), dirty)
 	if dirty {
 		setDetail("skipped")
 		if currentBranch != defaultBranch {
@@ -405,6 +421,26 @@ func staleDays(ctx context.Context, dir, defaultBranch string) int {
 		return days
 	}
 	return 0
+}
+
+// setGitContextAttrs records non-PII git context on a span. repo is the repo
+// name/path (never the full remote URL).
+func setGitContextAttrs(span trace.Span, repo, branch, sha string, dirty bool) {
+	span.SetAttributes(
+		attribute.String("gitte.repo", repo),
+		attribute.String("git.branch", branch),
+		attribute.String("git.sha", sha),
+		attribute.Bool("git.dirty", dirty),
+	)
+}
+
+// getHeadSHA returns the short HEAD commit SHA, or "" if it cannot be determined.
+func getHeadSHA(ctx context.Context, dir string) string {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-parse", "--short", "HEAD")
+	if err != nil || res.ExitCode != 0 {
+		return ""
+	}
+	return strings.TrimSpace(string(res.Stdout))
 }
 
 // ── git helpers ──────────────────────────────────────────────────────────────
