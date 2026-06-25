@@ -19,6 +19,11 @@ import (
 	"github.com/cego/gitte/features"
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/state"
+	"github.com/cego/gitte/telemetry"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // RunActions executes planned action tasks.
@@ -250,6 +255,15 @@ func taskName(key GroupKey) string {
 	return fmt.Sprintf("%s:%s:%s", key.Project, key.Action, key.Group)
 }
 
+// setActionAttrs records non-PII action context on a span.
+func setActionAttrs(span trace.Span, taskName, project, command string) {
+	span.SetAttributes(
+		attribute.String("gitte.task", taskName),
+		attribute.String("gitte.project", project),
+		attribute.String("gitte.command", command),
+	)
+}
+
 func runGroupTask(
 	ctx context.Context,
 	cfg *config.GitteConfig,
@@ -261,7 +275,17 @@ func runGroupTask(
 	cmds []string,
 	searchFors []config.SearchFor,
 	handler executor.OutputHandler,
-) error {
+) (err error) {
+	ctx, span := telemetry.Tracer().Start(ctx, "action.run")
+	setActionAttrs(span, taskName, projName, strings.Join(cmds, " "))
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
 	if len(cmds) == 0 {
 		return fmt.Errorf("empty command for task %s", taskName)
 	}
@@ -290,6 +314,8 @@ func runGroupTask(
 	if err != nil {
 		return err
 	}
+
+	span.SetAttributes(attribute.Int("gitte.exit_code", res.ExitCode))
 
 	if res.ExitCode != 0 {
 		return fmt.Errorf("command exited with code %d", res.ExitCode)
