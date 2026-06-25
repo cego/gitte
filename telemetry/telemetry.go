@@ -45,6 +45,10 @@ func Resolve(cfg *config.GitteConfig) Resolved {
 		endpoint = cfg.Telemetry.Endpoint
 	}
 	if endpoint != "" {
+		// Headers always come from config, even when GITTE_TELEMETRY_URL overrides
+		// the endpoint. This is a known v1 limitation: if you need different headers
+		// for an override endpoint, use the standard OTEL_EXPORTER_OTLP_* env path
+		// instead (which lets the SDK read its own config independently).
 		headers := map[string]string{}
 		if cfg != nil {
 			for k, v := range cfg.Telemetry.Headers {

@@ -2,10 +2,10 @@ package telemetry
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/cego/gitte/config"
+	"go.opentelemetry.io/otel"
 )
 
 func TestResolve_Precedence(t *testing.T) {
@@ -41,6 +41,9 @@ func TestResolve_Precedence(t *testing.T) {
 		if r.Endpoint != "https://override:8200" {
 			t.Fatalf("got %+v", r)
 		}
+		if !r.Enabled {
+			t.Fatalf("expected Enabled=true when GITTE_TELEMETRY_URL is set, got %+v", r)
+		}
 	})
 
 	t.Run("GITTE_TELEMETRY=off disables everything", func(t *testing.T) {
@@ -73,9 +76,30 @@ func TestInit_DisabledReturnsNoopShutdown(t *testing.T) {
 	shutdown() // must not panic
 }
 
+func TestInit_EnabledReturnsCallableShutdown(t *testing.T) {
+	// Verify that Init with a valid endpoint returns a non-nil shutdown function
+	// that can be called without panicking or hanging (bounded 3s flush).
+	// Note: otlptracehttp.New is lazy — it accepts any URL including unreachable
+	// endpoints without error, so Init succeeds and returns a real shutdown.
+	// The exporter-error branch (where New returns an error and Init falls back to
+	// no-op) cannot be triggered deterministically with the HTTP exporter; the SDK
+	// silently swallows malformed URLs and connection errors at export time.
+	t.Setenv("GITTE_TELEMETRY", "")
+	prev := otel.GetTracerProvider()
+	t.Cleanup(func() { otel.SetTracerProvider(prev) })
+	cfg := &config.GitteConfig{Telemetry: config.TelemetryConfig{Endpoint: "http://localhost:4318"}}
+	shutdown, err := Init(context.Background(), cfg, "test")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if shutdown == nil {
+		t.Fatal("shutdown must never be nil on the enabled path")
+	}
+	shutdown() // must not panic or hang beyond the 3s flush timeout
+}
+
 func TestStartCommandSpan_NoProviderDoesNotPanic(t *testing.T) {
 	// With no provider set, Tracer() returns a no-op tracer; span ops are safe.
 	_, span := StartCommandSpan(context.Background(), "gitte run", []string{"up"})
 	span.End()
-	_ = os.Getenv // keep import
 }
