@@ -16,6 +16,7 @@ Gitte keeps all your repos in sync, runs startup checks to verify your local mac
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [Environment variables](#environment-variables)
+- [Telemetry](#telemetry)
 - [Global flags](#global-flags)
 - [State and override files](#state-and-override-files)
 
@@ -167,6 +168,36 @@ See [docs/config.md](./docs/config.md) for the full configuration reference.
 | `GITTE_NO_NEEDS` | `0` | Set to `1` to ignore `needs` dependencies |
 | `GITTE_NO_REBASE` | `false` | Set to `true` to skip auto-rebase onto default branch |
 | `GITTE_MAX_TASK_PARALLELIZATION` | unlimited | Cap the number of concurrent tasks |
+
+---
+
+## Telemetry
+
+Gitte can export OpenTelemetry traces to an OTLP/HTTP endpoint (e.g. Elastic
+APM) to help debug failures. Traces capture the command run, per-repo git
+context (branch, commit SHA, dirty state), and per-task outcomes with errors.
+No PII is collected (no hostname, OS username, or full remote URLs).
+
+Enable it via the shared config:
+
+```yaml
+telemetry:
+  endpoint: https://apm.example.com:8200
+  headers:
+    Authorization: "Bearer <secret-token>"   # or: "ApiKey <base64-key>"
+```
+
+Environment variables:
+
+| Variable | Effect |
+|---|---|
+| `GITTE_TELEMETRY=off` | Disable telemetry locally (kill-switch) |
+| `GITTE_TELEMETRY_URL` | Override the endpoint |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` | Standard OTEL env vars, honored as a fallback when no gitte endpoint is set |
+
+Precedence: `GITTE_TELEMETRY=off` > `GITTE_TELEMETRY_URL` > config endpoint >
+`OTEL_EXPORTER_OTLP_*`. Telemetry is best-effort and never blocks or slows
+gitte; export failures are silently ignored.
 
 ---
 
