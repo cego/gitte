@@ -13,9 +13,12 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/state"
+	"github.com/cego/gitte/telemetry"
 
 	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -32,6 +35,9 @@ var (
 	globalCwd    string
 	globalCtx    context.Context
 	globalCancel context.CancelFunc
+
+	globalTelemetryShutdown func()
+	globalRootSpan          trace.Span
 )
 
 // rootCmd is the base command
@@ -54,7 +60,16 @@ with dependency resolution.`,
 		if cmd.Name() == "__complete" || cmd.Name() == "__completeNoDesc" {
 			return nil
 		}
-		return err
+		if err != nil {
+			return err
+		}
+
+		// Telemetry: best-effort, never blocks. Stores root span context in globalCtx
+		// so it propagates through the executor into gitops/actions leaf spans.
+		shutdown, _ := telemetry.Init(globalCtx, globalCfg, cmd.Root().Version)
+		globalTelemetryShutdown = shutdown
+		globalCtx, globalRootSpan = telemetry.StartCommandSpan(globalCtx, cmd.CommandPath(), args)
+		return nil
 	},
 }
 
@@ -73,6 +88,7 @@ func Execute() {
 		}
 	}()
 	err := rootCmd.Execute()
+	finishTelemetry(err)
 	if err != nil {
 		if output.DetectMode(flagNoTTY) == output.ModePlain {
 			fmt.Fprintln(os.Stderr, "error:", err)
@@ -80,6 +96,23 @@ func Execute() {
 			fmt.Fprintln(os.Stderr, errorStyle.Render("error:")+" "+err.Error())
 		}
 		os.Exit(1)
+	}
+}
+
+// finishTelemetry records the final command status on the root span and flushes
+// pending spans. Safe to call when telemetry is disabled (handles are nil).
+func finishTelemetry(err error) {
+	if globalRootSpan != nil {
+		if err != nil {
+			globalRootSpan.RecordError(err)
+			globalRootSpan.SetStatus(codes.Error, err.Error())
+		} else {
+			globalRootSpan.SetStatus(codes.Ok, "")
+		}
+		globalRootSpan.End()
+	}
+	if globalTelemetryShutdown != nil {
+		globalTelemetryShutdown()
 	}
 }
 
