@@ -39,6 +39,14 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	infos := buildTaskInfos(cfg, st, cwd, keys)
 	view := newView(mode, infos, actionOrder, runCancel, retryCh, cfg.QuickSolve.GitClean.Exclude)
 
+	tracker := telemetry.NewActionTracker(ctx)
+	reg := telemetry.NewSpanRegistry()
+
+	onStart := func(name string) {
+		tracker.OnStart(name)
+		view.OnStart(name)
+	}
+
 	// Track per-task outcomes so retry runs can pre-complete tasks that already finished.
 	outcomes := newTaskOutcomes()
 	onFinish := func(name string, err error, elapsed time.Duration) {
@@ -50,6 +58,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			outcomes.set(name, outcomeFailed)
 		}
 		view.OnFinish(name, err, elapsed)
+		tracker.OnFinish(name)
 	}
 
 	maxParallel := envMaxParallel
@@ -63,7 +72,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	var retrySet map[string]struct{} // nil on first run
 	var runErr error
 	for {
-		tasks := buildExecutorTasks(cfg, st, cwd, keys)
+		tasks := buildExecutorTasks(cfg, st, cwd, keys, tracker, reg)
 
 		// Strip needs from explicitly retried tasks so they run immediately.
 		if retrySet != nil {
@@ -76,7 +85,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 
 		exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
 			MaxParallelization: maxParallel,
-			OnTaskStart:        view.OnStart,
+			OnTaskStart:        onStart,
 			OnTaskReset:        view.OnReset,
 			OnTaskFinish:       onFinish,
 		})
@@ -105,7 +114,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			exec.WithPreCompleted(succeeded, failed)
 		}
 
-		exec.WithOutputHandler(view.Handler())
+		exec.WithOutputHandler(telemetry.LogOutputHandler(view.Handler(), reg))
 		exec.WithRetryChannel(retryCh)
 
 		runErr = exec.Execute(runCtx)
@@ -199,7 +208,7 @@ func buildTaskInfos(cfg *config.GitteConfig, st *state.GitteState, cwd string, k
 }
 
 // buildExecutorTasks constructs executor.Task list from keys.
-func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps) []executor.Task {
+func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps, tracker *telemetry.ActionTracker, reg *telemetry.SpanRegistry) []executor.Task {
 	tasks := make([]executor.Task, 0, len(keys))
 	searchFors := cfg.SearchFor
 
@@ -244,7 +253,7 @@ func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd strin
 			Needs: needNames,
 			Retry: retryConfig,
 			ExecuteFn: func(ctx context.Context, tName string, handler executor.OutputHandler) error {
-				return runGroupTask(ctx, cfg, st, cwd, proj, key.Project, tName, cmds, allSearchFors, handler)
+				return runGroupTask(ctx, cfg, st, cwd, proj, key.Project, tName, cmds, allSearchFors, handler, tracker, reg)
 			},
 		})
 	}
@@ -275,8 +284,12 @@ func runGroupTask(
 	cmds []string,
 	searchFors []config.SearchFor,
 	handler executor.OutputHandler,
+	tracker *telemetry.ActionTracker,
+	reg *telemetry.SpanRegistry,
 ) (err error) {
-	ctx, span := telemetry.Tracer().Start(ctx, "action.run")
+	actionCtx := tracker.ActionContext(telemetry.ActionOf(taskName))
+	ctx, span := telemetry.Tracer().Start(actionCtx, "action.run")
+	reg.Set(taskName, span.SpanContext())
 	setActionAttrs(span, taskName, projName, strings.Join(cmds, " "))
 	defer func() {
 		if err != nil {
@@ -284,6 +297,7 @@ func runGroupTask(
 			span.SetStatus(codes.Error, err.Error())
 		}
 		span.End()
+		reg.Delete(taskName)
 	}()
 
 	if len(cmds) == 0 {
