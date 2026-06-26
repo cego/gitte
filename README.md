@@ -185,6 +185,16 @@ point). Keep secrets out of action command definitions and CLI arguments; pass
 them through environment variables, which are **not** exported. Full remote
 URLs are never collected either (repos are identified by name only).
 
+Each `gitte run` produces a structured trace: a root span with child spans for
+each phase (`startup`, `gitops`, `actions`), a span per startup check, a span
+per action (e.g. `build`, `up`) parenting its task spans, and a span per repo
+sync. Action and startup command output is also shipped as **OTEL logs**,
+correlated to the span that produced each line (stdout → INFO, stderr → WARN).
+
+Logs are enabled with tracing; set `GITTE_TELEMETRY_LOGS=off` to keep traces but
+disable the (higher-volume) log export. Keep secrets out of command output —
+log lines are exported verbatim.
+
 Enable it via the shared config:
 
 ```yaml
@@ -200,6 +210,7 @@ Environment variables:
 |---|---|
 | `GITTE_TELEMETRY=off` | Disable telemetry locally (kill-switch) |
 | `GITTE_TELEMETRY_URL` | Override the endpoint |
+| `GITTE_TELEMETRY_LOGS=off` | Disable OTEL log export (keep traces) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` | Standard OTEL env vars, honored as a fallback when no gitte endpoint is set |
 
 Precedence: `GITTE_TELEMETRY=off` > `GITTE_TELEMETRY_URL` > config endpoint >
