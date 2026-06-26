@@ -291,6 +291,9 @@ func runGroupTask(
 	ctx, span := telemetry.Tracer().Start(actionCtx, "action.run "+taskName)
 	reg.Set(taskName, span.SpanContext())
 	setActionAttrs(span, taskName, projName, strings.Join(cmds, " "))
+	if feats := enabledFeaturesForProject(cfg, st, projName, proj); len(feats) > 0 {
+		span.SetAttributes(attribute.StringSlice("gitte.features", feats))
+	}
 	defer func() {
 		if err != nil {
 			span.RecordError(err)
@@ -388,13 +391,15 @@ func emitTaskPreamble(
 	}
 }
 
-// extraEnvForProject returns the env vars injected by feature gates for a project.
-func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) map[string]string {
+// enabledFeaturesForProject returns the sorted names of feature gates that are
+// enabled and in scope for the given project (the gates that actually inject
+// env into the project's tasks).
+func enabledFeaturesForProject(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) []string {
 	if st == nil || cfg.FeatureGates == nil {
 		return nil
 	}
 
-	extra := make(map[string]string)
+	var names []string
 	for gateName, gate := range cfg.FeatureGates {
 		fs, enabled := st.Features[gateName]
 		if !enabled || !fs.Enabled {
@@ -417,16 +422,28 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName 
 			}
 		}
 
+		names = append(names, gateName)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// extraEnvForProject returns the env vars injected by feature gates for a project.
+func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) map[string]string {
+	gates := enabledFeaturesForProject(cfg, st, projName, proj)
+	if len(gates) == 0 {
+		return nil
+	}
+
+	extra := make(map[string]string)
+	for _, gateName := range gates {
+		gate := cfg.FeatureGates[gateName]
 		for k, v := range gate.Effects.Env {
 			extra[k] = v
 		}
 		for k, v := range config.ResolveEnvWhen(gate.Effects.EnvWhen, runtime.GOARCH) {
 			extra[k] = v
 		}
-	}
-
-	if len(extra) == 0 {
-		return nil
 	}
 	return extra
 }
