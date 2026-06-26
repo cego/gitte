@@ -9,6 +9,9 @@ import (
 
 	"github.com/cego/gitte/gitops"
 	"github.com/cego/gitte/output"
+	"github.com/cego/gitte/telemetry"
+
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/spf13/cobra"
 )
@@ -41,17 +44,25 @@ SSH concurrency:
   Discovery clone/pull runs at most 8 SSH connections in parallel to avoid
   overwhelming the server. Override with GITTE_MAX_TASK_PARALLELIZATION=N.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, span := telemetry.StartPhaseSpan(globalCtx, "gitops")
+			defer span.End()
 			mode := outputMode()
 			warnings, addWarning := newWarnCollector()
 			if discover {
-				if err := gitops.Discover(globalCtx, globalCfg, globalCwd, mode, addWarning); err != nil {
+				if err := gitops.Discover(ctx, globalCfg, globalCwd, mode, addWarning); err != nil {
 					gitops.PrintWarnings(mode, warnings())
+					span.RecordError(err)
+					span.SetStatus(codes.Error, err.Error())
 					return err
 				}
 			}
 			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
-			err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode), addWarning)
+			err := gitops.Sync(ctx, globalCfg, globalCwd, mode, nr, makePromptFn(mode), addWarning)
 			gitops.PrintWarnings(mode, warnings())
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
 			return err
 		},
 	}

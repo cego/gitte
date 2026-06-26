@@ -4,6 +4,9 @@ import (
 	"fmt"
 
 	"github.com/cego/gitte/actions"
+	"github.com/cego/gitte/telemetry"
+
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/spf13/cobra"
 )
@@ -38,7 +41,14 @@ func runActions(args []string) error {
 			args[0], actionStr, projectStr, groupStr)
 	}
 
-	return actions.RunActions(globalCtx, globalCfg, globalSt, globalCwd, outputMode(), keys, actionOrder, maxParallelization())
+	ctx, span := telemetry.StartPhaseSpan(globalCtx, "actions")
+	defer span.End()
+	err := actions.RunActions(ctx, globalCfg, globalSt, globalCwd, outputMode(), keys, actionOrder, maxParallelization())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
 }
 
 // parseActionArgs maps positional CLI args to (actionStr, groupStr, projectStr).

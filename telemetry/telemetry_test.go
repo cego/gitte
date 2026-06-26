@@ -135,3 +135,14 @@ func TestStartCommandSpan_NoProviderDoesNotPanic(t *testing.T) {
 	_, span := StartCommandSpan(context.Background(), "gitte run", []string{"up"})
 	span.End()
 }
+
+func TestStartPhaseSpan_ReturnsChildContext(t *testing.T) {
+	ctx, span := StartPhaseSpan(context.Background(), "startup")
+	if span == nil {
+		t.Fatal("nil span")
+	}
+	if ctx == context.Background() {
+		t.Fatal("expected a derived context")
+	}
+	span.End()
+}

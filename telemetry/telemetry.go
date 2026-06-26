@@ -195,6 +195,12 @@ func Tracer() trace.Tracer {
 	return otel.Tracer(tracerName)
 }
 
+// StartPhaseSpan starts a span for a gitte run phase (startup/gitops/actions)
+// and returns the derived context to thread into that phase's work.
+func StartPhaseSpan(ctx context.Context, phase string) (context.Context, trace.Span) {
+	return Tracer().Start(ctx, phase)
+}
+
 // StartCommandSpan starts the root span for a gitte invocation.
 func StartCommandSpan(ctx context.Context, commandPath string, args []string) (context.Context, trace.Span) {
 	ctx, span := Tracer().Start(ctx, commandPath)
