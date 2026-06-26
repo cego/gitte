@@ -6,6 +6,7 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/user"
 	"runtime"
@@ -75,6 +76,16 @@ type noopErrorHandler struct{}
 
 func (noopErrorHandler) Handle(error) {}
 
+// debugErrorHandler logs OTEL-internal errors to stderr. Enabled via
+// GITTE_TELEMETRY_DEBUG so export failures (auth, redirects, connectivity) are
+// visible when diagnosing why traces aren't arriving — otherwise they are
+// silently swallowed.
+type debugErrorHandler struct{}
+
+func (debugErrorHandler) Handle(err error) {
+	fmt.Fprintf(os.Stderr, "[telemetry] %v\n", err)
+}
+
 // resourceAttributes builds the resource attributes attached to every span.
 // username and hostname identify which developer and machine produced the
 // trace (the primary signal for debugging machine-specific failures); both are
@@ -106,7 +117,12 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 	}
 
 	// Only mutate process-wide OTEL state once telemetry is known to be enabled.
-	otel.SetErrorHandler(noopErrorHandler{})
+	// GITTE_TELEMETRY_DEBUG surfaces export errors to stderr for diagnostics.
+	if os.Getenv("GITTE_TELEMETRY_DEBUG") != "" {
+		otel.SetErrorHandler(debugErrorHandler{})
+	} else {
+		otel.SetErrorHandler(noopErrorHandler{})
+	}
 
 	var opts []otlptracehttp.Option
 	if !r.UseSDKEnv {
