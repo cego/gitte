@@ -17,6 +17,7 @@ type ActionTracker struct {
 	spans    map[string]trace.Span      // action -> span
 	ctxs     map[string]context.Context // action -> span context
 	active   map[string]int             // action -> live task count
+	started  map[string]struct{}        // tasks that have called OnStart
 }
 
 // NewActionTracker creates a tracker rooted at the actions phase context.
@@ -26,6 +27,7 @@ func NewActionTracker(phaseCtx context.Context) *ActionTracker {
 		spans:    map[string]trace.Span{},
 		ctxs:     map[string]context.Context{},
 		active:   map[string]int{},
+		started:  map[string]struct{}{},
 	}
 }
 
@@ -48,14 +50,21 @@ func (t *ActionTracker) OnStart(taskName string) {
 		t.spans[action] = span
 		t.ctxs[action] = ctx
 	}
+	t.started[taskName] = struct{}{}
 	t.active[action]++
 }
 
 // OnFinish decrements the live-task count and ends the action span at zero.
+// If the task never called OnStart (e.g. it was skipped due to a failed
+// dependency), this is a no-op to avoid corrupting the active count.
 func (t *ActionTracker) OnFinish(taskName string) {
-	action := ActionOf(taskName)
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if _, ok := t.started[taskName]; !ok {
+		return // skipped task — no matching OnStart, nothing to do
+	}
+	delete(t.started, taskName)
+	action := ActionOf(taskName)
 	t.active[action]--
 	if t.active[action] <= 0 {
 		if span, ok := t.spans[action]; ok {
