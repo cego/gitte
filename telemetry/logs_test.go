@@ -174,3 +174,17 @@ func TestLogOutputHandler_HintAttribute(t *testing.T) {
 		t.Errorf("gitte.hint = %v; want true", hintVal)
 	}
 }
+
+func TestLogsEndpointURL(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"https://apm.example.com", "https://apm.example.com/v1/logs"},
+		{"https://apm.example.com/", "https://apm.example.com/v1/logs"},
+		{"https://apm.example.com:8200", "https://apm.example.com:8200/v1/logs"},
+		{"https://apm.example.com/custom/logs", "https://apm.example.com/custom/logs"},
+	}
+	for _, c := range cases {
+		if got := logsEndpointURL(c.in); got != c.want {
+			t.Errorf("logsEndpointURL(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

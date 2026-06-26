@@ -7,6 +7,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/user"
 	"runtime"
@@ -159,7 +160,7 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 	if logsEnabled() {
 		var logOpts []otlplog.Option
 		if !r.UseSDKEnv {
-			logOpts = append(logOpts, otlplog.WithEndpointURL(r.Endpoint))
+			logOpts = append(logOpts, otlplog.WithEndpointURL(logsEndpointURL(r.Endpoint)))
 			if len(r.Headers) > 0 {
 				logOpts = append(logOpts, otlplog.WithHeaders(r.Headers))
 			}
@@ -187,6 +188,20 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 // unless GITTE_TELEMETRY_LOGS=off).
 func logsEnabled() bool {
 	return !strings.EqualFold(os.Getenv("GITTE_TELEMETRY_LOGS"), "off")
+}
+
+// logsEndpointURL returns the OTLP/HTTP logs endpoint for a configured base
+// endpoint. otlploghttp.WithEndpointURL uses the URL's path verbatim, so a
+// path-less endpoint (e.g. "https://apm.example.com") would POST to the server
+// root and be rejected. When the endpoint has no path we append the standard
+// "/v1/logs" intake path (matching how the traces exporter targets
+// "/v1/traces"); an endpoint that already carries a path is left untouched.
+func logsEndpointURL(endpoint string) string {
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Path == "" || u.Path == "/" {
+		return strings.TrimRight(endpoint, "/") + "/v1/logs"
+	}
+	return endpoint
 }
 
 // Tracer returns gitte's tracer from the global provider (a no-op tracer when
