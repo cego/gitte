@@ -9,6 +9,9 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
 	"github.com/cego/gitte/output"
+	"github.com/cego/gitte/telemetry"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Run executes all startup checks and streams status to stdout.
@@ -21,6 +24,7 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	reg := telemetry.NewSpanRegistry()
 	tasks := make([]executor.Task, 0, len(cfg.StartupChecks))
 	for name, check := range cfg.StartupChecks {
 		name := name
@@ -28,13 +32,23 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 		tasks = append(tasks, executor.Task{
 			Name:  name,
 			Needs: check.GetNeeds(),
-			ExecuteFn: func(ctx context.Context, taskName string, handler executor.OutputHandler) error {
-				if err := check.Check(ctx, cwd); err != nil {
+			ExecuteFn: func(ctx context.Context, taskName string, handler executor.OutputHandler) (err error) {
+				ctx, span := startCheckSpan(ctx, taskName)
+				reg.Set(taskName, span.SpanContext())
+				defer func() {
+					if err != nil {
+						span.RecordError(err)
+						span.SetStatus(codes.Error, err.Error())
+					}
+					span.End()
+					reg.Delete(taskName)
+				}()
+				if cerr := check.Check(ctx, cwd); cerr != nil {
 					hint := check.GetHint()
 					if hint != "" {
-						return fmt.Errorf("%s\nhint: %s", err.Error(), hint)
+						return fmt.Errorf("%s\nhint: %s", cerr.Error(), hint)
 					}
-					return err
+					return cerr
 				}
 				return nil
 			},
@@ -51,6 +65,7 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	if err != nil {
 		return fmt.Errorf("startup checks have invalid dependencies: %w", err)
 	}
+	exec.WithOutputHandler(telemetry.LogOutputHandler(executor.NoopOutputHandler{}, reg))
 
 	runErr := exec.Execute(ctx)
 	view.Wait()
@@ -60,6 +75,11 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 		return errors.New("startup checks failed")
 	}
 	return runErr
+}
+
+// startCheckSpan opens a span for a single startup check.
+func startCheckSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	return telemetry.Tracer().Start(ctx, "startup.check "+name)
 }
 
 // newView picks the right view implementation based on output mode.
