@@ -294,6 +294,18 @@ func runGroupTask(
 	if feats := enabledFeaturesForProject(cfg, st, projName, proj); len(feats) > 0 {
 		span.SetAttributes(attribute.StringSlice("gitte.features", feats))
 	}
+	if env := injectedEnv(cfg, st, projName, proj); len(env) > 0 {
+		keys := make([]string, 0, len(env))
+		for k := range env {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		kvs := make([]string, 0, len(keys))
+		for _, k := range keys {
+			kvs = append(kvs, k+"="+env[k])
+		}
+		span.SetAttributes(attribute.StringSlice("gitte.env", kvs))
+	}
 	defer func() {
 		if err != nil {
 			span.RecordError(err)
@@ -367,16 +379,7 @@ func emitTaskPreamble(
 	emit("  cmd: " + strings.Join(cmds, " "))
 
 	// Collect only the vars gitte injects (not all of os.Environ).
-	injected := make(map[string]string)
-	for k, v := range proj.Env {
-		injected[k] = v
-	}
-	for k, v := range config.ResolveEnvWhen(proj.EnvWhen, runtime.GOARCH) {
-		injected[k] = v
-	}
-	for k, v := range extraEnvForProject(cfg, st, projName, proj) {
-		injected[k] = v
-	}
+	injected := injectedEnv(cfg, st, projName, proj)
 	if len(injected) > 0 {
 		keys := make([]string, 0, len(injected))
 		for k := range injected {
@@ -389,6 +392,23 @@ func emitTaskPreamble(
 		}
 		emit("  env: " + strings.Join(parts, " "))
 	}
+}
+
+// injectedEnv returns the env vars gitte injects for a project's task — project
+// env, arch-conditional env_when, and enabled feature-gate env — excluding the
+// inherited process environment (os.Environ).
+func injectedEnv(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) map[string]string {
+	injected := make(map[string]string)
+	for k, v := range proj.Env {
+		injected[k] = v
+	}
+	for k, v := range config.ResolveEnvWhen(proj.EnvWhen, runtime.GOARCH) {
+		injected[k] = v
+	}
+	for k, v := range extraEnvForProject(cfg, st, projName, proj) {
+		injected[k] = v
+	}
+	return injected
 }
 
 // enabledFeaturesForProject returns the sorted names of feature gates that are

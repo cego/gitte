@@ -29,3 +29,20 @@ func TestEnabledFeaturesForProject(t *testing.T) {
 		t.Fatalf("enabledFeaturesForProject = %v, want %v", got, want)
 	}
 }
+
+func TestInjectedEnv(t *testing.T) {
+	cfg := &config.GitteConfig{
+		FeatureGates: map[string]config.FeatureGate{
+			"feat-on": {Effects: config.FeatureEffects{Env: map[string]string{"FEAT_VAR": "1"}}},
+		},
+	}
+	st := &state.GitteState{Features: map[string]state.FeatureState{"feat-on": {Enabled: true}}}
+	proj := config.ProjectConfig{
+		Remote: "git@github.com:example/myproj.git",
+		Env:    map[string]string{"PROJ_VAR": "x"},
+	}
+	got := injectedEnv(cfg, st, "myproj", proj)
+	if got["PROJ_VAR"] != "x" || got["FEAT_VAR"] != "1" {
+		t.Fatalf("injectedEnv = %v, want PROJ_VAR=x and FEAT_VAR=1", got)
+	}
+}
