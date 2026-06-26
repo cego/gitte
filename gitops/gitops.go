@@ -188,7 +188,7 @@ func syncProject(
 	addPrompt func(CheckoutPrompt),
 	warnFn func(string),
 ) (err error) {
-	ctx, span := telemetry.Tracer().Start(ctx, "gitops.sync")
+	ctx, span := telemetry.Tracer().Start(ctx, "gitops.sync "+name)
 	span.SetAttributes(attribute.String("gitte.repo", name))
 	defer func() {
 		if err != nil {

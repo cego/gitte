@@ -288,7 +288,7 @@ func runGroupTask(
 	reg *telemetry.SpanRegistry,
 ) (err error) {
 	actionCtx := tracker.ActionContext(telemetry.ActionOf(taskName))
-	ctx, span := telemetry.Tracer().Start(actionCtx, "action.run")
+	ctx, span := telemetry.Tracer().Start(actionCtx, "action.run "+taskName)
 	reg.Set(taskName, span.SpanContext())
 	setActionAttrs(span, taskName, projName, strings.Join(cmds, " "))
 	defer func() {
