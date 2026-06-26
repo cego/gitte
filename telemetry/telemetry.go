@@ -17,8 +17,11 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	otlplog "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otellog "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/sdk/resource"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -152,11 +155,38 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 	)
 	otel.SetTracerProvider(tp)
 
+	var lp *sdklog.LoggerProvider
+	if logsEnabled() {
+		var logOpts []otlplog.Option
+		if !r.UseSDKEnv {
+			logOpts = append(logOpts, otlplog.WithEndpointURL(r.Endpoint))
+			if len(r.Headers) > 0 {
+				logOpts = append(logOpts, otlplog.WithHeaders(r.Headers))
+			}
+		}
+		if logExp, lerr := otlplog.New(ctx, logOpts...); lerr == nil {
+			lp = sdklog.NewLoggerProvider(
+				sdklog.WithResource(res),
+				sdklog.WithProcessor(sdklog.NewBatchProcessor(logExp)),
+			)
+			otellog.SetLoggerProvider(lp)
+		}
+	}
+
 	return func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 		defer cancel()
 		_ = tp.Shutdown(shutdownCtx)
+		if lp != nil {
+			_ = lp.Shutdown(shutdownCtx)
+		}
 	}
+}
+
+// logsEnabled reports whether OTEL logs should be exported (enabled with tracing
+// unless GITTE_TELEMETRY_LOGS=off).
+func logsEnabled() bool {
+	return !strings.EqualFold(os.Getenv("GITTE_TELEMETRY_LOGS"), "off")
 }
 
 // Tracer returns gitte's tracer from the global provider (a no-op tracer when
