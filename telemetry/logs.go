@@ -24,12 +24,14 @@ func NewSpanRegistry() *SpanRegistry {
 	return &SpanRegistry{m: make(map[string]trace.SpanContext)}
 }
 
+// Set stores the SpanContext sc for task, overwriting any existing entry.
 func (r *SpanRegistry) Set(task string, sc trace.SpanContext) {
 	r.mu.Lock()
 	r.m[task] = sc
 	r.mu.Unlock()
 }
 
+// Get returns the SpanContext stored for task and whether it was found.
 func (r *SpanRegistry) Get(task string) (trace.SpanContext, bool) {
 	r.mu.RLock()
 	sc, ok := r.m[task]
@@ -37,6 +39,7 @@ func (r *SpanRegistry) Get(task string) (trace.SpanContext, bool) {
 	return sc, ok
 }
 
+// Delete removes the entry for task from the registry.
 func (r *SpanRegistry) Delete(task string) {
 	r.mu.Lock()
 	delete(r.m, task)
@@ -47,6 +50,7 @@ func (r *SpanRegistry) Delete(task string) {
 type logHandler struct {
 	inner executor.OutputHandler
 	reg   *SpanRegistry
+	once  sync.Once
 	lgr   log.Logger
 }
 
@@ -54,12 +58,22 @@ type logHandler struct {
 // OTEL log record correlated (via reg) to the span for output.CmdName. When
 // logs are disabled the global logger provider is a no-op, so this is safe and
 // cheap; output is always forwarded to inner unchanged.
+//
+// The logger is resolved lazily on first use so that callers constructed before
+// telemetry.Init registers the real LoggerProvider still pick up the live
+// provider.
 func LogOutputHandler(inner executor.OutputHandler, reg *SpanRegistry) executor.OutputHandler {
 	return &logHandler{
 		inner: inner,
 		reg:   reg,
-		lgr:   global.GetLoggerProvider().Logger("github.com/cego/gitte"),
 	}
+}
+
+func (h *logHandler) logger() log.Logger {
+	h.once.Do(func() {
+		h.lgr = global.GetLoggerProvider().Logger("github.com/cego/gitte")
+	})
+	return h.lgr
 }
 
 func (h *logHandler) HandleOutput(ctx context.Context, out executor.Output) error {
@@ -87,5 +101,5 @@ func (h *logHandler) emit(ctx context.Context, out executor.Output) {
 	if sc, ok := h.reg.Get(out.CmdName); ok && sc.IsValid() {
 		emitCtx = trace.ContextWithSpanContext(ctx, sc)
 	}
-	h.lgr.Emit(emitCtx, rec)
+	h.logger().Emit(emitCtx, rec)
 }
