@@ -426,7 +426,7 @@ telemetry:
 
 Each invocation produces one trace: a root span for the command, child spans for each repo sync (branch, commit SHA, dirty flag) and each action task (command, exit code), with errors recorded on the relevant span. The OS username (`user.name`) and hostname (`host.name`) are attached to every trace to identify which developer and machine produced it.
 
-The gitte CLI arguments and each action's command line are exported as span attributes. Keep secrets out of action command definitions and CLI arguments — pass them via environment variables, which are not exported. Full remote URLs are never collected (repos are identified by name only).
+The gitte CLI arguments and each action's command line are exported as span attributes. gitte's injected environment — a project's `env`, `env_when`, and feature-gate env — is also exported (the `gitte.env` span attribute and the task logs); the inherited process environment (`os.Environ`) is not. Keep secrets out of action command definitions, CLI arguments, and config `env`/feature-gate blocks — pass real secrets through the process environment instead. Full remote URLs are never collected (repos are identified by name only).
 
 Environment variables override or disable telemetry:
 

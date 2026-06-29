@@ -181,9 +181,13 @@ developer and machine hit a failure, the OS username (`user.name`) and hostname
 
 **What is recorded:** the gitte CLI arguments and each action's command line are
 exported as span attributes (this is intentional — knowing what ran is the
-point). Keep secrets out of action command definitions and CLI arguments; pass
-them through environment variables, which are **not** exported. Full remote
-URLs are never collected either (repos are identified by name only).
+point). Note that gitte's **injected** environment — a project's `env`,
+`env_when`, and feature-gate env — is also exported on task spans (the
+`gitte.env` attribute) and in the task logs; the inherited **process**
+environment (everything in `os.Environ`) is **not**. So keep secrets out of
+action command definitions, CLI arguments, and config `env`/feature-gate blocks
+— pass real secrets through the process environment instead. Full remote URLs
+are never collected either (repos are identified by name only).
 
 Each `gitte run` produces a structured trace: a root span with child spans for
 each phase (`startup`, `gitops`, `actions`), a span per startup check, a span
