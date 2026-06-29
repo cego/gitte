@@ -347,10 +347,34 @@ func runGroupTask(
 	span.SetAttributes(attribute.Int("gitte.exit_code", res.ExitCode))
 
 	if res.ExitCode != 0 {
+		if tail := outputTail(res.Stderr, res.Stdout); tail != "" {
+			span.SetAttributes(attribute.String("gitte.error_tail", tail))
+		}
 		return fmt.Errorf("command exited with code %d", res.ExitCode)
 	}
 
 	return nil
+}
+
+// errorTailBytes caps how much trailing command output is attached to a failed
+// task span via the gitte.error_tail attribute.
+const errorTailBytes = 4096
+
+// outputTail returns the last errorTailBytes of a failed command's output for
+// the gitte.error_tail span attribute — stderr preferred, falling back to
+// stdout (tools like gitlab-ci-local print their failures to stdout).
+func outputTail(stderr, stdout []byte) string {
+	if tail := tailString(stderr); tail != "" {
+		return tail
+	}
+	return tailString(stdout)
+}
+
+func tailString(b []byte) string {
+	if len(b) > errorTailBytes {
+		b = b[len(b)-errorTailBytes:]
+	}
+	return strings.TrimSpace(string(b))
 }
 
 // emitTaskPreamble writes a short header to the task log showing the working

@@ -2,6 +2,7 @@ package actions
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/cego/gitte/config"
@@ -44,5 +45,25 @@ func TestInjectedEnv(t *testing.T) {
 	got := injectedEnv(cfg, st, "myproj", proj)
 	if got["PROJ_VAR"] != "x" || got["FEAT_VAR"] != "1" {
 		t.Fatalf("injectedEnv = %v, want PROJ_VAR=x and FEAT_VAR=1", got)
+	}
+}
+
+func TestOutputTail(t *testing.T) {
+	// stderr preferred when non-empty
+	if got := outputTail([]byte("the real error"), []byte("noise")); got != "the real error" {
+		t.Fatalf("stderr-preferred: got %q", got)
+	}
+	// falls back to stdout when stderr is blank (e.g. gitlab-ci-local prints to stdout)
+	if got := outputTail([]byte("   \n"), []byte("stdout failure")); got != "stdout failure" {
+		t.Fatalf("stdout-fallback: got %q", got)
+	}
+	// capped to the last errorTailBytes
+	big := []byte(strings.Repeat("x", errorTailBytes+500))
+	if got := outputTail(big, nil); len(got) != errorTailBytes {
+		t.Fatalf("cap: len=%d, want %d", len(got), errorTailBytes)
+	}
+	// empty when no output
+	if got := outputTail(nil, nil); got != "" {
+		t.Fatalf("empty: got %q", got)
 	}
 }
