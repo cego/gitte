@@ -58,7 +58,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			outcomes.set(name, outcomeFailed)
 		}
 		view.OnFinish(name, err, elapsed)
-		tracker.OnFinish(name)
+		tracker.OnFinish(name, err)
 	}
 
 	maxParallel := envMaxParallel

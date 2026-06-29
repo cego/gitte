@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -55,9 +56,10 @@ func (t *ActionTracker) OnStart(taskName string) {
 }
 
 // OnFinish decrements the live-task count and ends the action span at zero.
-// If the task never called OnStart (e.g. it was skipped due to a failed
-// dependency), this is a no-op to avoid corrupting the active count.
-func (t *ActionTracker) OnFinish(taskName string) {
+// A non-nil err is recorded on the action span so failure surfaces at the
+// action level too. If the task never called OnStart (e.g. it was skipped due
+// to a failed dependency), this is a no-op to avoid corrupting the active count.
+func (t *ActionTracker) OnFinish(taskName string, err error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if _, ok := t.started[taskName]; !ok {
@@ -65,6 +67,14 @@ func (t *ActionTracker) OnFinish(taskName string) {
 	}
 	delete(t.started, taskName)
 	action := ActionOf(taskName)
+	// Propagate a failed task onto its action span so failure shows at every
+	// level of the trace, not just on the task span.
+	if err != nil {
+		if span, ok := t.spans[action]; ok {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+	}
 	t.active[action]--
 	if t.active[action] <= 0 {
 		if span, ok := t.spans[action]; ok {
