@@ -100,7 +100,7 @@ func TestActionTracker_RecordsTaskErrorOnActionSpan(t *testing.T) {
 	tr.OnStart("a:build:sn")
 	tr.OnStart("b:build:sn")
 	tr.OnFinish("a:build:sn", errors.New("build failed")) // one task fails
-	tr.OnFinish("b:build:sn", nil)                          // last finishes -> span ends
+	tr.OnFinish("b:build:sn", nil)                        // last finishes -> span ends
 
 	spans := exp.GetSpans()
 	var build *tracetest.SpanStub

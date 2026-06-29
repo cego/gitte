@@ -8,8 +8,8 @@ import (
 	"github.com/cego/gitte/executor"
 	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
-	"go.opentelemetry.io/otel/trace"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestSpanRegistry_SetGetDelete(t *testing.T) {

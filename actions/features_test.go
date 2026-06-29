@@ -12,8 +12,8 @@ import (
 func TestEnabledFeaturesForProject(t *testing.T) {
 	cfg := &config.GitteConfig{
 		FeatureGates: map[string]config.FeatureGate{
-			"feat-on":         {},                                                          // empty scope → applies to all projects
-			"feat-off":        {},                                                          // disabled in state
+			"feat-on":         {},                                                        // empty scope → applies to all projects
+			"feat-off":        {},                                                        // disabled in state
 			"feat-scoped-out": {Scope: config.FeatureScope{Projects: []string{"other"}}}, // enabled but scoped to a different project
 		},
 	}

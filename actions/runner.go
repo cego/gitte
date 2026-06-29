@@ -288,7 +288,11 @@ func runGroupTask(
 	reg *telemetry.SpanRegistry,
 ) (err error) {
 	actionCtx := tracker.ActionContext(telemetry.ActionOf(taskName))
-	ctx, span := telemetry.Tracer().Start(actionCtx, "action.run "+taskName)
+	// Parent the task span under the action span, but keep running under the
+	// executor's incoming (cancellable) context so cancellation still propagates
+	// to the command — attach the span to ctx rather than replacing ctx.
+	_, span := telemetry.Tracer().Start(actionCtx, "action.run "+taskName)
+	ctx = trace.ContextWithSpan(ctx, span)
 	reg.Set(taskName, span.SpanContext())
 	setActionAttrs(span, taskName, projName, strings.Join(cmds, " "))
 	if feats := enabledFeaturesForProject(cfg, st, projName, proj); len(feats) > 0 {
