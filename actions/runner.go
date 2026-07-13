@@ -361,6 +361,12 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName 
 			continue
 		}
 
+		// A gate applies only within its configured scope. A per-machine override may
+		// narrow that set further, but must never broaden it — so always require the
+		// config scope to match, then additionally the override when one is set.
+		if !ProjectMatchesScopeByName(projName, proj, gate.Scope) {
+			continue
+		}
 		if fs.OverrideScope != nil {
 			host, path, _, err := config.ParseRemoteURL(proj.Remote)
 			if err != nil {
@@ -369,8 +375,6 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName 
 			if !features.ProjectMatchesOverrideScope(projName, host, path, fs.OverrideScope) {
 				continue
 			}
-		} else if !ProjectMatchesScopeByName(projName, proj, gate.Scope) {
-			continue
 		}
 
 		for k, v := range gate.Effects.Env {

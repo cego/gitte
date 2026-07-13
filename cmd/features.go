@@ -81,6 +81,10 @@ func newFeaturesEnableCmd() *cobra.Command {
 				return fmt.Errorf("unknown feature gate: %q", gateName)
 			}
 
+			if len(excludes) > 0 && len(gitlabGroups) == 0 && len(githubOrgs) == 0 {
+				return fmt.Errorf("--exclude requires --gitlab-group or --github-org")
+			}
+
 			fs := state.FeatureState{Enabled: true}
 
 			if len(projects) > 0 || len(gitlabGroups) > 0 || len(githubOrgs) > 0 {
@@ -122,21 +126,21 @@ func newFeaturesDisableCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			gateName := args[0]
-			gate, ok := globalCfg.FeatureGates[gateName]
-			if !ok {
-				return fmt.Errorf("unknown feature gate: %q", gateName)
+
+			if len(excludes) > 0 && len(gitlabGroups) == 0 && len(githubOrgs) == 0 {
+				return fmt.Errorf("--exclude requires --gitlab-group or --github-org")
 			}
 
-			fs, enabled := globalSt.Features[gateName]
-			if !enabled || !fs.Enabled {
-				fmt.Printf("Feature gate %q was not enabled\n", gateName)
-				return nil
-			}
-
+			fs, ok := globalSt.Features[gateName]
 			scoped := len(projects) > 0 || len(gitlabGroups) > 0 || len(githubOrgs) > 0
 
-			// No scope flags: disable the gate entirely.
+			// Unscoped disable only consults state, so it can also clean up a stale
+			// entry for a gate that has since been removed from the config.
 			if !scoped {
+				if !ok {
+					fmt.Printf("Feature gate %q was not enabled\n", gateName)
+					return nil
+				}
 				delete(globalSt.Features, gateName)
 				if err := state.Save(globalCwd, globalSt); err != nil {
 					return fmt.Errorf("failed to save state: %w", err)
@@ -145,8 +149,18 @@ func newFeaturesDisableCmd() *cobra.Command {
 				return nil
 			}
 
-			// Scoped disable: remove the matching projects from the gate's current
-			// scope, leaving it enabled for the rest.
+			// Scoped disable needs the gate's configured scope to reconstruct the override.
+			gate, cfgOK := globalCfg.FeatureGates[gateName]
+			if !cfgOK {
+				return fmt.Errorf("unknown feature gate: %q", gateName)
+			}
+			if !ok || !fs.Enabled {
+				fmt.Printf("Feature gate %q was not enabled\n", gateName)
+				return nil
+			}
+
+			// Remove the matching projects from the gate's current scope, leaving it
+			// enabled for the rest.
 			removal, err := buildOverrideFromFlags(projects, gitlabGroups, githubOrgs, excludes)
 			if err != nil {
 				return err
