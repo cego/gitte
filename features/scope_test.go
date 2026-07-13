@@ -3,6 +3,7 @@ package features
 import (
 	"testing"
 
+	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/state"
 )
 
@@ -152,6 +153,52 @@ func TestCheckedStateToOverride_PartialGroup(t *testing.T) {
 	}
 	if len(g.ExcludeProjects) != 1 || g.ExcludeProjects[0] != "mysql" {
 		t.Errorf("expected exclude [mysql], got %v", g.ExcludeProjects)
+	}
+}
+
+func TestProjectsInGateScope_EmptyScopeMatchesAll(t *testing.T) {
+	cfg := &config.GitteConfig{
+		Projects: map[string]config.ProjectConfig{
+			"monolith": {Remote: "git@gitlab.cego.dk:cego/monolith.git"},
+			"promo":    {Remote: "git@gitlab.cego.dk:spilnu/services/promo.git"},
+		},
+	}
+	gate := config.FeatureGate{} // no scope => all projects
+
+	got := ProjectsInGateScope(cfg, gate)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(got))
+	}
+	if got["promo"].Path != "spilnu/services/promo" {
+		t.Errorf("expected parsed path for promo, got %q", got["promo"].Path)
+	}
+}
+
+func TestProjectsInGateScope_RestrictedByGitlabGroup(t *testing.T) {
+	cfg := &config.GitteConfig{
+		Projects: map[string]config.ProjectConfig{
+			"monolith": {Remote: "git@gitlab.cego.dk:cego/monolith.git"},
+			"promo":    {Remote: "git@gitlab.cego.dk:spilnu/services/promo.git"},
+			"broken":   {Remote: "not-a-valid-remote"},
+		},
+	}
+	gate := config.FeatureGate{
+		Scope: config.FeatureScope{
+			GitlabGroups: []config.GitlabScope{
+				{Host: "gitlab.cego.dk", Group: "spilnu"},
+			},
+		},
+	}
+
+	got := ProjectsInGateScope(cfg, gate)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 project in scope, got %d", len(got))
+	}
+	if _, ok := got["promo"]; !ok {
+		t.Error("expected promo to be in scope")
+	}
+	if _, ok := got["monolith"]; ok {
+		t.Error("expected monolith to be out of scope")
 	}
 }
 

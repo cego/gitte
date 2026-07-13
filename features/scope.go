@@ -4,8 +4,25 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/state"
 )
+
+// ProjectsInGateScope returns the projects a gate's configured scope applies to,
+// keyed by config project name. Projects with an unparseable remote are skipped.
+func ProjectsInGateScope(cfg *config.GitteConfig, gate config.FeatureGate) map[string]ScopeProject {
+	projects := make(map[string]ScopeProject)
+	for projName, proj := range cfg.Projects {
+		host, path, _, err := config.ParseRemoteURL(proj.Remote)
+		if err != nil {
+			continue
+		}
+		if projectMatchesScopeByName(projName, host, path, gate.Scope) {
+			projects[projName] = ScopeProject{Host: host, Path: path}
+		}
+	}
+	return projects
+}
 
 // ProjectMatchesOverrideScope checks if a project is included in an override scope.
 // projName is the config key, host and path come from config.ParseRemoteURL.

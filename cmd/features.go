@@ -84,22 +84,9 @@ func newFeaturesEnableCmd() *cobra.Command {
 			fs := state.FeatureState{Enabled: true}
 
 			if len(projects) > 0 || len(gitlabGroups) > 0 || len(githubOrgs) > 0 {
-				override := &state.ScopeOverride{Projects: projects}
-				for _, g := range gitlabGroups {
-					host, group, ok := strings.Cut(g, "/")
-					if !ok {
-						return fmt.Errorf("invalid --gitlab-group format %q, expected host/group", g)
-					}
-					entry := state.ScopeOverrideGroup{Host: host, Group: group, ExcludeProjects: excludes}
-					override.GitlabGroups = append(override.GitlabGroups, entry)
-				}
-				for _, o := range githubOrgs {
-					host, org, ok := strings.Cut(o, "/")
-					if !ok {
-						return fmt.Errorf("invalid --github-org format %q, expected host/org", o)
-					}
-					entry := state.ScopeOverrideOrg{Host: host, Org: org, ExcludeProjects: excludes}
-					override.GithubOrgs = append(override.GithubOrgs, entry)
+				override, err := buildOverrideFromFlags(projects, gitlabGroups, githubOrgs, excludes)
+				if err != nil {
+					return err
 				}
 				fs.OverrideScope = override
 			}
@@ -122,27 +109,118 @@ func newFeaturesEnableCmd() *cobra.Command {
 }
 
 func newFeaturesDisableCmd() *cobra.Command {
-	return &cobra.Command{
+	var (
+		projects     []string
+		gitlabGroups []string
+		githubOrgs   []string
+		excludes     []string
+	)
+
+	cmd := &cobra.Command{
 		Use:   "disable <gate>",
-		Short: "Disable a feature gate",
+		Short: "Disable a feature gate, or (with scope flags) disable it only for specific projects",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			gateName := args[0]
+			gate, ok := globalCfg.FeatureGates[gateName]
+			if !ok {
+				return fmt.Errorf("unknown feature gate: %q", gateName)
+			}
 
-			if _, ok := globalSt.Features[gateName]; !ok {
+			fs, enabled := globalSt.Features[gateName]
+			if !enabled || !fs.Enabled {
 				fmt.Printf("Feature gate %q was not enabled\n", gateName)
 				return nil
 			}
 
-			delete(globalSt.Features, gateName)
+			scoped := len(projects) > 0 || len(gitlabGroups) > 0 || len(githubOrgs) > 0
+
+			// No scope flags: disable the gate entirely.
+			if !scoped {
+				delete(globalSt.Features, gateName)
+				if err := state.Save(globalCwd, globalSt); err != nil {
+					return fmt.Errorf("failed to save state: %w", err)
+				}
+				fmt.Printf("Feature gate %q disabled\n", gateName)
+				return nil
+			}
+
+			// Scoped disable: remove the matching projects from the gate's current
+			// scope, leaving it enabled for the rest.
+			removal, err := buildOverrideFromFlags(projects, gitlabGroups, githubOrgs, excludes)
+			if err != nil {
+				return err
+			}
+
+			scopeProjects := features.ProjectsInGateScope(globalCfg, gate)
+			checked := features.OverrideToCheckedState(fs.OverrideScope, scopeProjects)
+
+			removed := 0
+			for name, sp := range scopeProjects {
+				if checked[name] && features.ProjectMatchesOverrideScope(name, sp.Host, sp.Path, removal) {
+					checked[name] = false
+					removed++
+				}
+			}
+
+			if removed == 0 {
+				fmt.Printf("Feature gate %q was not enabled for the given project(s)\n", gateName)
+				return nil
+			}
+
+			anyLeft := false
+			for _, v := range checked {
+				if v {
+					anyLeft = true
+					break
+				}
+			}
+
+			if anyLeft {
+				fs.OverrideScope = features.CheckedStateToOverride(checked, scopeProjects)
+				globalSt.Features[gateName] = fs
+			} else {
+				delete(globalSt.Features, gateName)
+			}
+
 			if err := state.Save(globalCwd, globalSt); err != nil {
 				return fmt.Errorf("failed to save state: %w", err)
 			}
 
-			fmt.Printf("Feature gate %q disabled\n", gateName)
+			if anyLeft {
+				fmt.Printf("Feature gate %q disabled for the given project(s)\n", gateName)
+			} else {
+				fmt.Printf("Feature gate %q disabled\n", gateName)
+			}
 			return nil
 		},
 	}
+
+	cmd.Flags().StringArrayVar(&projects, "project", nil, "disable only for specific project(s)")
+	cmd.Flags().StringArrayVar(&gitlabGroups, "gitlab-group", nil, "disable only for gitlab group (host/group)")
+	cmd.Flags().StringArrayVar(&githubOrgs, "github-org", nil, "disable only for github org (host/org)")
+	cmd.Flags().StringArrayVar(&excludes, "exclude", nil, "exclude project from all groups/orgs")
+	return cmd
+}
+
+// buildOverrideFromFlags turns the CLI scope flags into a ScopeOverride.
+func buildOverrideFromFlags(projects, gitlabGroups, githubOrgs, excludes []string) (*state.ScopeOverride, error) {
+	override := &state.ScopeOverride{Projects: projects}
+	for _, g := range gitlabGroups {
+		host, group, ok := strings.Cut(g, "/")
+		if !ok {
+			return nil, fmt.Errorf("invalid --gitlab-group format %q, expected host/group", g)
+		}
+		override.GitlabGroups = append(override.GitlabGroups, state.ScopeOverrideGroup{Host: host, Group: group, ExcludeProjects: excludes})
+	}
+	for _, o := range githubOrgs {
+		host, org, ok := strings.Cut(o, "/")
+		if !ok {
+			return nil, fmt.Errorf("invalid --github-org format %q, expected host/org", o)
+		}
+		override.GithubOrgs = append(override.GithubOrgs, state.ScopeOverrideOrg{Host: host, Org: org, ExcludeProjects: excludes})
+	}
+	return override, nil
 }
 
 func buildOverrideScopeDescription(o *state.ScopeOverride) string {
