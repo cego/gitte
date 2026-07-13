@@ -366,6 +366,15 @@ gitte features enable HOT_RELOAD
 gitte features disable HOT_RELOAD
 ```
 
+`enable` and `disable` both accept `--project`, `--gitlab-group`, and `--github-org`
+flags to target a subset. A scoped `disable` removes only the matching projects from the
+gate's scope, leaving it on for the rest:
+
+```bash
+gitte features enable HOT_RELOAD --project frontend
+gitte features disable HOT_RELOAD --project frontend
+```
+
 ---
 
 ## sources

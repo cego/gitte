@@ -457,16 +457,7 @@ func (m *featuresModel) scopeUndo() {
 func (m *featuresModel) enterScopeTree() {
 	g := m.gates[m.gateCursor]
 
-	projects := make(map[string]ScopeProject)
-	for projName, proj := range m.cfg.Projects {
-		host, path, _, err := config.ParseRemoteURL(proj.Remote)
-		if err != nil {
-			continue
-		}
-		if projectMatchesScopeByName(projName, host, path, g.Gate.Scope) {
-			projects[projName] = ScopeProject{Host: host, Path: path}
-		}
-	}
+	projects := ProjectsInGateScope(m.cfg, g.Gate)
 
 	fs := m.st.Features[g.Name]
 	var checked map[string]bool
