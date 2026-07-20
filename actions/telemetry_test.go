@@ -4,9 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/cego/gitte/config"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 func TestSetActionAttrs(t *testing.T) {
@@ -34,4 +36,11 @@ func TestSetActionAttrs(t *testing.T) {
 	if got["gitte.task"] != "proj:up:default" || got["gitte.project"] != "proj" || got["gitte.command"] != "docker compose up" {
 		t.Fatalf("attrs = %+v", got)
 	}
+}
+
+func TestSetTaskTelemetryAttrs_SkipsWorkForNonRecordingSpan(t *testing.T) {
+	_, span := noop.NewTracerProvider().Tracer("test").Start(context.Background(), "task")
+	// nil config/state would panic in feature and environment resolution. A
+	// non-recording span must return before touching either dependency.
+	setTaskTelemetryAttrs(span, nil, nil, "project", config.ProjectConfig{}, "project:up:default", []string{"true"})
 }

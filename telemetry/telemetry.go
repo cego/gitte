@@ -12,6 +12,7 @@ import (
 	"os/user"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cego/gitte/config"
@@ -29,7 +30,7 @@ import (
 
 const tracerName = "github.com/cego/gitte"
 
-// flushTimeout bounds how long exit can block flushing spans. Kept short so an
+// flushTimeout bounds how long exit can block flushing each signal. Kept short so an
 // enabled-but-unreachable endpoint (e.g. laptop with the VPN off) adds at most
 // this delay to every command.
 const flushTimeout = 1 * time.Second
@@ -114,10 +115,10 @@ func resourceAttributes(version, username, hostname string) []attribute.KeyValue
 // that flushes pending spans with a bounded timeout. The returned function is
 // always non-nil and safe to call; setup failures and disabled telemetry both
 // degrade to a no-op shutdown.
-func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
+func Init(ctx context.Context, cfg *config.GitteConfig, version string) func(context.Context) {
 	r := Resolve(cfg)
 	if !r.Enabled {
-		return func() {}
+		return func(context.Context) {}
 	}
 
 	// Only mutate process-wide OTEL state once telemetry is known to be enabled.
@@ -130,7 +131,7 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 
 	var opts []otlptracehttp.Option
 	if !r.UseSDKEnv {
-		opts = append(opts, otlptracehttp.WithEndpointURL(r.Endpoint))
+		opts = append(opts, otlptracehttp.WithEndpointURL(signalEndpointURL(r.Endpoint, "traces")))
 		if len(r.Headers) > 0 {
 			opts = append(opts, otlptracehttp.WithHeaders(r.Headers))
 		}
@@ -139,7 +140,7 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 	exporter, err := otlptracehttp.New(ctx, opts...)
 	if err != nil {
 		// Never block gitte: disable telemetry on exporter setup failure.
-		return func() {}
+		return func(context.Context) {}
 	}
 
 	username := ""
@@ -152,7 +153,6 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 	)
 	otel.SetTracerProvider(tp)
 
@@ -160,7 +160,7 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 	if logsEnabled() {
 		var logOpts []otlplog.Option
 		if !r.UseSDKEnv {
-			logOpts = append(logOpts, otlplog.WithEndpointURL(logsEndpointURL(r.Endpoint)))
+			logOpts = append(logOpts, otlplog.WithEndpointURL(signalEndpointURL(r.Endpoint, "logs")))
 			if len(r.Headers) > 0 {
 				logOpts = append(logOpts, otlplog.WithHeaders(r.Headers))
 			}
@@ -174,14 +174,34 @@ func Init(ctx context.Context, cfg *config.GitteConfig, version string) func() {
 		}
 	}
 
-	return func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
-		defer cancel()
-		_ = tp.Shutdown(shutdownCtx)
+	return func(ctx context.Context) {
+		providers := []shutdowner{tp}
 		if lp != nil {
-			_ = lp.Shutdown(shutdownCtx)
+			providers = append(providers, lp)
 		}
+		shutdownProviders(ctx, providers...)
 	}
+}
+
+type shutdowner interface {
+	Shutdown(context.Context) error
+}
+
+// shutdownProviders flushes signals concurrently. Each provider receives its
+// own timeout so one slow exporter cannot consume another signal's budget.
+func shutdownProviders(ctx context.Context, providers ...shutdowner) {
+	var wg sync.WaitGroup
+	for _, provider := range providers {
+		provider := provider
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			shutdownCtx, cancel := context.WithTimeout(ctx, flushTimeout)
+			defer cancel()
+			_ = provider.Shutdown(shutdownCtx)
+		}()
+	}
+	wg.Wait()
 }
 
 // logsEnabled reports whether OTEL logs should be exported (enabled with tracing
@@ -190,18 +210,18 @@ func logsEnabled() bool {
 	return !strings.EqualFold(os.Getenv("GITTE_TELEMETRY_LOGS"), "off")
 }
 
-// logsEndpointURL returns the OTLP/HTTP logs endpoint for a configured base
-// endpoint. otlploghttp.WithEndpointURL uses the URL's path verbatim, so a
-// path-less endpoint (e.g. "https://apm.example.com") would POST to the server
-// root and be rejected. When the endpoint has no path we append the standard
-// "/v1/logs" intake path (matching how the traces exporter targets
-// "/v1/traces"); an endpoint that already carries a path is left untouched.
-func logsEndpointURL(endpoint string) string {
+// signalEndpointURL returns an OTLP/HTTP endpoint for signal. EndpointURL
+// options use a URL path verbatim, so path-less and root-path configured URLs
+// need the standard signal intake path appended. Custom paths are preserved.
+func signalEndpointURL(endpoint, signal string) string {
 	u, err := url.Parse(endpoint)
-	if err != nil || u.Path == "" || u.Path == "/" {
-		return strings.TrimRight(endpoint, "/") + "/v1/logs"
+	if err != nil {
+		return endpoint
 	}
-	return endpoint
+	if u.Path == "" || u.Path == "/" {
+		u.Path = "/v1/" + signal
+	}
+	return u.String()
 }
 
 // Tracer returns gitte's tracer from the global provider (a no-op tracer when

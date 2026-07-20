@@ -8,65 +8,26 @@ import (
 
 	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
-	"go.opentelemetry.io/otel/trace"
 )
-
-// SpanRegistry maps a task name to the SpanContext of the span representing that
-// task, so output lines (which arrive on a separate goroutine without the task
-// span in their context) can be correlated to the right span.
-type SpanRegistry struct {
-	mu sync.RWMutex
-	m  map[string]trace.SpanContext
-}
-
-// NewSpanRegistry returns an empty, concurrency-safe registry.
-func NewSpanRegistry() *SpanRegistry {
-	return &SpanRegistry{m: make(map[string]trace.SpanContext)}
-}
-
-// Set stores the SpanContext sc for task, overwriting any existing entry.
-func (r *SpanRegistry) Set(task string, sc trace.SpanContext) {
-	r.mu.Lock()
-	r.m[task] = sc
-	r.mu.Unlock()
-}
-
-// Get returns the SpanContext stored for task and whether it was found.
-func (r *SpanRegistry) Get(task string) (trace.SpanContext, bool) {
-	r.mu.RLock()
-	sc, ok := r.m[task]
-	r.mu.RUnlock()
-	return sc, ok
-}
-
-// Delete removes the entry for task from the registry.
-func (r *SpanRegistry) Delete(task string) {
-	r.mu.Lock()
-	delete(r.m, task)
-	r.mu.Unlock()
-}
 
 // logHandler forwards output to inner and emits a correlated OTEL log record.
 type logHandler struct {
 	inner executor.OutputHandler
-	reg   *SpanRegistry
 	once  sync.Once
 	lgr   log.Logger
 }
 
 // LogOutputHandler wraps inner so that every output line is also emitted as an
-// OTEL log record correlated (via reg) to the span for output.CmdName. When
-// logs are disabled the global logger provider is a no-op, so this is safe and
-// cheap; output is always forwarded to inner unchanged.
+// OTEL log record correlated to the span in ctx. Callers should install this
+// wrapper at the producer boundary, before output is handed to an asynchronous
+// drain, so the task span is still available. When logs are disabled the global
+// logger provider is a no-op; output is always forwarded unchanged.
 //
 // The logger is resolved lazily on first use so that callers constructed before
 // telemetry.Init registers the real LoggerProvider still pick up the live
 // provider.
-func LogOutputHandler(inner executor.OutputHandler, reg *SpanRegistry) executor.OutputHandler {
-	return &logHandler{
-		inner: inner,
-		reg:   reg,
-	}
+func LogOutputHandler(inner executor.OutputHandler) executor.OutputHandler {
+	return &logHandler{inner: inner}
 }
 
 func (h *logHandler) logger() log.Logger {
@@ -96,10 +57,5 @@ func (h *logHandler) emit(ctx context.Context, out executor.Output) {
 	if len(out.Output) >= 6 && string(out.Output[:6]) == "[HINT]" {
 		rec.AddAttributes(log.Bool("gitte.hint", true))
 	}
-	// Correlate to the task span if we know it.
-	emitCtx := ctx
-	if sc, ok := h.reg.Get(out.CmdName); ok && sc.IsValid() {
-		emitCtx = trace.ContextWithSpanContext(ctx, sc)
-	}
-	h.logger().Emit(emitCtx, rec)
+	h.logger().Emit(ctx, rec)
 }

@@ -36,7 +36,7 @@ var (
 	globalCtx    context.Context
 	globalCancel context.CancelFunc
 
-	globalTelemetryShutdown func()
+	globalTelemetryShutdown func(context.Context)
 	globalRootSpan          trace.Span
 )
 
@@ -86,8 +86,7 @@ func Execute() {
 			globalCancel()
 		}
 	}()
-	err := rootCmd.Execute()
-	finishTelemetry(err)
+	err := executeRoot()
 	if err != nil {
 		if output.DetectMode(flagNoTTY) == output.ModePlain {
 			fmt.Fprintln(os.Stderr, "error:", err)
@@ -96,6 +95,25 @@ func Execute() {
 		}
 		os.Exit(1)
 	}
+}
+
+// executeRoot guarantees telemetry finalization for both returned errors and
+// panics. A panic is recorded as an error before being re-thrown so callers keep
+// the normal panic behavior and stack output.
+func executeRoot() (err error) {
+	return runWithTelemetry(rootCmd.Execute)
+}
+
+func runWithTelemetry(run func() error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			panicErr := fmt.Errorf("panic: %v", recovered)
+			finishTelemetry(panicErr)
+			panic(recovered)
+		}
+		finishTelemetry(err)
+	}()
+	return run()
 }
 
 // finishTelemetry records the final command status on the root span and flushes
@@ -112,7 +130,9 @@ func finishTelemetry(err error) {
 		globalRootSpan.End()
 	}
 	if globalTelemetryShutdown != nil {
-		globalTelemetryShutdown()
+		shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		globalTelemetryShutdown(shutdownCtx)
 	}
 }
 

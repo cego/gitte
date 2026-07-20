@@ -2,7 +2,9 @@ package telemetry
 
 import (
 	"context"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/cego/gitte/config"
 	"go.opentelemetry.io/otel"
@@ -108,7 +110,7 @@ func TestInit_DisabledReturnsNoopShutdown(t *testing.T) {
 	if shutdown == nil {
 		t.Fatal("shutdown must never be nil")
 	}
-	shutdown() // must not panic
+	shutdown(context.Background()) // must not panic
 }
 
 func TestInit_EnabledReturnsCallableShutdown(t *testing.T) {
@@ -127,7 +129,62 @@ func TestInit_EnabledReturnsCallableShutdown(t *testing.T) {
 	if shutdown == nil {
 		t.Fatal("shutdown must never be nil on the enabled path")
 	}
-	shutdown() // must not panic or hang beyond the flush timeout
+	shutdown(context.Background()) // must not panic or hang beyond the flush timeout
+}
+
+func TestInit_RespectsOTELTracesSampler(t *testing.T) {
+	t.Setenv("GITTE_TELEMETRY", "")
+	t.Setenv("GITTE_TELEMETRY_LOGS", "off")
+	t.Setenv("OTEL_TRACES_SAMPLER", "always_off")
+	prev := otel.GetTracerProvider()
+	t.Cleanup(func() { otel.SetTracerProvider(prev) })
+
+	shutdown := Init(context.Background(), &config.GitteConfig{Telemetry: config.TelemetryConfig{Endpoint: "http://localhost:4318"}}, "test")
+	_, span := Tracer().Start(context.Background(), "not-recorded")
+	if span.IsRecording() {
+		t.Fatal("span is recording despite OTEL_TRACES_SAMPLER=always_off")
+	}
+	span.End()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	shutdown(ctx)
+}
+
+type testShutdowner struct {
+	called chan struct{}
+	wait   bool
+	once   sync.Once
+}
+
+func (s *testShutdowner) Shutdown(ctx context.Context) error {
+	s.once.Do(func() { close(s.called) })
+	if s.wait {
+		<-ctx.Done()
+	}
+	return nil
+}
+
+func TestShutdownProviders_RunIndependentlyAndHonorCancellation(t *testing.T) {
+	traceProvider := &testShutdowner{called: make(chan struct{}), wait: true}
+	logProvider := &testShutdowner{called: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		shutdownProviders(ctx, traceProvider, logProvider)
+		close(done)
+	}()
+
+	select {
+	case <-logProvider.called:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("log shutdown was blocked behind trace shutdown")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("shutdown did not stop after cancellation")
+	}
 }
 
 func TestStartCommandSpan_NoProviderDoesNotPanic(t *testing.T) {

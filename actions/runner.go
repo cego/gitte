@@ -40,7 +40,6 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	view := newView(mode, infos, actionOrder, runCancel, retryCh, cfg.QuickSolve.GitClean.Exclude)
 
 	tracker := telemetry.NewActionTracker(ctx)
-	reg := telemetry.NewSpanRegistry()
 
 	onStart := func(name string) {
 		tracker.OnStart(name)
@@ -72,7 +71,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	var retrySet map[string]struct{} // nil on first run
 	var runErr error
 	for {
-		tasks := buildExecutorTasks(cfg, st, cwd, keys, tracker, reg)
+		tasks := buildExecutorTasks(cfg, st, cwd, keys, tracker)
 
 		// Strip needs from explicitly retried tasks so they run immediately.
 		if retrySet != nil {
@@ -114,7 +113,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			exec.WithPreCompleted(succeeded, failed)
 		}
 
-		exec.WithOutputHandler(telemetry.LogOutputHandler(view.Handler(), reg))
+		exec.WithOutputHandler(view.Handler())
 		exec.WithRetryChannel(retryCh)
 
 		runErr = exec.Execute(runCtx)
@@ -208,7 +207,7 @@ func buildTaskInfos(cfg *config.GitteConfig, st *state.GitteState, cwd string, k
 }
 
 // buildExecutorTasks constructs executor.Task list from keys.
-func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps, tracker *telemetry.ActionTracker, reg *telemetry.SpanRegistry) []executor.Task {
+func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps, tracker *telemetry.ActionTracker) []executor.Task {
 	tasks := make([]executor.Task, 0, len(keys))
 	searchFors := cfg.SearchFor
 
@@ -253,7 +252,7 @@ func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd strin
 			Needs: needNames,
 			Retry: retryConfig,
 			ExecuteFn: func(ctx context.Context, tName string, handler executor.OutputHandler) error {
-				return runGroupTask(ctx, cfg, st, cwd, proj, key.Project, tName, cmds, allSearchFors, handler, tracker, reg)
+				return runGroupTask(ctx, cfg, st, cwd, proj, key.Project, tName, cmds, allSearchFors, handler, tracker)
 			},
 		})
 	}
@@ -285,7 +284,6 @@ func runGroupTask(
 	searchFors []config.SearchFor,
 	handler executor.OutputHandler,
 	tracker *telemetry.ActionTracker,
-	reg *telemetry.SpanRegistry,
 ) (err error) {
 	actionCtx := tracker.ActionContext(telemetry.ActionOf(taskName))
 	// Parent the task span under the action span, but keep running under the
@@ -293,30 +291,21 @@ func runGroupTask(
 	// to the command — attach the span to ctx rather than replacing ctx.
 	_, span := telemetry.Tracer().Start(actionCtx, "action.run "+taskName)
 	ctx = trace.ContextWithSpan(ctx, span)
-	reg.Set(taskName, span.SpanContext())
-	setActionAttrs(span, taskName, projName, strings.Join(cmds, " "))
-	if feats := enabledFeaturesForProject(cfg, st, projName, proj); len(feats) > 0 {
-		span.SetAttributes(attribute.StringSlice("gitte.features", feats))
-	}
-	if env := injectedEnv(cfg, st, projName, proj); len(env) > 0 {
-		keys := make([]string, 0, len(env))
-		for k := range env {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		kvs := make([]string, 0, len(keys))
-		for _, k := range keys {
-			kvs = append(kvs, k+"="+env[k])
-		}
-		span.SetAttributes(attribute.StringSlice("gitte.env", kvs))
-	}
+	handler = telemetry.LogOutputHandler(handler)
+	setTaskTelemetryAttrs(span, cfg, st, projName, proj, taskName, cmds)
 	defer func() {
+		if recovered := recover(); recovered != nil {
+			panicErr := fmt.Errorf("panic: %v", recovered)
+			span.RecordError(panicErr)
+			span.SetStatus(codes.Error, panicErr.Error())
+			span.End()
+			panic(recovered)
+		}
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 		}
 		span.End()
-		reg.Delete(taskName)
 	}()
 
 	if len(cmds) == 0 {
@@ -348,16 +337,49 @@ func runGroupTask(
 		return err
 	}
 
-	span.SetAttributes(attribute.Int("gitte.exit_code", res.ExitCode))
+	if span.IsRecording() {
+		span.SetAttributes(attribute.Int("gitte.exit_code", res.ExitCode))
+		if res.ExitCode != 0 {
+			if tail := outputTail(res.Stderr, res.Stdout); tail != "" {
+				span.SetAttributes(attribute.String("gitte.error_tail", tail))
+			}
+		}
+	}
 
 	if res.ExitCode != 0 {
-		if tail := outputTail(res.Stderr, res.Stdout); tail != "" {
-			span.SetAttributes(attribute.String("gitte.error_tail", tail))
-		}
 		return fmt.Errorf("command exited with code %d", res.ExitCode)
 	}
 
 	return nil
+}
+
+func setTaskTelemetryAttrs(
+	span trace.Span,
+	cfg *config.GitteConfig,
+	st *state.GitteState,
+	projName string,
+	proj config.ProjectConfig,
+	taskName string,
+	cmds []string,
+) {
+	if span.IsRecording() {
+		setActionAttrs(span, taskName, projName, strings.Join(cmds, " "))
+		if feats := enabledFeaturesForProject(cfg, st, projName, proj); len(feats) > 0 {
+			span.SetAttributes(attribute.StringSlice("gitte.features", feats))
+		}
+		if env := injectedEnv(cfg, st, projName, proj); len(env) > 0 {
+			keys := make([]string, 0, len(env))
+			for k := range env {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			kvs := make([]string, 0, len(keys))
+			for _, k := range keys {
+				kvs = append(kvs, k+"="+env[k])
+			}
+			span.SetAttributes(attribute.StringSlice("gitte.env", kvs))
+		}
+	}
 }
 
 // errorTailBytes caps how much trailing command output is attached to a failed

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 
 	"github.com/cego/gitte/config"
@@ -24,7 +25,6 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	reg := telemetry.NewSpanRegistry()
 	tasks := make([]executor.Task, 0, len(cfg.StartupChecks))
 	for name, check := range cfg.StartupChecks {
 		name := name
@@ -34,16 +34,24 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 			Needs: check.GetNeeds(),
 			ExecuteFn: func(ctx context.Context, taskName string, handler executor.OutputHandler) (err error) {
 				ctx, span := startCheckSpan(ctx, taskName)
-				reg.Set(taskName, span.SpanContext())
 				defer func() {
+					if recovered := recover(); recovered != nil {
+						panicErr := fmt.Errorf("panic: %v", recovered)
+						span.RecordError(panicErr)
+						span.SetStatus(codes.Error, panicErr.Error())
+						span.End()
+						panic(recovered)
+					}
 					if err != nil {
 						span.RecordError(err)
 						span.SetStatus(codes.Error, err.Error())
 					}
 					span.End()
-					reg.Delete(taskName)
 				}()
-				if cerr := check.Check(ctx, cwd); cerr != nil {
+				logHandler := telemetry.LogOutputHandler(handler)
+				stdout := &handlerWriter{ctx: ctx, handler: logHandler, taskName: taskName, stream: executor.StdoutStream}
+				stderr := &handlerWriter{ctx: ctx, handler: logHandler, taskName: taskName, stream: executor.StderrStream}
+				if cerr := check.Check(ctx, cwd, stdout, stderr); cerr != nil {
 					hint := check.GetHint()
 					if hint != "" {
 						return fmt.Errorf("%s\nhint: %s", cerr.Error(), hint)
@@ -65,8 +73,6 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	if err != nil {
 		return fmt.Errorf("startup checks have invalid dependencies: %w", err)
 	}
-	exec.WithOutputHandler(telemetry.LogOutputHandler(executor.NoopOutputHandler{}, reg))
-
 	runErr := exec.Execute(ctx)
 	view.Wait()
 	if runErr != nil && mode != output.ModePlain {
@@ -75,6 +81,27 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 		return errors.New("startup checks failed")
 	}
 	return runErr
+}
+
+// handlerWriter adapts startup checks using io.Writer to executor output while
+// retaining the check span in the context used for correlated OTEL logs.
+type handlerWriter struct {
+	ctx      context.Context
+	handler  executor.OutputHandler
+	taskName string
+	stream   executor.StreamType
+}
+
+var _ io.Writer = (*handlerWriter)(nil)
+
+func (w *handlerWriter) Write(p []byte) (int, error) {
+	line := append([]byte(nil), p...)
+	_ = w.handler.HandleOutput(w.ctx, executor.Output{
+		Output:  line,
+		CmdName: w.taskName,
+		Stream:  w.stream,
+	})
+	return len(p), nil
 }
 
 // startCheckSpan opens a span for a single startup check.

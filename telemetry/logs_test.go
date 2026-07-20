@@ -9,25 +9,9 @@ import (
 	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
-	"go.opentelemetry.io/otel/trace"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
-
-func TestSpanRegistry_SetGetDelete(t *testing.T) {
-	reg := NewSpanRegistry()
-	sc := trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID: trace.TraceID{1},
-		SpanID:  trace.SpanID{2},
-	})
-	reg.Set("proj:build:sn", sc)
-	got, ok := reg.Get("proj:build:sn")
-	if !ok || got.TraceID() != sc.TraceID() {
-		t.Fatalf("Get = %v, %v; want %v", got, ok, sc)
-	}
-	reg.Delete("proj:build:sn")
-	if _, ok := reg.Get("proj:build:sn"); ok {
-		t.Fatal("expected entry removed after Delete")
-	}
-}
 
 type recordingHandler struct{ lines []string }
 
@@ -40,8 +24,7 @@ func TestLogOutputHandler_ForwardsUnchanged(t *testing.T) {
 	// With logs disabled (no provider), the wrapper must still forward output
 	// to the inner handler and never error.
 	inner := &recordingHandler{}
-	reg := NewSpanRegistry()
-	h := LogOutputHandler(inner, reg)
+	h := LogOutputHandler(inner)
 	err := h.HandleOutput(context.Background(), executor.Output{
 		Output: []byte("hello"), CmdName: "proj:build:sn", Stream: executor.StdoutStream,
 	})
@@ -99,8 +82,7 @@ func TestLogOutputHandler_StdoutSeverityInfo(t *testing.T) {
 	exp := setupRecordingProvider(t)
 
 	inner := &recordingHandler{}
-	reg := NewSpanRegistry()
-	h := LogOutputHandler(inner, reg)
+	h := LogOutputHandler(inner)
 
 	_ = h.HandleOutput(context.Background(), executor.Output{
 		Output:  []byte("normal line"),
@@ -121,8 +103,7 @@ func TestLogOutputHandler_StderrSeverityWarn(t *testing.T) {
 	exp := setupRecordingProvider(t)
 
 	inner := &recordingHandler{}
-	reg := NewSpanRegistry()
-	h := LogOutputHandler(inner, reg)
+	h := LogOutputHandler(inner)
 
 	_ = h.HandleOutput(context.Background(), executor.Output{
 		Output:  []byte("error output"),
@@ -143,8 +124,7 @@ func TestLogOutputHandler_HintAttribute(t *testing.T) {
 	exp := setupRecordingProvider(t)
 
 	inner := &recordingHandler{}
-	reg := NewSpanRegistry()
-	h := LogOutputHandler(inner, reg)
+	h := LogOutputHandler(inner)
 
 	_ = h.HandleOutput(context.Background(), executor.Output{
 		Output:  []byte("[HINT] do something"),
@@ -175,16 +155,39 @@ func TestLogOutputHandler_HintAttribute(t *testing.T) {
 	}
 }
 
-func TestLogsEndpointURL(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"https://apm.example.com", "https://apm.example.com/v1/logs"},
-		{"https://apm.example.com/", "https://apm.example.com/v1/logs"},
-		{"https://apm.example.com:8200", "https://apm.example.com:8200/v1/logs"},
-		{"https://apm.example.com/custom/logs", "https://apm.example.com/custom/logs"},
+func TestLogOutputHandler_UsesProducerSpanContext(t *testing.T) {
+	exp := setupRecordingProvider(t)
+	spanExp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(spanExp))
+	t.Cleanup(func() { _ = tp.Shutdown(context.Background()) })
+
+	ctx, span := tp.Tracer("test").Start(context.Background(), "task")
+	wantTraceID := span.SpanContext().TraceID()
+	wantSpanID := span.SpanContext().SpanID()
+	h := LogOutputHandler(&recordingHandler{})
+	_ = h.HandleOutput(ctx, executor.Output{Output: []byte("last line"), CmdName: "task", Stream: executor.StderrStream})
+	span.End()
+
+	recs := exp.Records()
+	if len(recs) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(recs))
+	}
+	if recs[0].TraceID() != wantTraceID || recs[0].SpanID() != wantSpanID {
+		t.Fatalf("log correlation = %s/%s, want %s/%s", recs[0].TraceID(), recs[0].SpanID(), wantTraceID, wantSpanID)
+	}
+}
+
+func TestSignalEndpointURL(t *testing.T) {
+	cases := []struct{ endpoint, signal, want string }{
+		{"https://apm.example.com", "traces", "https://apm.example.com/v1/traces"},
+		{"https://apm.example.com/", "traces", "https://apm.example.com/v1/traces"},
+		{"https://apm.example.com:8200/", "logs", "https://apm.example.com:8200/v1/logs"},
+		{"https://apm.example.com/custom/traces", "traces", "https://apm.example.com/custom/traces"},
+		{"https://apm.example.com/?token=x", "traces", "https://apm.example.com/v1/traces?token=x"},
 	}
 	for _, c := range cases {
-		if got := logsEndpointURL(c.in); got != c.want {
-			t.Errorf("logsEndpointURL(%q) = %q, want %q", c.in, got, c.want)
+		if got := signalEndpointURL(c.endpoint, c.signal); got != c.want {
+			t.Errorf("signalEndpointURL(%q, %q) = %q, want %q", c.endpoint, c.signal, got, c.want)
 		}
 	}
 }
