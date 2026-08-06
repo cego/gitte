@@ -15,10 +15,10 @@ func newActionsCmd() *cobra.Command {
 		Long: `Run actions only on configured projects.
 
 Examples:
-  gitte actions up
-  gitte actions up sn
-  gitte actions up+build sn
-  gitte actions up sn evolution+promotion`,
+  gitte actions start
+  gitte actions start local
+  gitte actions start+test local
+  gitte actions start local frontend+backend`,
 		Args:              cobra.RangeArgs(1, 3),
 		ValidArgsFunction: actionArgsCompletion,
 		RunE: func(cmd *cobra.Command, args []string) error {
