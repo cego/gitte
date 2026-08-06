@@ -83,10 +83,10 @@ projects:
     remote: git@github.com:example/myservice.git
     default_branch: main
     actions:
-      up:
+      start:
         groups:
           local: ["docker", "compose", "up", "-d"]
-      down:
+      stop:
         groups:
           local: ["docker", "compose", "down"]
 ```
@@ -94,10 +94,10 @@ projects:
 **2.** Run the full pipeline:
 
 ```bash
-gitte run up local
+gitte run start local
 ```
 
-Gitte will run startup checks, pull all repos, then execute the `up` action for group `local` across all enabled projects.
+Gitte will run startup checks, pull all repos, then execute the `start` action for group `local` across all enabled projects.
 
 ---
 
@@ -124,11 +124,11 @@ Gitte will run startup checks, pull all repos, then execute the `up` action for 
 Arguments to `run` and `actions` are positional: `action [group] [projects]`.
 
 ```bash
-gitte run up                         # up action, all groups, all enabled projects
-gitte run up local                   # up action, group local, all enabled projects
-gitte run up local myservice         # up action, group local, project myservice only
-gitte run up local frontend+backend  # up action, group local, projects frontend and backend
-gitte run up+build                   # run up then build, all groups, all enabled projects
+gitte run start                         # start action, all groups, all enabled projects
+gitte run start local                   # start action, group local, all enabled projects
+gitte run start local myservice         # start action, group local, project myservice only
+gitte run start local frontend+backend  # start action, group local, projects frontend and backend
+gitte run start+test                    # run start then test, all groups, all enabled projects
 ```
 
 Use `*` or `all` as a wildcard. Combine multiple values with `+`.

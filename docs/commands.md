@@ -9,12 +9,12 @@ All commands support the global flags `--config <path>`, `--cwd <path>`, and `--
 Full pipeline: startup checks → git sync → actions.
 
 ```bash
-gitte run up
-gitte run up local
-gitte run up local myservice
-gitte run up local frontend+backend
-gitte run up+build
-gitte run up --discover    # also fetch repos from configured sources first
+gitte run start
+gitte run start local
+gitte run start local myservice
+gitte run start local frontend+backend
+gitte run start+test
+gitte run start --discover    # also fetch repos from configured sources first
 ```
 
 Arguments:
@@ -29,9 +29,9 @@ Arguments:
 Run actions only, skipping startup checks and git sync. Same argument syntax as `run`.
 
 ```bash
-gitte actions up
-gitte actions up local
-gitte actions down local myservice
+gitte actions start
+gitte actions start local
+gitte actions stop local myservice
 ```
 
 ---

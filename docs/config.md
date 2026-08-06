@@ -115,8 +115,8 @@ projects:
     vars:                    # template variable overrides (optional)
       stack_name: myservice-custom
     actions:
-      up:
-        needs: [database]    # run after database:up completes
+      start:
+        needs: [database]    # run after database:start completes
         retry:
           attempts: 2
           delay: 10s
@@ -124,13 +124,13 @@ projects:
         groups:
           prod: ["docker", "stack", "deploy", "myservice-prod"]
           staging: ["docker", "compose", "up", "-d"]
-      down:
+      stop:
         groups:
           prod: ["docker", "stack", "rm", "myservice-prod"]
           staging: ["docker", "compose", "down"]
-      build:
+      test:
         groups:
-          "*": ["make", "build"]   # wildcard group matches any group argument
+          "*": ["make", "test"]   # wildcard group matches any group argument
 ```
 
 ### Remote URL formats
@@ -145,7 +145,7 @@ https://github.com/example/myservice.git →  github.com/example/myservice
 
 ### actions
 
-Each action maps group names to commands. When you run `gitte run up prod`, gitte executes the command under `groups.prod` for each enabled project that has an `up` action.
+Each action maps group names to commands. When you run `gitte run start prod`, gitte executes the command under `groups.prod` for each enabled project that has a `start` action.
 
 **needs** — list of project names that must complete this action successfully before this project starts. Gitte resolves the full dependency graph and runs independent tasks in parallel.
 
@@ -173,11 +173,11 @@ templates:
     vars:
       stack: "{{.project}}-prod"
     actions:
-      up:
+      start:
         groups:
           prod: ["docker", "stack", "deploy", "{{.stack}}"]
           staging: ["docker", "compose", "up", "-d"]
-      down:
+      stop:
         groups:
           prod: ["docker", "stack", "rm", "{{.stack}}"]
           staging: ["docker", "compose", "down"]
@@ -195,7 +195,7 @@ projects:
     vars:
       stack: "backend-custom-prod"   # override specific variable
     actions:
-      up:
+      start:
         needs: [database]            # add dependency on top of template
 ```
 
@@ -211,14 +211,14 @@ templates:
     vars:
       stack: "{{.project}}"
     actions:
-      down:
+      stop:
         groups:
           prod: ["docker", "stack", "rm", "{{.stack}}"]
 
   php-service:
     extends: [base-service]    # inherits all of base-service
     actions:
-      up:
+      start:
         needs: [database]
 
   full-service:
@@ -235,12 +235,12 @@ Multiple parents are merged left-to-right; the rightmost definition wins for con
 
 ```yaml
 groupIncludes:
-  sn: [cego]      # running group "sn" also runs group "cego"
-  ht: [cego]      # running group "ht" also runs group "cego"
-  cego: [streaming]   # transitive: "sn" and "ht" also pull in "streaming"
+  team-a: [shared]    # running group "team-a" also runs group "shared"
+  team-b: [shared]    # running group "team-b" also runs group "shared"
+  shared: [infra]     # transitive: "team-a" and "team-b" also pull in "infra"
 ```
 
-Expansion is **transitive** — if `sn` includes `cego` and `cego` includes `streaming`, then running group `sn` automatically includes both `cego` and `streaming` tasks.
+Expansion is **transitive** — if `team-a` includes `shared` and `shared` includes `infra`, then running group `team-a` automatically includes both `shared` and `infra` tasks.
 
 This replaces the need for `*` wildcard groups on infrastructure projects. Give an infrastructure project a specific group name and list it in `groupIncludes` for the teams that need it.
 
@@ -266,7 +266,7 @@ retry:
 projects:
   myservice:
     actions:
-      up:
+      start:
         retry:
           attempts: 3
           delay: 10s
@@ -292,8 +292,8 @@ Override per-action settings globally.
 
 ```yaml
 actionOverride:
-  down:
-    maxParallelization: 1   # run down actions one at a time
+  stop:
+    maxParallelization: 1   # run stop actions one at a time
 ```
 
 ---
@@ -316,7 +316,7 @@ Can also be defined per-action:
 projects:
   myservice:
     actions:
-      up:
+      start:
         searchFor:
           - regex: "port already in use"
             hint: "Port conflict — check for other running services"
@@ -401,7 +401,7 @@ Run discovery with:
 
 ```bash
 gitte gitops --discover
-gitte run up --discover    # discover, then sync, then run actions
+gitte run start --discover    # discover, then sync, then run actions
 ```
 
 ---
