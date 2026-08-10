@@ -6,8 +6,8 @@ class Gitte < Formula
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/cego/gitte/releases/download/2.1.4/gitte-darwin-arm64.tar.gz"
-      sha256 "977ff325b7d8b46df400c7baad02c6fbec0e8c2d51e6dd31e94908e95714c919"
+      url "https://github.com/cego/gitte/archive/refs/tags/2.1.6.tar.gz"
+      sha256 "2f4f52fbc01238675ee01f45f8c3be232582c0bf214266a321e4704886abfc73"
     else
       url "https://github.com/cego/gitte/releases/download/2.1.4/gitte-darwin-amd64.tar.gz"
       sha256 "b36198a6c0127440c54d748b68b259ef1ddad2996716fad203b6147d64fc8849"
