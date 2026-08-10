@@ -113,6 +113,17 @@ func (e *Executor) Execute(ctx context.Context) error {
 		semaphore = make(chan struct{}, e.opts.MaxParallelization)
 	}
 
+	// Count pre-completed tasks before starting anything. startReadyTasks marks
+	// dependency-skipped tasks as failed *and* reports them on completionCh, so
+	// counting after it would count those tasks twice and end the run early.
+	finished := 0
+	for _, run := range e.tasks {
+		if run.status == statusSuccess || run.status == statusFailed {
+			finished++
+		}
+	}
+	total := len(e.tasks)
+
 	if err := e.startReadyTasks(ctx, completionCh, outputCh, semaphore, executorDone); err != nil {
 		return err
 	}
@@ -121,19 +132,13 @@ func (e *Executor) Execute(ctx context.Context) error {
 		return err
 	}
 
+	drainStop := make(chan struct{})
 	drainDone := make(chan struct{})
 	go func() {
-		e.drainOutput(ctx, outputCh)
+		e.drainOutput(ctx, outputCh, drainStop)
 		close(drainDone)
 	}()
 
-	finished := 0
-	for _, run := range e.tasks {
-		if run.status == statusSuccess || run.status == statusFailed {
-			finished++
-		}
-	}
-	total := len(e.tasks)
 	var errs []error
 
 	for finished < total {
@@ -198,7 +203,7 @@ func (e *Executor) Execute(ctx context.Context) error {
 		}
 	}
 
-	close(outputCh)
+	close(drainStop)
 	<-drainDone // wait for all output to be processed before returning
 	return errors.Join(errs...)
 }
@@ -365,28 +370,34 @@ func (e *Executor) pendingNames() string {
 	return strings.Join(names, ", ")
 }
 
-func (e *Executor) drainOutput(ctx context.Context, outputCh <-chan Output) {
-	for {
-		select {
-		case out, ok := <-outputCh:
-			if !ok {
+// drainOutput forwards task output to the output handler until stop is closed or
+// ctx is cancelled. outputCh is deliberately never closed: a task goroutine that
+// outlives the run would panic sending on a closed channel, so it is left open
+// and such a send is simply dropped once draining has stopped.
+func (e *Executor) drainOutput(ctx context.Context, outputCh <-chan Output, stop <-chan struct{}) {
+	// Drain any lines already queued before exiting so the last output of a
+	// failing command is not lost.
+	flush := func(handlerCtx context.Context) {
+		for {
+			select {
+			case out := <-outputCh:
+				_ = e.outputHandler.HandleOutput(handlerCtx, out)
+			default:
 				return
 			}
+		}
+	}
+
+	for {
+		select {
+		case out := <-outputCh:
 			_ = e.outputHandler.HandleOutput(ctx, out)
+		case <-stop:
+			flush(ctx)
+			return
 		case <-ctx.Done():
-			// Drain any lines already queued before exiting so the last output of a
-			// failing command is not lost when the context is cancelled.
-			for {
-				select {
-				case out, ok := <-outputCh:
-					if !ok {
-						return
-					}
-					_ = e.outputHandler.HandleOutput(context.Background(), out)
-				default:
-					return
-				}
-			}
+			flush(context.Background())
+			return
 		}
 	}
 }
