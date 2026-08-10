@@ -437,3 +437,115 @@ func TestExecutor_DependencyBlocking(t *testing.T) {
 		t.Error("dep started before base completed")
 	}
 }
+
+type collectingHandler struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (c *collectingHandler) HandleOutput(_ context.Context, out Output) error {
+	c.mu.Lock()
+	c.lines = append(c.lines, string(out.Output))
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *collectingHandler) snapshot() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.lines...)
+}
+
+// A dependent of a pre-completed failed task is skipped during the very first
+// startReadyTasks call, which both marks it failed and reports it on the completion
+// channel. Counting it twice ends the run while other tasks are still executing.
+func TestExecutor_SkippedDependentOfPreCompletedFailureDoesNotEndRunEarly(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	tasks := []Task{
+		{
+			Name: "slow-task",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error {
+				close(started)
+				<-release
+				return h.HandleOutput(ctx, Output{Output: []byte("last line"), CmdName: name})
+			},
+		},
+		{
+			Name:      "failed-task",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error { return nil },
+		},
+		{
+			Name:      "dependent",
+			Needs:     []string{"failed-task"},
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error { return nil },
+		},
+	}
+
+	exec, err := NewExecutor(tasks, ExecutorOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	exec.WithPreCompleted(nil, []string{"failed-task"})
+	handler := &collectingHandler{}
+	exec.WithOutputHandler(handler)
+
+	done := make(chan error, 1)
+	go func() { done <- exec.Execute(context.Background()) }()
+
+	<-started
+	select {
+	case <-done:
+		t.Fatal("Execute returned while slow-task was still running")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrTaskSkipped) {
+			t.Errorf("expected skipped dependent error, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Execute did not return after slow-task finished")
+	}
+
+	if got := handler.snapshot(); len(got) != 1 || got[0] != "last line" {
+		t.Errorf("expected slow-task output to be drained, got %v", got)
+	}
+}
+
+// Output emitted after the run has finished must be dropped, not fatal.
+func TestExecutor_OutputAfterRunFinishesIsDropped(t *testing.T) {
+	emitted := make(chan struct{})
+
+	tasks := []Task{
+		{
+			Name: "task",
+			ExecuteFn: func(ctx context.Context, name string, h OutputHandler) error {
+				go func() {
+					time.Sleep(20 * time.Millisecond)
+					_ = h.HandleOutput(ctx, Output{Output: []byte("stray"), CmdName: name})
+					close(emitted)
+				}()
+				return nil
+			},
+		},
+	}
+
+	exec, err := NewExecutor(tasks, ExecutorOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if err := exec.Execute(context.Background()); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	select {
+	case <-emitted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stray output goroutine never completed")
+	}
+}
