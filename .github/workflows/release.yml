@@ -13,9 +13,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      # persist-credentials: false keeps checkout from leaving a GITHUB_TOKEN
+      # Authorization header in the git config. The formula push below
+      # authenticates as the GitHub App via the remote URL, and a persisted
+      # header would take precedence over it.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -79,6 +85,7 @@ jobs:
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
+          sudo apt-get update
           sudo apt-get install -y dpkg-dev apt-utils rclone
 
           DESCRIPTION="Developer environment orchestration tool"
@@ -126,7 +133,7 @@ jobs:
       - name: Generate app token for formula push
         if: github.ref_type == 'tag'
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
@@ -145,7 +152,6 @@ jobs:
 
           git config user.email "noc+gitte@cego.dk"
           git config user.name "CI"
-          git config --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://x-access-token:${APP_TOKEN}@github.com/cego/gitte"
           git fetch origin main
           git checkout main
