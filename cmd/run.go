@@ -20,10 +20,10 @@ func newRunCmd() *cobra.Command {
 		Long: `Run the full pipeline: startup checks, git sync, then actions.
 
 Examples:
-  gitte run up
-  gitte run up sn
-  gitte run up+build sn
-  gitte run up sn evolution+promotion`,
+  gitte run start
+  gitte run start local
+  gitte run start+test local
+  gitte run start local frontend+backend`,
 		Args:              cobra.RangeArgs(0, 3),
 		ValidArgsFunction: actionArgsCompletion,
 		RunE: func(cmd *cobra.Command, args []string) error {

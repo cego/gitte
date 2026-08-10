@@ -9,12 +9,12 @@ All commands support the global flags `--config <path>`, `--cwd <path>`, and `--
 Full pipeline: startup checks → git sync → actions.
 
 ```bash
-gitte run up
-gitte run up local
-gitte run up local myservice
-gitte run up local frontend+backend
-gitte run up+build
-gitte run up --discover    # also fetch repos from configured sources first
+gitte run start
+gitte run start local
+gitte run start local myservice
+gitte run start local frontend+backend
+gitte run start+test
+gitte run start --discover    # also fetch repos from configured sources first
 ```
 
 Arguments:
@@ -29,9 +29,9 @@ Arguments:
 Run actions only, skipping startup checks and git sync. Same argument syntax as `run`.
 
 ```bash
-gitte actions up
-gitte actions up local
-gitte actions down local myservice
+gitte actions start
+gitte actions start local
+gitte actions stop local myservice
 ```
 
 ---
@@ -89,8 +89,19 @@ Manage feature gates — opt-in behaviours that inject environment variables int
 
 ```bash
 gitte features list                 # show all gates and their state
-gitte features enable HOT_RELOAD    # enable a gate
-gitte features disable HOT_RELOAD   # disable a gate
+gitte features enable HOT_RELOAD    # enable a gate (all projects in its scope)
+gitte features disable HOT_RELOAD   # disable a gate entirely
+```
+
+Both `enable` and `disable` accept scope flags to target individual projects, GitLab
+groups, or GitHub orgs. A scoped `disable` removes only the matching projects from the
+gate's current scope, leaving it enabled for the rest (and disables the gate entirely
+once the last project is removed):
+
+```bash
+gitte features enable HOT_RELOAD --project frontend      # enable for one project only
+gitte features disable HOT_RELOAD --project frontend     # disable for one project only
+gitte features disable HOT_RELOAD --gitlab-group gitlab.example.com/myorg/services
 ```
 
 ---
