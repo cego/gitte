@@ -203,7 +203,7 @@ func syncTransientDetailed(ctx context.Context, cwd, remote string, setDetail fu
 		warnFn(fmt.Sprintf("fetch failed for %s: %v", localDir, err))
 	}
 
-	dirty, err := hasLocalChanges(ctx, projectPath)
+	dirty, err := hasTrackedChanges(ctx, projectPath)
 	if err != nil {
 		return err
 	}

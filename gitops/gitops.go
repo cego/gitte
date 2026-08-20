@@ -155,12 +155,12 @@ func SyncTransient(ctx context.Context, remote, cwd string) error {
 		fmt.Fprintf(os.Stderr, "warning: fetch failed for %s: %v\n", localDir, err)
 	}
 
-	dirty, err := hasLocalChanges(ctx, projectPath)
+	dirty, err := hasTrackedChanges(ctx, projectPath)
 	if err != nil {
 		return err
 	}
 	if dirty {
-		fmt.Fprintf(os.Stderr, "warning: skipping pull for %s (local changes present)\n", localDir)
+		fmt.Fprintf(os.Stderr, "warning: skipping pull for %s (tracked changes present)\n", localDir)
 		return nil
 	}
 
@@ -241,7 +241,7 @@ func syncProject(
 	currentBranch := getCurrentBranch(ctx, projectPath)
 
 	// Local changes: skip pull/rebase.
-	dirty, err := hasLocalChanges(ctx, projectPath)
+	dirty, err := hasTrackedChanges(ctx, projectPath)
 	if err != nil {
 		return err
 	}
@@ -476,8 +476,8 @@ func isDetachedHEAD(ctx context.Context, dir string) (bool, error) {
 	return strings.TrimSpace(string(res.Stdout)) == "HEAD", nil
 }
 
-func hasLocalChanges(ctx context.Context, dir string) (bool, error) {
-	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "status", "--porcelain")
+func hasTrackedChanges(ctx context.Context, dir string) (bool, error) {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "status", "--porcelain", "--untracked-files=no")
 	if err != nil {
 		return false, err
 	}
@@ -518,8 +518,8 @@ func mergeFastForward(ctx context.Context, dir, ref string) (upToDate bool, err 
 	return strings.Contains(string(res.Stdout), "Already up to date."), nil
 }
 
-// tryRebase attempts git rebase <onto>.  On conflict it aborts the rebase and
-// returns (false, nil).  Returns (true, nil) on success.
+// tryRebase attempts git rebase <onto>. On conflict it aborts the rebase and
+// returns (false, nil). Failures before a rebase starts are returned directly.
 func tryRebase(ctx context.Context, dir, onto string) (bool, error) {
 	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rebase", onto)
 	if err != nil {
@@ -528,13 +528,23 @@ func tryRebase(ctx context.Context, dir, onto string) (bool, error) {
 	if res.ExitCode == 0 {
 		return true, nil
 	}
-	// Rebase failed — abort to restore pre-rebase state.
+	rebaseOutput := strings.TrimSpace(string(res.Stderr))
+	if rebaseOutput == "" {
+		rebaseOutput = strings.TrimSpace(string(res.Stdout))
+	}
+	rebaseErr := fmt.Errorf("git rebase failed (exit %d): %s", res.ExitCode, rebaseOutput)
+
+	// Abort conflicts to restore the exact pre-rebase branch state.
 	abort, abortErr := executor.ExecuteSyncInDir(ctx, dir, "git", "rebase", "--abort")
 	if abortErr != nil {
-		return false, fmt.Errorf("rebase failed and abort also failed: %w", abortErr)
+		return false, fmt.Errorf("%w; rebase abort: %v", rebaseErr, abortErr)
 	}
 	if abort.ExitCode != 0 {
-		return false, fmt.Errorf("rebase abort failed (exit %d): %s", abort.ExitCode, strings.TrimSpace(string(abort.Stderr)))
+		abortOutput := strings.TrimSpace(string(abort.Stderr))
+		if regexp.MustCompile(`(?i)no rebase in progress`).MatchString(abortOutput) {
+			return false, rebaseErr
+		}
+		return false, fmt.Errorf("%w; rebase abort failed (exit %d): %s", rebaseErr, abort.ExitCode, abortOutput)
 	}
 	return false, nil
 }
