@@ -190,7 +190,7 @@ func runGit(t *testing.T, dir string, args ...string) string {
 
 func runGitEnv(t *testing.T, dir string, env []string, args ...string) string {
 	t.Helper()
-	cmd := exec.Command("git", args...)
+	cmd := exec.CommandContext(t.Context(), "git", args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), env...)
 	out, err := cmd.CombinedOutput()
