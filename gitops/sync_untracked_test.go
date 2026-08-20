@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestHasTrackedChanges_UntrackedFilesDoNotBlockSync(t *testing.T) {
+func TestHasTrackedChanges_OnlyTrackedFilesBlockSync(t *testing.T) {
 	tests := []struct {
 		name   string
 		change func(*testing.T, string)
