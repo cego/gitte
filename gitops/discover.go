@@ -199,17 +199,12 @@ func syncTransientDetailed(ctx context.Context, cwd, remote string, setDetail fu
 		return nil
 	}
 
-	if err := fetchOrigin(ctx, projectPath); err != nil {
-		warnFn(fmt.Sprintf("fetch failed for %s: %v", localDir, err))
-	}
-
-	dirty, err := hasTrackedChanges(ctx, projectPath)
-	if err != nil {
+	if err := checkRepositorySafety(ctx, projectPath); err != nil {
 		return err
 	}
-	if dirty {
-		setDetail("skipped")
-		return nil
+	if err := fetchOrigin(ctx, projectPath); err != nil {
+		warnFn(fmt.Sprintf("fetch failed for %s: %v", localDir, err))
+		return fmt.Errorf("fetching %s: %w", localDir, err)
 	}
 
 	branch := getCurrentBranch(ctx, projectPath)
