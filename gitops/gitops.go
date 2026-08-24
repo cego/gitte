@@ -218,9 +218,9 @@ func syncProject(
 	ctx, span := startSyncSpan(ctx, name)
 	defer finishSyncSpan(span, &err)
 
-	localDir, lerr := config.LocalDirForRemote(proj.Remote)
-	if lerr != nil {
-		return lerr
+	localDir, err := config.LocalDirForRemote(proj.Remote)
+	if err != nil {
+		return err
 	}
 	projectPath := filepath.Join(cwd, localDir)
 

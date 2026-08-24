@@ -432,15 +432,19 @@ Environment variables override or disable telemetry:
 
 | Variable | Effect |
 |----------|--------|
-| `GITTE_TELEMETRY=off` | Disable telemetry locally (kill-switch) |
-| `GITTE_TELEMETRY_URL` | Override the endpoint |
-| `GITTE_TELEMETRY_LOGS=off` | Disable OTEL log export (keep traces) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` | Standard OTEL env vars, honored as a fallback when no gitte endpoint is set |
+| `GITTE_TELEMETRY=off`, `false`, or `0` | Disable telemetry locally (case-insensitive; surrounding whitespace is ignored) |
+| `GITTE_TELEMETRY_URL` | Override the endpoint; whitespace is trimmed and `https://` is added when no scheme is present |
+| `GITTE_TELEMETRY_LOGS=off`, `false`, or `0` | Disable OTEL log export (keep traces; case-insensitive with surrounding whitespace ignored) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` | Standard OTEL env vars; endpoint vars are used when no gitte endpoint is set, and headers can provide credentials for a `GITTE_TELEMETRY_URL` override |
 
-Precedence: `GITTE_TELEMETRY=off` > `GITTE_TELEMETRY_URL` > config `endpoint` > `OTEL_EXPORTER_OTLP_*`. Telemetry is best-effort and never blocks or slows gitte; export failures are silently ignored and flushing on exit is time-bounded.
+Precedence: `GITTE_TELEMETRY=off|false|0` > `GITTE_TELEMETRY_URL` > config `endpoint` > `OTEL_EXPORTER_OTLP_*`. Telemetry is best-effort and never blocks or slows gitte; export failures are silently ignored and flushing on exit is time-bounded.
+
+When `GITTE_TELEMETRY_URL` overrides the config endpoint, config headers are not
+used. Set `OTEL_EXPORTER_OTLP_HEADERS` to provide credentials for the override
+endpoint through the OTEL exporter.
 
 Action and startup command output is also exported as OTEL logs (correlated to
-the producing span) unless `GITTE_TELEMETRY_LOGS=off`.
+the producing span) unless `GITTE_TELEMETRY_LOGS` is `off`, `false`, or `0`.
 
 ---
 

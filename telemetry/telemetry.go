@@ -44,21 +44,22 @@ type Resolved struct {
 }
 
 // Resolve computes telemetry settings. Precedence:
-// GITTE_TELEMETRY=off > GITTE_TELEMETRY_URL > config endpoint > OTEL_EXPORTER_OTLP_* env.
+// GITTE_TELEMETRY=off|false|0 > GITTE_TELEMETRY_URL > config endpoint > OTEL_EXPORTER_OTLP_* env.
 func Resolve(cfg *config.GitteConfig) Resolved {
-	if strings.EqualFold(os.Getenv("GITTE_TELEMETRY"), "off") {
+	if telemetryValueDisabled(os.Getenv("GITTE_TELEMETRY")) {
 		return Resolved{}
 	}
 
-	endpoint := os.Getenv("GITTE_TELEMETRY_URL")
+	overrideEndpoint := strings.TrimSpace(os.Getenv("GITTE_TELEMETRY_URL"))
+	endpoint := overrideEndpoint
 	if endpoint == "" && cfg != nil {
 		endpoint = cfg.Telemetry.Endpoint
 	}
+	endpoint = normalizeEndpoint(endpoint)
 	if endpoint != "" {
-		// Headers always come from config, even when GITTE_TELEMETRY_URL overrides
-		// the endpoint. This is a known v1 limitation: if you need different headers
-		// for an override endpoint, use the standard OTEL_EXPORTER_OTLP_* env path
-		// instead (which lets the SDK read its own config independently).
+		if overrideEndpoint != "" {
+			return Resolved{Enabled: true, Endpoint: endpoint}
+		}
 		headers := map[string]string{}
 		if cfg != nil {
 			for k, v := range cfg.Telemetry.Headers {
@@ -192,7 +193,6 @@ type shutdowner interface {
 func shutdownProviders(ctx context.Context, providers ...shutdowner) {
 	var wg sync.WaitGroup
 	for _, provider := range providers {
-		provider := provider
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -205,9 +205,26 @@ func shutdownProviders(ctx context.Context, providers ...shutdowner) {
 }
 
 // logsEnabled reports whether OTEL logs should be exported (enabled with tracing
-// unless GITTE_TELEMETRY_LOGS=off).
+// unless GITTE_TELEMETRY_LOGS is off, false, or 0).
 func logsEnabled() bool {
-	return !strings.EqualFold(os.Getenv("GITTE_TELEMETRY_LOGS"), "off")
+	return !telemetryValueDisabled(os.Getenv("GITTE_TELEMETRY_LOGS"))
+}
+
+func telemetryValueDisabled(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "off", "false", "0":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeEndpoint(endpoint string) string {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint != "" && !strings.Contains(endpoint, "://") {
+		endpoint = "https://" + endpoint
+	}
+	return endpoint
 }
 
 // signalEndpointURL returns an OTLP/HTTP endpoint for signal. EndpointURL

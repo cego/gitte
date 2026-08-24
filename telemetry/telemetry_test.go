@@ -48,6 +48,43 @@ func TestResourceAttributes(t *testing.T) {
 	})
 }
 
+func TestTelemetryValueDisabled(t *testing.T) {
+	cases := []struct {
+		value string
+		want  bool
+	}{
+		{"off", true},
+		{" FALSE ", true},
+		{"0", true},
+		{"on", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := telemetryValueDisabled(tc.value); got != tc.want {
+			t.Errorf("telemetryValueDisabled(%q) = %v, want %v", tc.value, got, tc.want)
+		}
+	}
+}
+
+func TestLogsEnabled_DisableValues(t *testing.T) {
+	cases := []struct {
+		value string
+		want  bool
+	}{
+		{" off ", false},
+		{"False", false},
+		{"0", false},
+		{"on", true},
+		{"", true},
+	}
+	for _, tc := range cases {
+		t.Setenv("GITTE_TELEMETRY_LOGS", tc.value)
+		if got := logsEnabled(); got != tc.want {
+			t.Errorf("logsEnabled() for %q = %v, want %v", tc.value, got, tc.want)
+		}
+	}
+}
+
 func TestResolve_Precedence(t *testing.T) {
 	// Save and clear env that influences resolution.
 	for _, k := range []string{"GITTE_TELEMETRY", "GITTE_TELEMETRY_URL", "OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"} {
@@ -75,8 +112,15 @@ func TestResolve_Precedence(t *testing.T) {
 		}
 	})
 
+	t.Run("normalizes scheme-less config endpoint", func(t *testing.T) {
+		r := Resolve(cfgWith("  apm:8200  "))
+		if r.Endpoint != "https://apm:8200" {
+			t.Fatalf("endpoint = %q, want https://apm:8200", r.Endpoint)
+		}
+	})
+
 	t.Run("GITTE_TELEMETRY_URL overrides config", func(t *testing.T) {
-		t.Setenv("GITTE_TELEMETRY_URL", "https://override:8200")
+		t.Setenv("GITTE_TELEMETRY_URL", " override:8200 ")
 		r := Resolve(cfgWith("https://apm:8200"))
 		if r.Endpoint != "https://override:8200" {
 			t.Fatalf("got %+v", r)
@@ -84,14 +128,19 @@ func TestResolve_Precedence(t *testing.T) {
 		if !r.Enabled {
 			t.Fatalf("expected Enabled=true when GITTE_TELEMETRY_URL is set, got %+v", r)
 		}
+		if r.Headers != nil {
+			t.Fatalf("headers = %+v, want nil for URL override", r.Headers)
+		}
 	})
 
-	t.Run("GITTE_TELEMETRY=off disables everything", func(t *testing.T) {
-		t.Setenv("GITTE_TELEMETRY", "off")
+	t.Run("GITTE_TELEMETRY disable values disable everything", func(t *testing.T) {
 		t.Setenv("GITTE_TELEMETRY_URL", "https://override:8200")
-		r := Resolve(cfgWith("https://apm:8200"))
-		if r.Enabled {
-			t.Fatalf("expected disabled, got %+v", r)
+		for _, value := range []string{" off ", "FALSE", "0"} {
+			t.Setenv("GITTE_TELEMETRY", value)
+			r := Resolve(cfgWith("https://apm:8200"))
+			if r.Enabled {
+				t.Fatalf("value %q: expected disabled, got %+v", value, r)
+			}
 		}
 	})
 

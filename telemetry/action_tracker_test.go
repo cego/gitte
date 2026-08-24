@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/cego/gitte/executor"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -95,6 +97,89 @@ func countSpans(exp *tracetest.InMemoryExporter, name string) int {
 	return n
 }
 
+func runExecutorWithTracker(t *testing.T, tasks []executor.Task) (*tracetest.InMemoryExporter, error) {
+	t.Helper()
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { otel.SetTracerProvider(prev); _ = tp.Shutdown(context.Background()) })
+
+	tracker := NewActionTracker(context.Background())
+	exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
+		OnTaskStart: tracker.OnStart,
+		OnTaskFinish: func(name string, err error, _ time.Duration) {
+			tracker.OnFinish(name, err)
+		},
+	})
+	if err != nil {
+		return exp, err
+	}
+	runErr := exec.Execute(context.Background())
+	tracker.Close()
+	return exp, runErr
+}
+
+func TestActionTracker_ExecutorDependencyChainUsesOneActionSpan(t *testing.T) {
+	exp, err := runExecutorWithTracker(t, []executor.Task{
+		{Name: "a:build:base", ExecuteFn: func(context.Context, string, executor.OutputHandler) error {
+			return nil
+		}},
+		{Name: "b:build:dependent", Needs: []string{"a:build:base"}, ExecuteFn: func(context.Context, string, executor.OutputHandler) error {
+			return nil
+		}},
+	})
+	if err != nil {
+		t.Fatalf("executor returned error: %v", err)
+	}
+	if got := countSpans(exp, "build"); got != 1 {
+		t.Fatalf("want exactly one build action span, got %d", got)
+	}
+}
+
+func TestActionTracker_ExecutorRetrySuccessLeavesActionSpanSuccessful(t *testing.T) {
+	var attempts int32
+	exp, err := runExecutorWithTracker(t, []executor.Task{{
+		Name:  "a:build:retry",
+		Retry: executor.RetryConfig{Attempts: 2, Delay: "0s"},
+		ExecuteFn: func(context.Context, string, executor.OutputHandler) error {
+			if attempts++; attempts == 1 {
+				return errors.New("transient")
+			}
+			return nil
+		},
+	}})
+	if err != nil {
+		t.Fatalf("executor returned error after retry: %v", err)
+	}
+	spans := exp.GetSpans()
+	if len(spans) != 1 || spans[0].Name != "build" {
+		t.Fatalf("want exactly one build action span, got %+v", spans)
+	}
+	if spans[0].Status.Code == codes.Error {
+		t.Fatalf("retry-success action span status = Error, want non-Error")
+	}
+}
+
+func TestActionTracker_ExecutorTerminalFailureLeavesActionSpanError(t *testing.T) {
+	exp, err := runExecutorWithTracker(t, []executor.Task{{
+		Name: "a:build:broken",
+		ExecuteFn: func(context.Context, string, executor.OutputHandler) error {
+			return errors.New("terminal")
+		},
+	}})
+	if err == nil {
+		t.Fatal("expected executor error")
+	}
+	spans := exp.GetSpans()
+	if len(spans) != 1 || spans[0].Name != "build" {
+		t.Fatalf("want exactly one build action span, got %+v", spans)
+	}
+	if spans[0].Status.Code != codes.Error {
+		t.Fatalf("terminal-failure action span status = %v, want Error", spans[0].Status.Code)
+	}
+}
+
 func TestActionTracker_RecordsTaskErrorOnActionSpan(t *testing.T) {
 	exp := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
@@ -104,9 +189,11 @@ func TestActionTracker_RecordsTaskErrorOnActionSpan(t *testing.T) {
 
 	tr := NewActionTracker(context.Background())
 	tr.OnStart("a:build:sn")
+	tr.OnFinish("a:build:sn", errors.New("build failed")) // first attempt fails
+	tr.OnStart("a:build:sn")
+	tr.OnFinish("a:build:sn", nil) // later retry succeeds
 	tr.OnStart("b:build:sn")
-	tr.OnFinish("a:build:sn", errors.New("build failed")) // one task fails
-	tr.OnFinish("b:build:sn", nil)
+	tr.OnFinish("b:build:sn", errors.New("another build failed"))
 	tr.Close()
 
 	spans := exp.GetSpans()
@@ -121,6 +208,9 @@ func TestActionTracker_RecordsTaskErrorOnActionSpan(t *testing.T) {
 	}
 	if build.Status.Code != codes.Error {
 		t.Fatalf("build span status = %v, want Error", build.Status.Code)
+	}
+	if len(build.Events) != 2 {
+		t.Fatalf("want one error event per failed attempt, got %d", len(build.Events))
 	}
 }
 
@@ -161,5 +251,9 @@ func TestActionTracker_RetryUsesSameSpan(t *testing.T) {
 
 	if n := countSpans(exp, "build"); n != 1 {
 		t.Fatalf("want one build span across retry, got %d", n)
+	}
+	spans := exp.GetSpans()
+	if len(spans[0].Events) != 1 {
+		t.Fatalf("want one error event for the failed attempt, got %d", len(spans[0].Events))
 	}
 }

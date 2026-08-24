@@ -18,6 +18,7 @@ type ActionTracker struct {
 	spans    map[string]trace.Span      // action -> span
 	ctxs     map[string]context.Context // action -> span context
 	started  map[string]struct{}        // tasks that have called OnStart
+	failures map[string]error           // task -> latest completion error
 }
 
 // NewActionTracker creates a tracker rooted at the actions phase context.
@@ -27,6 +28,7 @@ func NewActionTracker(phaseCtx context.Context) *ActionTracker {
 		spans:    map[string]trace.Span{},
 		ctxs:     map[string]context.Context{},
 		started:  map[string]struct{}{},
+		failures: map[string]error{},
 	}
 }
 
@@ -58,12 +60,16 @@ func (t *ActionTracker) OnFinish(taskName string, err error) {
 	}
 	delete(t.started, taskName)
 	action := ActionOf(taskName)
+	if err == nil {
+		delete(t.failures, taskName)
+	} else {
+		t.failures[taskName] = err
+	}
 	// Propagate a failed task onto its action span so failure shows at every
 	// level of the trace, not just on the task span.
 	if err != nil {
 		if span, ok := t.spans[action]; ok {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
 		}
 	}
 }
@@ -72,6 +78,11 @@ func (t *ActionTracker) OnFinish(taskName string, err error) {
 func (t *ActionTracker) Close() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	for taskName, err := range t.failures {
+		if span, ok := t.spans[ActionOf(taskName)]; ok {
+			span.SetStatus(codes.Error, err.Error())
+		}
+	}
 	for action, span := range t.spans {
 		span.End()
 		delete(t.spans, action)
