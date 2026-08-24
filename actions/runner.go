@@ -40,6 +40,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	view := newView(mode, infos, actionOrder, runCancel, retryCh, cfg.QuickSolve.GitClean.Exclude)
 
 	tracker := telemetry.NewActionTracker(ctx)
+	defer tracker.Close()
 
 	onStart := func(name string) {
 		tracker.OnStart(name)

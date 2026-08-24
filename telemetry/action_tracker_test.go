@@ -22,9 +22,10 @@ func TestActionTracker_SpanPerAction(t *testing.T) {
 	tr.OnStart("a:build:sn")
 	tr.OnStart("b:build:sn")
 	tr.OnFinish("a:build:sn", nil)
-	tr.OnFinish("b:build:sn", nil) // last build task -> build span ends
+	tr.OnFinish("b:build:sn", nil)
 	tr.OnStart("a:up:sn")
-	tr.OnFinish("a:up:sn", nil) // up span ends
+	tr.OnFinish("a:up:sn", nil)
+	tr.Close()
 
 	names := map[string]int{}
 	for _, s := range exp.GetSpans() {
@@ -67,10 +68,15 @@ func TestActionTracker_SkippedTaskDoesNotCloseSpan(t *testing.T) {
 		t.Fatalf("want 0 exported build spans after first real OnFinish, got %d", n)
 	}
 
-	// Last real task finishes — span must close now, exactly once.
+	// Last real task finishes — the explicit close has not happened yet.
 	tr.OnFinish("b:build:sn", nil)
+	if n := countSpans(exp, "build"); n != 0 {
+		t.Fatalf("want 0 exported build spans before Close, got %d", n)
+	}
+
+	tr.Close()
 	if n := countSpans(exp, "build"); n != 1 {
-		t.Fatalf("want exactly 1 exported build span after last real OnFinish, got %d", n)
+		t.Fatalf("want exactly 1 exported build span after Close, got %d", n)
 	}
 
 	// ActionContext must now fall back to the phase context.
@@ -100,7 +106,8 @@ func TestActionTracker_RecordsTaskErrorOnActionSpan(t *testing.T) {
 	tr.OnStart("a:build:sn")
 	tr.OnStart("b:build:sn")
 	tr.OnFinish("a:build:sn", errors.New("build failed")) // one task fails
-	tr.OnFinish("b:build:sn", nil)                        // last finishes -> span ends
+	tr.OnFinish("b:build:sn", nil)
+	tr.Close()
 
 	spans := exp.GetSpans()
 	var build *tracetest.SpanStub
@@ -114,5 +121,45 @@ func TestActionTracker_RecordsTaskErrorOnActionSpan(t *testing.T) {
 	}
 	if build.Status.Code != codes.Error {
 		t.Fatalf("build span status = %v, want Error", build.Status.Code)
+	}
+}
+
+func TestActionTracker_SequentialTasksUseOneSpanUntilClose(t *testing.T) {
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { otel.SetTracerProvider(prev); _ = tp.Shutdown(context.Background()) })
+
+	tr := NewActionTracker(context.Background())
+	tr.OnStart("a:build:sn")
+	tr.OnFinish("a:build:sn", nil)
+	tr.OnStart("b:build:sn")
+	tr.OnFinish("b:build:sn", nil)
+	if n := countSpans(exp, "build"); n != 0 {
+		t.Fatalf("want no build span until tracker close, got %d", n)
+	}
+	tr.Close()
+	if n := countSpans(exp, "build"); n != 1 {
+		t.Fatalf("want one build span for sequential tasks, got %d", n)
+	}
+}
+
+func TestActionTracker_RetryUsesSameSpan(t *testing.T) {
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { otel.SetTracerProvider(prev); _ = tp.Shutdown(context.Background()) })
+
+	tr := NewActionTracker(context.Background())
+	tr.OnStart("a:build:sn")
+	tr.OnFinish("a:build:sn", errors.New("transient"))
+	tr.OnStart("a:build:sn")
+	tr.OnFinish("a:build:sn", nil)
+	tr.Close()
+
+	if n := countSpans(exp, "build"); n != 1 {
+		t.Fatalf("want one build span across retry, got %d", n)
 	}
 }

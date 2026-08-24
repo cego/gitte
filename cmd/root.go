@@ -38,6 +38,7 @@ var (
 
 	globalTelemetryShutdown func(context.Context)
 	globalRootSpan          trace.Span
+	initTelemetry           = telemetry.Init
 )
 
 // rootCmd is the base command
@@ -61,13 +62,13 @@ with dependency resolution.`,
 			return nil
 		}
 		if err != nil {
+			startRootTelemetry(globalCtx, nil, cmd.Root().Version, cmd.CommandPath(), args)
 			return err
 		}
 
 		// Telemetry: best-effort, never blocks. Stores root span context in globalCtx
 		// so it propagates through the executor into gitops/actions leaf spans.
-		globalTelemetryShutdown = telemetry.Init(globalCtx, globalCfg, cmd.Root().Version)
-		globalCtx, globalRootSpan = telemetry.StartCommandSpan(globalCtx, cmd.CommandPath(), args)
+		startRootTelemetry(globalCtx, globalCfg, cmd.Root().Version, cmd.CommandPath(), args)
 		return nil
 	},
 }
@@ -134,6 +135,14 @@ func finishTelemetry(err error) {
 		defer stop()
 		globalTelemetryShutdown(shutdownCtx)
 	}
+}
+
+func startRootTelemetry(ctx context.Context, cfg *config.GitteConfig, version, commandPath string, args []string) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	globalTelemetryShutdown = initTelemetry(ctx, cfg, version)
+	globalCtx, globalRootSpan = telemetry.StartCommandSpan(ctx, commandPath, args)
 }
 
 func init() {

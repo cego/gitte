@@ -25,6 +25,33 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+func withSyncSpan(ctx context.Context, name string, fn func(context.Context, trace.Span) error) (err error) {
+	ctx, span := startSyncSpan(ctx, name)
+	defer finishSyncSpan(span, &err)
+	return fn(ctx, span)
+}
+
+func startSyncSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	ctx, span := telemetry.Tracer().Start(ctx, "gitops.sync "+name)
+	span.SetAttributes(attribute.String("gitte.repo", name))
+	return ctx, span
+}
+
+func finishSyncSpan(span trace.Span, err *error) {
+	if recovered := recover(); recovered != nil {
+		panicErr := fmt.Errorf("panic: %v", recovered)
+		span.RecordError(panicErr)
+		span.SetStatus(codes.Error, panicErr.Error())
+		span.End()
+		panic(recovered)
+	}
+	if *err != nil {
+		span.RecordError(*err)
+		span.SetStatus(codes.Error, (*err).Error())
+	}
+	span.End()
+}
+
 // parallelLimit returns the effective parallelization cap for gitops clone/pull
 // tasks. It uses GITTE_MAX_TASK_PARALLELIZATION if set; otherwise it falls
 // back to defaultVal (0 = unlimited).
@@ -188,15 +215,8 @@ func syncProject(
 	addPrompt func(CheckoutPrompt),
 	warnFn func(string),
 ) (err error) {
-	ctx, span := telemetry.Tracer().Start(ctx, "gitops.sync "+name)
-	span.SetAttributes(attribute.String("gitte.repo", name))
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-		}
-		span.End()
-	}()
+	ctx, span := startSyncSpan(ctx, name)
+	defer finishSyncSpan(span, &err)
 
 	localDir, lerr := config.LocalDirForRemote(proj.Remote)
 	if lerr != nil {

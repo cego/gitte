@@ -218,7 +218,11 @@ func signalEndpointURL(endpoint, signal string) string {
 	if err != nil {
 		return endpoint
 	}
-	if u.Path == "" || u.Path == "/" {
+	path := strings.TrimRight(u.Path, "/")
+	switch path {
+	case "", "/":
+		u.Path = "/v1/" + signal
+	case "/v1/traces", "/v1/logs":
 		u.Path = "/v1/" + signal
 	}
 	return u.String()

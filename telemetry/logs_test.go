@@ -183,6 +183,9 @@ func TestSignalEndpointURL(t *testing.T) {
 		{"https://apm.example.com/", "traces", "https://apm.example.com/v1/traces"},
 		{"https://apm.example.com:8200/", "logs", "https://apm.example.com:8200/v1/logs"},
 		{"https://apm.example.com/custom/traces", "traces", "https://apm.example.com/custom/traces"},
+		{"https://apm.example.com/v1/traces", "logs", "https://apm.example.com/v1/logs"},
+		{"https://apm.example.com/v1/logs", "traces", "https://apm.example.com/v1/traces"},
+		{"https://apm.example.com/v1/traces/", "logs", "https://apm.example.com/v1/logs"},
 		{"https://apm.example.com/?token=x", "traces", "https://apm.example.com/v1/traces?token=x"},
 	}
 	for _, c := range cases {

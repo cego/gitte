@@ -10,14 +10,13 @@ import (
 )
 
 // ActionTracker opens one span per action (e.g. "build", "up") under the
-// actions phase context, driven by the executor's task hooks. An action span
-// opens on its first task start and closes when its last task finishes.
+// actions phase context, driven by the executor's task hooks. Action spans are
+// closed explicitly by the action runner after all executor passes finish.
 type ActionTracker struct {
 	phaseCtx context.Context
 	mu       sync.Mutex
 	spans    map[string]trace.Span      // action -> span
 	ctxs     map[string]context.Context // action -> span context
-	active   map[string]int             // action -> live task count
 	started  map[string]struct{}        // tasks that have called OnStart
 }
 
@@ -27,7 +26,6 @@ func NewActionTracker(phaseCtx context.Context) *ActionTracker {
 		phaseCtx: phaseCtx,
 		spans:    map[string]trace.Span{},
 		ctxs:     map[string]context.Context{},
-		active:   map[string]int{},
 		started:  map[string]struct{}{},
 	}
 }
@@ -41,24 +39,17 @@ func ActionOf(taskName string) string {
 	return taskName
 }
 
-// OnStart opens the action span if needed and increments its live-task count.
+// OnStart opens the action span if needed and records that the task ran.
 func (t *ActionTracker) OnStart(taskName string) {
 	action := ActionOf(taskName)
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if _, ok := t.spans[action]; !ok {
-		ctx, span := Tracer().Start(t.phaseCtx, action)
-		t.spans[action] = span
-		t.ctxs[action] = ctx
-	}
+	t.openLocked(action)
 	t.started[taskName] = struct{}{}
-	t.active[action]++
 }
 
-// OnFinish decrements the live-task count and ends the action span at zero.
-// A non-nil err is recorded on the action span so failure surfaces at the
-// action level too. If the task never called OnStart (e.g. it was skipped due
-// to a failed dependency), this is a no-op to avoid corrupting the active count.
+// OnFinish records a task error on its action span. If the task never called
+// OnStart (e.g. it was skipped due to a failed dependency), this is a no-op.
 func (t *ActionTracker) OnFinish(taskName string, err error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -75,15 +66,26 @@ func (t *ActionTracker) OnFinish(taskName string, err error) {
 			span.SetStatus(codes.Error, err.Error())
 		}
 	}
-	t.active[action]--
-	if t.active[action] <= 0 {
-		if span, ok := t.spans[action]; ok {
-			span.End()
-			delete(t.spans, action)
-			delete(t.ctxs, action)
-			delete(t.active, action)
-		}
+}
+
+// Close ends every action span exactly once. It is safe to call more than once.
+func (t *ActionTracker) Close() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for action, span := range t.spans {
+		span.End()
+		delete(t.spans, action)
+		delete(t.ctxs, action)
 	}
+}
+
+func (t *ActionTracker) openLocked(action string) {
+	if _, ok := t.spans[action]; ok {
+		return
+	}
+	ctx, span := Tracer().Start(t.phaseCtx, action)
+	t.spans[action] = span
+	t.ctxs[action] = ctx
 }
 
 // ActionContext returns the action span's context, or the phase context if the
