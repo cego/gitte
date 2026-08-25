@@ -280,6 +280,10 @@ func syncProject(
 		}
 		setGitContextAttrs(span, currentBranch, getHeadSHA(ctx, projectPath), dirty)
 	}
+	trackedChanges, err := hasTrackedChanges(ctx, projectPath)
+	if err != nil {
+		return err
+	}
 	// ── On default branch ──────────────────────────────────────────────────
 	if currentBranch == defaultBranch {
 		upToDate, err := mergeFastForward(ctx, projectPath, "origin/"+defaultBranch)
@@ -315,10 +319,21 @@ func syncProject(
 	// Pull from the remote tracking branch and rebase in one transaction so a
 	// failure restores the state from before either operation.
 	pulledLabel := ""
-	var rebaseConflict bool
+	var (
+		divergence     branchDivergence
+		rebaseConflict bool
+		rebased        bool
+		statusErr      error
+		statusKind     string
+	)
 	transactionErr := withTrackedChanges(ctx, projectPath, func() error {
 		if remoteRefExists(ctx, projectPath, remoteCurrentRef) {
-			ahead := commitsAhead(ctx, projectPath, "HEAD", remoteCurrentRef)
+			ahead, err := commitCount(ctx, projectPath, "HEAD", remoteCurrentRef)
+			if err != nil {
+				statusErr = err
+				statusKind = "branch"
+				return err
+			}
 			if ahead > 0 {
 				if _, err := mergeFastForwardRaw(ctx, projectPath, remoteCurrentRef); err != nil {
 					var diverged *fastForwardDivergedError
@@ -333,27 +348,45 @@ func syncProject(
 			}
 		}
 
+		var err error
+		divergence, err = divergenceFrom(ctx, projectPath, "origin/"+defaultBranch)
+		if err != nil {
+			statusErr = err
+			statusKind = "default"
+			return err
+		}
+
 		// Auto-rebase onto default branch (unless disabled).
-		if !noRebase {
+		if !noRebase && divergence.behind > 0 {
 			remoteDefaultRef := "origin/" + defaultBranch
-			if commitsAhead(ctx, projectPath, "HEAD", remoteDefaultRef) > 0 {
-				if err := prepareRebase(ctx, projectPath, remoteDefaultRef); err != nil {
-					return err
-				}
-				if _, err := rebaseRaw(ctx, projectPath, remoteDefaultRef); err != nil {
-					var conflict *rebaseConflictError
-					if errors.As(err, &conflict) {
-						rebaseConflict = true
-					}
-					return err
-				}
+			if err := prepareRebase(ctx, projectPath, remoteDefaultRef); err != nil {
+				return err
 			}
+			ok, err := rebaseRaw(ctx, projectPath, remoteDefaultRef)
+			if err != nil {
+				var conflict *rebaseConflictError
+				if errors.As(err, &conflict) {
+					rebaseConflict = true
+				}
+				return err
+			}
+			rebased = ok
 		}
 		return nil
 	})
 	if transactionErr != nil {
 		var diverged *fastForwardDivergedError
 		if errors.As(transactionErr, &diverged) {
+			return nil
+		}
+		if statusErr != nil {
+			if statusKind == "branch" {
+				warnFn(fmt.Sprintf("[%s] remote branch status failed: %v", name, statusErr))
+				setDetail("unknown: branch status failed")
+			} else {
+				warnFn(fmt.Sprintf("[%s] default branch status failed: %v", name, statusErr))
+				setDetail("unknown: default branch status failed")
+			}
 			return nil
 		}
 		var conflict *rebaseConflictError
@@ -374,38 +407,53 @@ func syncProject(
 	if rebaseConflict {
 		return fmt.Errorf("rebase conflict was not reported")
 	}
-
-	// Stale check for projects not yet brought up to date.
-	if !addStaleIfNeeded(ctx, name, projectPath, defaultBranch, retryFn, setDetail, addPrompt) {
+	if rebased {
 		if pulledLabel != "" {
-			setDetail(pulledLabel)
+			setDetail(pulledLabel + ", rebased onto " + defaultBranch)
 		} else {
-			setDetail("up to date")
+			setDetail("rebased onto " + defaultBranch)
 		}
+		return nil
+	}
+
+	if showBehindStatus(name, projectPath, defaultBranch, divergence, trackedChanges, retryFn, setDetail, addPrompt) {
+		return nil
+	}
+	if pulledLabel != "" {
+		setDetail(pulledLabel)
+	} else {
+		setDetail("up to date")
 	}
 
 	return nil
 }
 
-// addStaleIfNeeded checks whether the project is behind origin/<defaultBranch>
-// by more than one week.  If so it updates the TUI detail and registers a
-// checkout prompt.  Returns true when a prompt was added.
-func addStaleIfNeeded(ctx context.Context, name, dir, defaultBranch string, retryFn func() error, setDetail func(string), addPrompt func(CheckoutPrompt)) bool {
-	days := staleDays(ctx, dir, defaultBranch)
-	if days == 0 {
+type branchDivergence struct {
+	ahead  int
+	behind int
+	days   int
+}
+
+// showBehindStatus reports every missing default-branch commit, while keeping
+// the existing one-week threshold for interactive checkout prompts.
+func showBehindStatus(name, dir, defaultBranch string, divergence branchDivergence, localChanges bool, retryFn func() error, setDetail func(string), addPrompt func(CheckoutPrompt)) bool {
+	if divergence.behind == 0 {
 		return false
 	}
 
-	hasWork := commitsAhead(ctx, dir, "origin/"+defaultBranch, "HEAD") > 0
+	setDetail(behindDetail(defaultBranch, divergence, localChanges))
 
-	reason := fmt.Sprintf("%d days behind %s", days, defaultBranch)
+	if divergence.days <= 7 {
+		return true
+	}
+
+	reason := fmt.Sprintf("%d commits and %d days behind %s", divergence.behind, divergence.days, defaultBranch)
 	rec := fmt.Sprintf("git -C %s checkout %s", dir, defaultBranch)
-	if hasWork {
+	if divergence.ahead > 0 || localChanges {
 		reason += " (has local work)"
 		rec = fmt.Sprintf("git -C %s rebase origin/%s", dir, defaultBranch)
 	}
 
-	setDetail("stale: " + reason)
 	addPrompt(CheckoutPrompt{
 		ProjectName:    name,
 		ProjectPath:    dir,
@@ -417,40 +465,79 @@ func addStaleIfNeeded(ctx context.Context, name, dir, defaultBranch string, retr
 	return true
 }
 
-// staleDays returns how many days behind origin/<defaultBranch> the current
-// branch is, measured at the newest unreachable commit.  Returns 0 when on
-// the default branch, already up-to-date, or when the check cannot run.
-func staleDays(ctx context.Context, dir, defaultBranch string) int {
-	if defaultBranch == "" {
-		defaultBranch = "master"
+func behindDetail(defaultBranch string, divergence branchDivergence, localChanges bool) string {
+	detail := fmt.Sprintf("stale: behind %s %dc/%dd", defaultBranch, divergence.behind, divergence.days)
+	if localChanges {
+		detail += " +work"
 	}
-	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-parse", "--abbrev-ref", "HEAD")
-	if err != nil || res.ExitCode != 0 {
-		return 0
+	return detail
+}
+
+func remoteDefaultBranch(ctx context.Context, dir string) (string, error) {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+	if err == nil && res.ExitCode == 0 {
+		if branch := strings.TrimPrefix(strings.TrimSpace(string(res.Stdout)), "origin/"); branch != "" {
+			return branch, nil
+		}
 	}
-	if b := strings.TrimSpace(string(res.Stdout)); b == "HEAD" || b == defaultBranch {
-		return 0
+	for _, branch := range []string{"master", "main"} {
+		if remoteRefExists(ctx, dir, "origin/"+branch) {
+			return branch, nil
+		}
+	}
+	return "", fmt.Errorf("cannot determine origin default branch")
+}
+
+func divergenceFrom(ctx context.Context, dir, ref string) (branchDivergence, error) {
+	if !remoteRefExists(ctx, dir, ref) {
+		return branchDivergence{}, fmt.Errorf("remote ref %s does not exist", ref)
 	}
 
-	remoteRef := "origin/" + defaultBranch
-	res2, err := executor.ExecuteSyncInDir(ctx, dir, "git", "log", "HEAD.."+remoteRef, "--format=%ct", "--max-count=1")
-	if err != nil || res2.ExitCode != 0 {
-		return 0
-	}
-	tsStr := strings.TrimSpace(string(res2.Stdout))
-	if tsStr == "" {
-		return 0
-	}
-	ts, err := strconv.ParseInt(tsStr, 10, 64)
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-list", "--left-right", "--count", "HEAD..."+ref)
 	if err != nil {
-		return 0
+		return branchDivergence{}, fmt.Errorf("git rev-list: %w", err)
+	}
+	if res.ExitCode != 0 {
+		return branchDivergence{}, fmt.Errorf("git rev-list failed (exit %d): %s", res.ExitCode, strings.TrimSpace(string(res.Stderr)))
+	}
+	fields := strings.Fields(string(res.Stdout))
+	if len(fields) != 2 {
+		return branchDivergence{}, fmt.Errorf("unexpected git rev-list output %q", strings.TrimSpace(string(res.Stdout)))
+	}
+	ahead, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return branchDivergence{}, fmt.Errorf("parse ahead count: %w", err)
+	}
+	behind, err := strconv.Atoi(fields[1])
+	if err != nil {
+		return branchDivergence{}, fmt.Errorf("parse behind count: %w", err)
+	}
+	divergence := branchDivergence{ahead: ahead, behind: behind}
+	if behind == 0 {
+		return divergence, nil
 	}
 
-	days := int(time.Since(time.Unix(ts, 0)).Hours() / 24)
-	if days > 7 {
-		return days
+	base, err := executor.ExecuteSyncInDir(ctx, dir, "git", "merge-base", "HEAD", ref)
+	if err != nil {
+		return branchDivergence{}, fmt.Errorf("git merge-base: %w", err)
 	}
-	return 0
+	if base.ExitCode != 0 {
+		return branchDivergence{}, fmt.Errorf("git merge-base failed (exit %d): %s", base.ExitCode, strings.TrimSpace(string(base.Stderr)))
+	}
+	baseRef := strings.TrimSpace(string(base.Stdout))
+	res, err = executor.ExecuteSyncInDir(ctx, dir, "git", "show", "-s", "--format=%ct", baseRef)
+	if err != nil {
+		return branchDivergence{}, fmt.Errorf("git show merge base: %w", err)
+	}
+	if res.ExitCode != 0 {
+		return branchDivergence{}, fmt.Errorf("git show merge base failed (exit %d): %s", res.ExitCode, strings.TrimSpace(string(res.Stderr)))
+	}
+	ts, err := strconv.ParseInt(strings.TrimSpace(string(res.Stdout)), 10, 64)
+	if err != nil {
+		return branchDivergence{}, fmt.Errorf("parse merge-base timestamp: %w", err)
+	}
+	divergence.days = max(0, int(time.Since(time.Unix(ts, 0)).Hours()/24))
+	return divergence, nil
 }
 
 // setGitContextAttrs records git context on a span. The caller sets gitte.repo
@@ -524,17 +611,20 @@ func hasRemoteTrackingConfig(ctx context.Context, dir, branch string) bool {
 	return err == nil && res.ExitCode == 0 && len(strings.TrimSpace(string(res.Stdout))) > 0
 }
 
-// commitsAhead returns the number of commits reachable from target but not from base.
-func commitsAhead(ctx context.Context, dir, base, target string) int {
+// commitCount returns the number of commits reachable from target but not from base.
+func commitCount(ctx context.Context, dir, base, target string) (int, error) {
 	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-list", "--count", base+".."+target)
-	if err != nil || res.ExitCode != 0 {
-		return 0
+	if err != nil {
+		return 0, fmt.Errorf("git rev-list: %w", err)
+	}
+	if res.ExitCode != 0 {
+		return 0, fmt.Errorf("git rev-list failed (exit %d): %s", res.ExitCode, strings.TrimSpace(string(res.Stderr)))
 	}
 	n, err := strconv.Atoi(strings.TrimSpace(string(res.Stdout)))
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("parse commit count: %w", err)
 	}
-	return n
+	return n, nil
 }
 
 func isDetachedHEAD(ctx context.Context, dir string) (bool, error) {
