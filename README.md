@@ -16,6 +16,7 @@ Gitte keeps all your repos in sync, runs startup checks to verify your local mac
 - [Commands](#commands)
 - [Configuration](#configuration)
 - [Environment variables](#environment-variables)
+- [Telemetry](#telemetry)
 - [Global flags](#global-flags)
 - [State and override files](#state-and-override-files)
 
@@ -167,6 +168,60 @@ See [docs/config.md](./docs/config.md) for the full configuration reference.
 | `GITTE_NO_NEEDS` | `0` | Set to `1` to ignore `needs` dependencies |
 | `GITTE_NO_REBASE` | `false` | Set to `true` to skip auto-rebase onto default branch |
 | `GITTE_MAX_TASK_PARALLELIZATION` | unlimited | Cap the number of concurrent tasks |
+
+---
+
+## Telemetry
+
+Gitte can export OpenTelemetry traces to an OTLP/HTTP endpoint (e.g. Elastic
+APM) to help debug failures. Traces capture per-repo git context (branch,
+commit SHA, dirty state) and per-task outcomes with errors. To identify which
+developer and machine hit a failure, the OS username (`user.name`) and hostname
+(`host.name`) are attached to every trace.
+
+**What is recorded:** the gitte CLI arguments and each action's command line are
+exported as span attributes (this is intentional — knowing what ran is the
+point). Note that gitte's **injected** environment — a project's `env`,
+`env_when`, and feature-gate env — is also exported on task spans (the
+`gitte.env` attribute) and in the task logs; the inherited **process**
+environment (everything in `os.Environ`) is **not**. So keep secrets out of
+action command definitions, CLI arguments, and config `env`/feature-gate blocks
+— pass real secrets through the process environment instead. Full remote URLs
+are never collected either (repos are identified by name only).
+
+Each `gitte run` produces a structured trace: a root span with child spans for
+each phase (`startup`, `gitops`, `actions`), a span per startup check, a span
+per action (e.g. `build`, `up`) parenting its task spans, and a span per repo
+sync. Action and startup command output is also shipped as **OTEL logs**,
+correlated to the span that produced each line (stdout → INFO, stderr → WARN).
+
+Logs are enabled with tracing; set `GITTE_TELEMETRY_LOGS` to `off`, `false`, or
+`0` to keep traces but disable the (higher-volume) log export. Keep secrets out
+of command output — log lines are exported verbatim.
+
+Enable it via the shared config:
+
+```yaml
+telemetry:
+  endpoint: https://apm.example.com:8200
+  headers:
+    Authorization: "Bearer <secret-token>"   # or: "ApiKey <base64-key>"
+```
+
+Environment variables:
+
+| Variable | Effect |
+|---|---|
+| `GITTE_TELEMETRY=off`, `false`, or `0` | Disable telemetry locally (case-insensitive; surrounding whitespace is ignored) |
+| `GITTE_TELEMETRY_URL` | Override the endpoint; whitespace is trimmed and `https://` is added when no scheme is present |
+| `GITTE_TELEMETRY_LOGS=off`, `false`, or `0` | Disable OTEL log export (keep traces; case-insensitive with surrounding whitespace ignored) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` | Standard OTEL env vars; endpoint vars are used when no gitte endpoint is set, and headers can provide credentials for a `GITTE_TELEMETRY_URL` override |
+
+Precedence: `GITTE_TELEMETRY=off|false|0` > `GITTE_TELEMETRY_URL` > config endpoint >
+`OTEL_EXPORTER_OTLP_*`. Telemetry is best-effort and never blocks or slows
+gitte; export failures are silently ignored. When `GITTE_TELEMETRY_URL` overrides
+the config endpoint, config headers are not used; set `OTEL_EXPORTER_OTLP_HEADERS`
+to provide override-endpoint credentials through the OTEL exporter.
 
 ---
 

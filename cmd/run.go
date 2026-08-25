@@ -6,6 +6,8 @@ import (
 
 	"github.com/cego/gitte/gitops"
 	"github.com/cego/gitte/startup"
+	"github.com/cego/gitte/telemetry"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/spf13/cobra"
 )
@@ -28,33 +30,50 @@ Examples:
 		ValidArgsFunction: actionArgsCompletion,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Step 1: Startup checks
-			if err := startup.Run(globalCtx, globalCfg, globalCwd, outputMode()); err != nil {
-				return err
+			startupCtx, startupSpan := telemetry.StartPhaseSpan(globalCtx, "startup")
+			serr := startup.Run(startupCtx, globalCfg, globalCwd, outputMode())
+			if serr != nil {
+				startupSpan.RecordError(serr)
+				startupSpan.SetStatus(codes.Error, serr.Error())
+			}
+			startupSpan.End()
+			if serr != nil {
+				return serr
 			}
 
 			fmt.Println()
 
-			// Step 2: Discovery (if requested)
+			// Step 2: Discovery + git sync
 			mode := outputMode()
 			warnings, addWarning := newWarnCollector()
-			if discover {
-				if err := gitops.Discover(globalCtx, globalCfg, globalCwd, mode, addWarning); err != nil {
+			gitopsCtx, gitopsSpan := telemetry.StartPhaseSpan(globalCtx, "gitops")
+			gerr := func() error {
+				if discover {
+					if err := gitops.Discover(gitopsCtx, globalCfg, globalCwd, mode, addWarning); err != nil {
+						gitops.PrintWarnings(mode, warnings())
+						return err
+					}
+				}
+				nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
+				if err := gitops.Sync(gitopsCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode), addWarning); err != nil {
 					gitops.PrintWarnings(mode, warnings())
 					return err
 				}
-			}
-
-			// Step 3: Git sync
-			nr := noRebase || os.Getenv("GITTE_NO_REBASE") == "true"
-			if err := gitops.Sync(globalCtx, globalCfg, globalCwd, mode, nr, makePromptFn(mode), addWarning); err != nil {
 				gitops.PrintWarnings(mode, warnings())
-				return err
+				return nil
+			}()
+			if gerr != nil {
+				gitopsSpan.RecordError(gerr)
+				gitopsSpan.SetStatus(codes.Error, gerr.Error())
 			}
-			gitops.PrintWarnings(mode, warnings())
+			gitopsSpan.End()
+			if gerr != nil {
+				return gerr
+			}
 
 			fmt.Println()
 
-			// Step 4: Actions (if specified)
+			// Step 3: Actions (if specified) — runActions opens its own "actions" phase span.
 			if len(args) > 0 {
 				return runActions(args)
 			}

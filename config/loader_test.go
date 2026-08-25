@@ -63,6 +63,37 @@ func TestConfig_MergeOverride_NilBaseProjects(t *testing.T) {
 	}
 }
 
+func TestConfig_MergeOverride_Telemetry(t *testing.T) {
+	base := &GitteConfig{Telemetry: TelemetryConfig{
+		Endpoint: "https://shared.example/v1/traces",
+		Headers:  map[string]string{"Authorization": "shared", "X-Base": "yes"},
+	}}
+	override := &GitteConfig{Telemetry: TelemetryConfig{
+		Endpoint: "https://local.example/otlp",
+		Headers:  map[string]string{"Authorization": "local"},
+	}}
+
+	result := MergeOverride(base, override)
+	if result.Telemetry.Endpoint != "https://local.example/otlp" {
+		t.Fatalf("endpoint = %q, want local override", result.Telemetry.Endpoint)
+	}
+	if len(result.Telemetry.Headers) != 1 || result.Telemetry.Headers["Authorization"] != "local" {
+		t.Fatalf("headers = %+v, want replacement headers", result.Telemetry.Headers)
+	}
+}
+
+func TestConfig_MergeOverride_TelemetryEmptyHeadersClearBase(t *testing.T) {
+	base := &GitteConfig{Telemetry: TelemetryConfig{
+		Headers: map[string]string{"Authorization": "shared"},
+	}}
+	override := &GitteConfig{Telemetry: TelemetryConfig{Headers: map[string]string{}}}
+
+	result := MergeOverride(base, override)
+	if result.Telemetry.Headers == nil || len(result.Telemetry.Headers) != 0 {
+		t.Fatalf("headers = %#v, want non-nil empty replacement", result.Telemetry.Headers)
+	}
+}
+
 func TestConfig_WithTogglesApplied_DefaultEnabled(t *testing.T) {
 	cfg := &GitteConfig{
 		Projects: map[string]ProjectConfig{
