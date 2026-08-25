@@ -18,6 +18,7 @@ An optional `.gitte-override.yml` in the same directory is deep-merged on top, u
 - [searchFor](#searchfor)
 - [feature\_gates](#feature_gates)
 - [sources](#sources)
+- [telemetry](#telemetry)
 - [Remote configuration](#remote-configuration)
 
 ---
@@ -34,6 +35,7 @@ sources:        # auto-discovery sources (optional)
 searchFor:      # global output pattern matching (optional)
 actionOverride: # per-action overrides (optional)
 retry:          # global retry defaults (optional)
+telemetry:      # OpenTelemetry trace export (optional)
 ```
 
 ---
@@ -403,6 +405,46 @@ Run discovery with:
 gitte gitops --discover
 gitte run start --discover    # discover, then sync, then run actions
 ```
+
+---
+
+## telemetry
+
+Gitte can export OpenTelemetry traces over OTLP/HTTP to an OTLP-compatible backend (e.g. Elastic APM) to help debug failures. Telemetry is enabled whenever an endpoint is resolved.
+
+```yaml
+telemetry:
+  endpoint: https://apm.example.com:8200   # OTLP/HTTP endpoint
+  headers:                                  # arbitrary export headers (optional)
+    Authorization: "Bearer <secret-token>"  # or: "ApiKey <base64-key>"
+```
+
+| Field | Description |
+|-------|-------------|
+| `endpoint` | OTLP/HTTP endpoint to export spans to. Telemetry is enabled when this resolves to a non-empty value. |
+| `headers` | Map of HTTP headers attached to every export request — typically authentication (`Authorization`). |
+
+Each invocation produces one trace: a root span for the command, child spans for each repo sync (branch, commit SHA, dirty flag) and each action task (command, exit code), with errors recorded on the relevant span. The OS username (`user.name`) and hostname (`host.name`) are attached to every trace to identify which developer and machine produced it.
+
+The gitte CLI arguments and each action's command line are exported as span attributes. gitte's injected environment — a project's `env`, `env_when`, and feature-gate env — is also exported (the `gitte.env` span attribute and the task logs); the inherited process environment (`os.Environ`) is not. Keep secrets out of action command definitions, CLI arguments, and config `env`/feature-gate blocks — pass real secrets through the process environment instead. Full remote URLs are never collected (repos are identified by name only).
+
+Environment variables override or disable telemetry:
+
+| Variable | Effect |
+|----------|--------|
+| `GITTE_TELEMETRY=off`, `false`, or `0` | Disable telemetry locally (case-insensitive; surrounding whitespace is ignored) |
+| `GITTE_TELEMETRY_URL` | Override the endpoint; whitespace is trimmed and `https://` is added when no scheme is present |
+| `GITTE_TELEMETRY_LOGS=off`, `false`, or `0` | Disable OTEL log export (keep traces; case-insensitive with surrounding whitespace ignored) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_HEADERS` | Standard OTEL env vars; endpoint vars are used when no gitte endpoint is set, and headers can provide credentials for a `GITTE_TELEMETRY_URL` override |
+
+Precedence: `GITTE_TELEMETRY=off|false|0` > `GITTE_TELEMETRY_URL` > config `endpoint` > `OTEL_EXPORTER_OTLP_*`. Telemetry is best-effort and never blocks or slows gitte; export failures are silently ignored and flushing on exit is time-bounded.
+
+When `GITTE_TELEMETRY_URL` overrides the config endpoint, config headers are not
+used. Set `OTEL_EXPORTER_OTLP_HEADERS` to provide credentials for the override
+endpoint through the OTEL exporter.
+
+Action and startup command output is also exported as OTEL logs (correlated to
+the producing span) unless `GITTE_TELEMETRY_LOGS` is `off`, `false`, or `0`.
 
 ---
 

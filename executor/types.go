@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -82,4 +83,16 @@ type CommandResult struct {
 	Name    string
 	Success bool
 	Error   error
+}
+
+// PanicError converts a task-worker panic into an error so executor output and
+// telemetry can drain before the failure reaches the command root.
+type PanicError struct {
+	Task  string
+	Value any
+	Stack []byte
+}
+
+func (e *PanicError) Error() string {
+	return fmt.Sprintf("task %s panicked: %v\n%s", e.Task, e.Value, e.Stack)
 }

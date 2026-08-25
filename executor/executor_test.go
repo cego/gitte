@@ -152,6 +152,27 @@ func TestExecutor_TaskFailureSkipsDependents(t *testing.T) {
 	}
 }
 
+func TestExecutor_TaskPanicBecomesError(t *testing.T) {
+	tasks := []Task{{
+		Name: "panicking",
+		ExecuteFn: func(context.Context, string, OutputHandler) error {
+			panic("boom")
+		},
+	}}
+	exec, err := NewExecutor(tasks, ExecutorOptions{})
+	if err != nil {
+		t.Fatalf("NewExecutor() error = %v", err)
+	}
+	err = exec.Execute(context.Background())
+	var panicErr *PanicError
+	if !errors.As(err, &panicErr) {
+		t.Fatalf("Execute() error = %v, want PanicError", err)
+	}
+	if panicErr.Value != "boom" || len(panicErr.Stack) == 0 {
+		t.Fatalf("PanicError = %+v", panicErr)
+	}
+}
+
 func TestExecutor_SkippedErrorWrapsErrTaskSkipped(t *testing.T) {
 	var skippedErr error
 	tasks := []Task{

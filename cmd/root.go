@@ -13,9 +13,12 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/state"
+	"github.com/cego/gitte/telemetry"
 
 	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -32,6 +35,10 @@ var (
 	globalCwd    string
 	globalCtx    context.Context
 	globalCancel context.CancelFunc
+
+	globalTelemetryShutdown func(context.Context)
+	globalRootSpan          trace.Span
+	initTelemetry           = telemetry.Init
 )
 
 // rootCmd is the base command
@@ -54,7 +61,15 @@ with dependency resolution.`,
 		if cmd.Name() == "__complete" || cmd.Name() == "__completeNoDesc" {
 			return nil
 		}
-		return err
+		if err != nil {
+			startRootTelemetry(globalCtx, nil, cmd.Root().Version, cmd.CommandPath(), args)
+			return err
+		}
+
+		// Telemetry: best-effort, never blocks. Stores root span context in globalCtx
+		// so it propagates through the executor into gitops/actions leaf spans.
+		startRootTelemetry(globalCtx, globalCfg, cmd.Root().Version, cmd.CommandPath(), args)
+		return nil
 	},
 }
 
@@ -72,7 +87,7 @@ func Execute() {
 			globalCancel()
 		}
 	}()
-	err := rootCmd.Execute()
+	err := executeRoot()
 	if err != nil {
 		if output.DetectMode(flagNoTTY) == output.ModePlain {
 			fmt.Fprintln(os.Stderr, "error:", err)
@@ -81,6 +96,53 @@ func Execute() {
 		}
 		os.Exit(1)
 	}
+}
+
+// executeRoot guarantees telemetry finalization for both returned errors and
+// panics. A panic is recorded as an error before being re-thrown so callers keep
+// the normal panic behavior and stack output.
+func executeRoot() (err error) {
+	return runWithTelemetry(rootCmd.Execute)
+}
+
+func runWithTelemetry(run func() error) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			panicErr := fmt.Errorf("panic: %v", recovered)
+			finishTelemetry(panicErr)
+			panic(recovered)
+		}
+		finishTelemetry(err)
+	}()
+	return run()
+}
+
+// finishTelemetry records the final command status on the root span and flushes
+// pending spans. Safe to call when telemetry was never initialized (e.g.
+// completion commands or an early config failure), where the handles remain nil.
+func finishTelemetry(err error) {
+	if globalRootSpan != nil {
+		if err != nil {
+			globalRootSpan.RecordError(err)
+			globalRootSpan.SetStatus(codes.Error, err.Error())
+		} else {
+			globalRootSpan.SetStatus(codes.Ok, "")
+		}
+		globalRootSpan.End()
+	}
+	if globalTelemetryShutdown != nil {
+		shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		globalTelemetryShutdown(shutdownCtx)
+	}
+}
+
+func startRootTelemetry(ctx context.Context, cfg *config.GitteConfig, version, commandPath string, args []string) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	globalTelemetryShutdown = initTelemetry(ctx, cfg, version)
+	globalCtx, globalRootSpan = telemetry.StartCommandSpan(ctx, commandPath, args)
 }
 
 func init() {

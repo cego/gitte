@@ -18,7 +18,39 @@ import (
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
 	"github.com/cego/gitte/output"
+	"github.com/cego/gitte/telemetry"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+func withSyncSpan(ctx context.Context, name string, fn func(context.Context, trace.Span) error) (err error) {
+	ctx, span := startSyncSpan(ctx, name)
+	defer finishSyncSpan(span, &err)
+	return fn(ctx, span)
+}
+
+func startSyncSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	ctx, span := telemetry.Tracer().Start(ctx, "gitops.sync "+name)
+	span.SetAttributes(attribute.String("gitte.repo", name))
+	return ctx, span
+}
+
+func finishSyncSpan(span trace.Span, err *error) {
+	if recovered := recover(); recovered != nil {
+		panicErr := fmt.Errorf("panic: %v", recovered)
+		span.RecordError(panicErr)
+		span.SetStatus(codes.Error, panicErr.Error())
+		span.End()
+		panic(recovered)
+	}
+	if *err != nil {
+		span.RecordError(*err)
+		span.SetStatus(codes.Error, (*err).Error())
+	}
+	span.End()
+}
 
 // parallelLimit returns the effective parallelization cap for gitops clone/pull
 // tasks. It uses GITTE_MAX_TASK_PARALLELIZATION if set; otherwise it falls
@@ -182,7 +214,10 @@ func syncProject(
 	setDetail func(string),
 	addPrompt func(CheckoutPrompt),
 	warnFn func(string),
-) error {
+) (err error) {
+	ctx, span := startSyncSpan(ctx, name)
+	defer finishSyncSpan(span, &err)
+
 	localDir, err := config.LocalDirForRemote(proj.Remote)
 	if err != nil {
 		return err
@@ -244,6 +279,11 @@ func syncProject(
 	dirty, err := hasLocalChanges(ctx, projectPath)
 	if err != nil {
 		return err
+	}
+	// Guard on IsRecording so getHeadSHA (a git exec) never runs when telemetry
+	// is disabled — the span is non-recording and would discard the attributes.
+	if span.IsRecording() {
+		setGitContextAttrs(span, currentBranch, getHeadSHA(ctx, projectPath), dirty)
 	}
 	if dirty {
 		setDetail("skipped")
@@ -405,6 +445,26 @@ func staleDays(ctx context.Context, dir, defaultBranch string) int {
 		return days
 	}
 	return 0
+}
+
+// setGitContextAttrs records git context on a span. The caller sets gitte.repo
+// separately (the repo name/path, never the full remote URL which can embed
+// credentials) so it is present on every span, including early-return paths.
+func setGitContextAttrs(span trace.Span, branch, sha string, dirty bool) {
+	span.SetAttributes(
+		attribute.String("git.branch", branch),
+		attribute.String("git.sha", sha),
+		attribute.Bool("git.dirty", dirty),
+	)
+}
+
+// getHeadSHA returns the short HEAD commit SHA, or "" if it cannot be determined.
+func getHeadSHA(ctx context.Context, dir string) string {
+	res, err := executor.ExecuteSyncInDir(ctx, dir, "git", "rev-parse", "--short", "HEAD")
+	if err != nil || res.ExitCode != 0 {
+		return ""
+	}
+	return strings.TrimSpace(string(res.Stdout))
 }
 
 // ── git helpers ──────────────────────────────────────────────────────────────

@@ -16,6 +16,7 @@ type GitteConfig struct {
 	GroupIncludes  map[string][]string       `yaml:"groupIncludes,omitempty"`
 	Projects       map[string]ProjectConfig  `yaml:"projects,omitempty"`
 	QuickSolve     QuickSolveConfig          `yaml:"quickSolve,omitempty"`
+	Telemetry      TelemetryConfig           `yaml:"telemetry,omitempty"`
 }
 
 // QuickSolveConfig holds settings for the quick solve feature in the actions TUI.
@@ -26,6 +27,15 @@ type QuickSolveConfig struct {
 // QuickSolveGitClean configures which directories are excluded from git clean -fdx.
 type QuickSolveGitClean struct {
 	Exclude []string `yaml:"exclude,omitempty"`
+}
+
+// TelemetryConfig configures OpenTelemetry tracing export. Telemetry is enabled
+// when an endpoint is resolved (from this config or the GITTE_TELEMETRY_URL env
+// var). Headers carries arbitrary export headers, e.g. an Elastic APM secret
+// token as Authorization: "Bearer <token>" or an API key as "ApiKey <key>".
+type TelemetryConfig struct {
+	Endpoint string            `yaml:"endpoint,omitempty"`
+	Headers  map[string]string `yaml:"headers,omitempty"`
 }
 
 // Template is a reusable project configuration template.
