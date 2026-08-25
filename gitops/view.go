@@ -19,7 +19,7 @@ type View interface {
 	OnStart(name string)
 	OnFinish(name string, err error, elapsed time.Duration)
 	// SetDetail updates the visual sub-state of a project while it is running.
-	// Recognised prefixes: "skipped", "detached: …", "stale: …".
+	// Recognised prefixes: "skipped", "detached: …", "stale: …", "unknown: …".
 	// Other values ("cloned", "pulled", "up to date") are treated as ok detail text.
 	SetDetail(name, detail string)
 	Wait()
@@ -73,6 +73,8 @@ func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {
 		_, _ = fmt.Fprintf(os.Stdout, "[%s] WARNING (%s): %s\n", name, fmtDuration(elapsed), strings.TrimSpace(strings.TrimPrefix(detail, "detached:")))
 	case strings.HasPrefix(detail, "stale:"):
 		_, _ = fmt.Fprintf(os.Stdout, "[%s] OK (%s) — WARNING: %s\n", name, fmtDuration(elapsed), strings.TrimSpace(strings.TrimPrefix(detail, "stale:")))
+	case strings.HasPrefix(detail, "unknown:"):
+		_, _ = fmt.Fprintf(os.Stdout, "[%s] WARNING (%s): status %s\n", name, fmtDuration(elapsed), strings.TrimSpace(detail))
 	default:
 		d := detail
 		if d == "" {
@@ -100,7 +102,8 @@ const (
 	goStateOK       // cloned / pulled / up to date
 	goStateSkipped  // local changes — pull skipped
 	goStateDetached // detached HEAD — prompt available
-	goStateStale    // on non-default branch, behind by >1 week
+	goStateStale    // on non-default branch, missing default-branch commits
+	goStateUnknown  // remote status could not be refreshed or determined
 	goStateFailed
 )
 
@@ -183,6 +186,8 @@ func (v *tuiView) SetDetail(name, detail string) {
 		state = goStateDetached
 	case strings.HasPrefix(detail, "stale:"):
 		state = goStateStale
+	case strings.HasPrefix(detail, "unknown:"):
+		state = goStateUnknown
 	}
 	v.program.Send(goDetailMsg{name: name, state: state, detail: detail})
 }
@@ -423,7 +428,7 @@ func (m *gitopsModel) renderProgressBar(width int) string {
 	done, running, failed := 0, 0, 0
 	for _, e := range m.entries {
 		switch e.state {
-		case goStateOK, goStateSkipped, goStateDetached, goStateStale:
+		case goStateOK, goStateSkipped, goStateDetached, goStateStale, goStateUnknown:
 			done++
 		case goStateFailed:
 			done++
@@ -455,7 +460,7 @@ func (m *gitopsModel) renderProgressBar(width int) string {
 }
 
 // noteworthyEntries returns entries that need attention after a sync —
-// failed, skipped (local changes), detached HEAD, or stale branch.
+// failed, skipped (local changes), detached HEAD, stale branch, or unknown status.
 // All goStateOK entries are excluded regardless of detail (pulled, cloned, up to date).
 func (m *gitopsModel) noteworthyEntries() []*goEntry {
 	var out []*goEntry
@@ -537,6 +542,10 @@ func (m *gitopsModel) renderEntry(e *goEntry, colW int) string {
 		icon = goStaleStyle.Render("⚠")
 		nameStr = goStaleStyle.Render(label)
 		extra = goStaleStyle.Render("  " + strings.TrimSpace(strings.TrimPrefix(e.detail, "stale:")))
+	case goStateUnknown:
+		icon = goStaleStyle.Render("?")
+		nameStr = goStaleStyle.Render(label)
+		extra = goStaleStyle.Render("  " + strings.TrimSpace(strings.TrimPrefix(e.detail, "unknown:")))
 	case goStateFailed:
 		icon = goFailStyle.Render("✗")
 		nameStr = goFailStyle.Render(label)
