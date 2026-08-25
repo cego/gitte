@@ -137,6 +137,15 @@ func MergeOverride(base, override *GitteConfig) *GitteConfig {
 		base.SearchFor = override.SearchFor
 	}
 
+	// Telemetry is a shallow top-level override. A non-empty endpoint replaces
+	// the base endpoint, while a non-nil headers map replaces it even when empty.
+	if override.Telemetry.Endpoint != "" {
+		base.Telemetry.Endpoint = override.Telemetry.Endpoint
+	}
+	if override.Telemetry.Headers != nil {
+		base.Telemetry.Headers = override.Telemetry.Headers
+	}
+
 	// Append local sources (gitlab groups + github orgs)
 	base.Sources.Gitlab = append(base.Sources.Gitlab, override.Sources.Gitlab...)
 	base.Sources.Github = append(base.Sources.Github, override.Sources.Github...)

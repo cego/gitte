@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +19,7 @@ type StartupCheck interface {
 	GetType() string
 	GetHint() string
 	GetNeeds() []string
-	Check(ctx context.Context, cwd string) error
+	Check(ctx context.Context, cwd string, stdout, stderr io.Writer) error
 }
 
 // BaseStartupCheck holds common fields for all check types
@@ -44,14 +45,18 @@ type ShellStartupCheck struct {
 	Script           string `yaml:"script"`
 }
 
-func (s *ShellStartupCheck) Check(ctx context.Context, cwd string) error {
+func (s *ShellStartupCheck) Check(ctx context.Context, cwd string, stdout, stderr io.Writer) error {
 	cmd := exec.CommandContext(ctx, s.Shell, "-c", s.Script) //nolint:gosec
 	cmd.Dir = cwd
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	var stderrBuf bytes.Buffer
+	if stderr == nil {
+		stderr = io.Discard
+	}
+	cmd.Stdout = stdout
+	cmd.Stderr = io.MultiWriter(stderr, &stderrBuf)
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			stderrStr := strings.TrimSpace(stderr.String())
+			stderrStr := strings.TrimSpace(stderrBuf.String())
 			if stderrStr != "" {
 				return fmt.Errorf("shell script exited with code %d: %s", exitErr.ExitCode(), stderrStr)
 			}
@@ -68,12 +73,14 @@ type CommandStartupCheck struct {
 	Command          []string `yaml:"cmd"`
 }
 
-func (s *CommandStartupCheck) Check(ctx context.Context, cwd string) error {
+func (s *CommandStartupCheck) Check(ctx context.Context, cwd string, stdout, stderr io.Writer) error {
 	if len(s.Command) == 0 {
 		return fmt.Errorf("command check has no command")
 	}
 	cmd := exec.CommandContext(ctx, s.Command[0], s.Command[1:]...) //nolint:gosec
 	cmd.Dir = cwd
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return fmt.Errorf("command exited with code %d", exitErr.ExitCode())
@@ -90,7 +97,7 @@ type YamlPathPresentStartupCheck struct {
 	File             string `yaml:"file"`
 }
 
-func (s *YamlPathPresentStartupCheck) Check(_ context.Context, _ string) error {
+func (s *YamlPathPresentStartupCheck) Check(_ context.Context, _ string, _, _ io.Writer) error {
 	path, err := goyaml.PathString(s.Path)
 	if err != nil {
 		return fmt.Errorf("invalid yaml path: %w", err)

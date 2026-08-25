@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -249,7 +250,7 @@ func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- Comm
 			}
 
 			handler := ToChannelOutputHandler{OutputCh: outputCh}
-			err := r.task.ExecuteFn(ctx, r.task.Name, handler)
+			err := executeTask(ctx, r.task, handler)
 			elapsed := time.Since(r.startedAt)
 
 			if err != nil {
@@ -279,6 +280,15 @@ func (e *Executor) startReadyTasks(ctx context.Context, completionCh chan<- Comm
 		}(run)
 	}
 	return nil
+}
+
+func executeTask(ctx context.Context, task Task, handler OutputHandler) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = &PanicError{Task: task.Name, Value: recovered, Stack: debug.Stack()}
+		}
+	}()
+	return task.ExecuteFn(ctx, task.Name, handler)
 }
 
 // resetForRetry re-queues the named failed tasks and cascades to any skipped dependents.

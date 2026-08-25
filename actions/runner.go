@@ -19,6 +19,11 @@ import (
 	"github.com/cego/gitte/features"
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/state"
+	"github.com/cego/gitte/telemetry"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // RunActions executes planned action tasks.
@@ -34,6 +39,14 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	infos := buildTaskInfos(cfg, st, cwd, keys)
 	view := newView(mode, infos, actionOrder, runCancel, retryCh, cfg.QuickSolve.GitClean.Exclude)
 
+	tracker := telemetry.NewActionTracker(ctx)
+	defer tracker.Close()
+
+	onStart := func(name string) {
+		tracker.OnStart(name)
+		view.OnStart(name)
+	}
+
 	// Track per-task outcomes so retry runs can pre-complete tasks that already finished.
 	outcomes := newTaskOutcomes()
 	onFinish := func(name string, err error, elapsed time.Duration) {
@@ -45,6 +58,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 			outcomes.set(name, outcomeFailed)
 		}
 		view.OnFinish(name, err, elapsed)
+		tracker.OnFinish(name, err)
 	}
 
 	maxParallel := envMaxParallel
@@ -58,7 +72,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 	var retrySet map[string]struct{} // nil on first run
 	var runErr error
 	for {
-		tasks := buildExecutorTasks(cfg, st, cwd, keys)
+		tasks := buildExecutorTasks(cfg, st, cwd, keys, tracker)
 
 		// Strip needs from explicitly retried tasks so they run immediately.
 		if retrySet != nil {
@@ -71,7 +85,7 @@ func RunActions(ctx context.Context, cfg *config.GitteConfig, st *state.GitteSta
 
 		exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
 			MaxParallelization: maxParallel,
-			OnTaskStart:        view.OnStart,
+			OnTaskStart:        onStart,
 			OnTaskReset:        view.OnReset,
 			OnTaskFinish:       onFinish,
 		})
@@ -194,7 +208,7 @@ func buildTaskInfos(cfg *config.GitteConfig, st *state.GitteState, cwd string, k
 }
 
 // buildExecutorTasks constructs executor.Task list from keys.
-func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps) []executor.Task {
+func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd string, keys []GroupKeyWithDeps, tracker *telemetry.ActionTracker) []executor.Task {
 	tasks := make([]executor.Task, 0, len(keys))
 	searchFors := cfg.SearchFor
 
@@ -239,7 +253,7 @@ func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd strin
 			Needs: needNames,
 			Retry: retryConfig,
 			ExecuteFn: func(ctx context.Context, tName string, handler executor.OutputHandler) error {
-				return runGroupTask(ctx, cfg, st, cwd, proj, key.Project, tName, cmds, allSearchFors, handler)
+				return runGroupTask(ctx, cfg, st, cwd, proj, key.Project, tName, cmds, allSearchFors, handler, tracker)
 			},
 		})
 	}
@@ -248,6 +262,15 @@ func buildExecutorTasks(cfg *config.GitteConfig, st *state.GitteState, cwd strin
 
 func taskName(key GroupKey) string {
 	return fmt.Sprintf("%s:%s:%s", key.Project, key.Action, key.Group)
+}
+
+// setActionAttrs records action context on a span.
+func setActionAttrs(span trace.Span, taskName, project, command string) {
+	span.SetAttributes(
+		attribute.String("gitte.task", taskName),
+		attribute.String("gitte.project", project),
+		attribute.String("gitte.command", command),
+	)
 }
 
 func runGroupTask(
@@ -261,7 +284,31 @@ func runGroupTask(
 	cmds []string,
 	searchFors []config.SearchFor,
 	handler executor.OutputHandler,
-) error {
+	tracker *telemetry.ActionTracker,
+) (err error) {
+	actionCtx := tracker.ActionContext(telemetry.ActionOf(taskName))
+	// Parent the task span under the action span, but keep running under the
+	// executor's incoming (cancellable) context so cancellation still propagates
+	// to the command — attach the span to ctx rather than replacing ctx.
+	_, span := telemetry.Tracer().Start(actionCtx, "action.run "+taskName)
+	ctx = trace.ContextWithSpan(ctx, span)
+	handler = telemetry.LogOutputHandler(handler)
+	setTaskTelemetryAttrs(span, cfg, st, projName, proj, taskName, cmds)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			panicErr := fmt.Errorf("panic: %v", recovered)
+			span.RecordError(panicErr)
+			span.SetStatus(codes.Error, panicErr.Error())
+			span.End()
+			panic(recovered)
+		}
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
+
 	if len(cmds) == 0 {
 		return fmt.Errorf("empty command for task %s", taskName)
 	}
@@ -291,11 +338,70 @@ func runGroupTask(
 		return err
 	}
 
+	if span.IsRecording() {
+		span.SetAttributes(attribute.Int("gitte.exit_code", res.ExitCode))
+		if res.ExitCode != 0 {
+			if tail := outputTail(res.Stderr, res.Stdout); tail != "" {
+				span.SetAttributes(attribute.String("gitte.error_tail", tail))
+			}
+		}
+	}
+
 	if res.ExitCode != 0 {
 		return fmt.Errorf("command exited with code %d", res.ExitCode)
 	}
 
 	return nil
+}
+
+func setTaskTelemetryAttrs(
+	span trace.Span,
+	cfg *config.GitteConfig,
+	st *state.GitteState,
+	projName string,
+	proj config.ProjectConfig,
+	taskName string,
+	cmds []string,
+) {
+	if span.IsRecording() {
+		setActionAttrs(span, taskName, projName, strings.Join(cmds, " "))
+		if feats := enabledFeaturesForProject(cfg, st, projName, proj); len(feats) > 0 {
+			span.SetAttributes(attribute.StringSlice("gitte.features", feats))
+		}
+		if env := injectedEnv(cfg, st, projName, proj); len(env) > 0 {
+			keys := make([]string, 0, len(env))
+			for k := range env {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			kvs := make([]string, 0, len(keys))
+			for _, k := range keys {
+				kvs = append(kvs, k+"="+env[k])
+			}
+			span.SetAttributes(attribute.StringSlice("gitte.env", kvs))
+		}
+	}
+}
+
+// errorTailBytes caps how much trailing command output is attached to a failed
+// task span via the gitte.error_tail attribute.
+const errorTailBytes = 4096
+
+// outputTail returns the last errorTailBytes of a failed command's output for
+// the gitte.error_tail span attribute — stderr preferred, falling back to
+// stdout (tools like gitlab-ci-local print their failures to stdout).
+func outputTail(stderr, stdout []byte) string {
+	if tail := tailString(stderr); tail != "" {
+		return tail
+	}
+	return tailString(stdout)
+}
+
+func tailString(b []byte) string {
+	if len(b) > errorTailBytes {
+		b = b[len(b)-errorTailBytes:]
+	}
+	return strings.TrimSpace(string(b))
 }
 
 // emitTaskPreamble writes a short header to the task log showing the working
@@ -324,16 +430,7 @@ func emitTaskPreamble(
 	emit("  cmd: " + strings.Join(cmds, " "))
 
 	// Collect only the vars gitte injects (not all of os.Environ).
-	injected := make(map[string]string)
-	for k, v := range proj.Env {
-		injected[k] = v
-	}
-	for k, v := range config.ResolveEnvWhen(proj.EnvWhen, runtime.GOARCH) {
-		injected[k] = v
-	}
-	for k, v := range extraEnvForProject(cfg, st, projName, proj) {
-		injected[k] = v
-	}
+	injected := injectedEnv(cfg, st, projName, proj)
 	if len(injected) > 0 {
 		keys := make([]string, 0, len(injected))
 		for k := range injected {
@@ -348,13 +445,32 @@ func emitTaskPreamble(
 	}
 }
 
-// extraEnvForProject returns the env vars injected by feature gates for a project.
-func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) map[string]string {
+// injectedEnv returns the env vars gitte injects for a project's task — project
+// env, arch-conditional env_when, and enabled feature-gate env — excluding the
+// inherited process environment (os.Environ).
+func injectedEnv(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) map[string]string {
+	injected := make(map[string]string)
+	for k, v := range proj.Env {
+		injected[k] = v
+	}
+	for k, v := range config.ResolveEnvWhen(proj.EnvWhen, runtime.GOARCH) {
+		injected[k] = v
+	}
+	for k, v := range extraEnvForProject(cfg, st, projName, proj) {
+		injected[k] = v
+	}
+	return injected
+}
+
+// enabledFeaturesForProject returns the sorted names of feature gates that are
+// enabled and in scope for the given project (the gates that actually inject
+// env into the project's tasks).
+func enabledFeaturesForProject(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) []string {
 	if st == nil || cfg.FeatureGates == nil {
 		return nil
 	}
 
-	extra := make(map[string]string)
+	var names []string
 	for gateName, gate := range cfg.FeatureGates {
 		fs, enabled := st.Features[gateName]
 		if !enabled || !fs.Enabled {
@@ -377,16 +493,28 @@ func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName 
 			}
 		}
 
+		names = append(names, gateName)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// extraEnvForProject returns the env vars injected by feature gates for a project.
+func extraEnvForProject(cfg *config.GitteConfig, st *state.GitteState, projName string, proj config.ProjectConfig) map[string]string {
+	gates := enabledFeaturesForProject(cfg, st, projName, proj)
+	if len(gates) == 0 {
+		return nil
+	}
+
+	extra := make(map[string]string)
+	for _, gateName := range gates {
+		gate := cfg.FeatureGates[gateName]
 		for k, v := range gate.Effects.Env {
 			extra[k] = v
 		}
 		for k, v := range config.ResolveEnvWhen(gate.Effects.EnvWhen, runtime.GOARCH) {
 			extra[k] = v
 		}
-	}
-
-	if len(extra) == 0 {
-		return nil
 	}
 	return extra
 }

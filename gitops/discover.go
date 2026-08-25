@@ -11,6 +11,7 @@ import (
 	"github.com/cego/gitte/executor"
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/tokens"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // DiscoveredRepo represents a repo found via API discovery
@@ -145,7 +146,9 @@ func Discover(ctx context.Context, cfg *config.GitteConfig, cwd string, mode out
 			Name: taskNames[i],
 			ExecuteFn: func(ctx context.Context, tName string, _ executor.OutputHandler) error {
 				setDetail := func(d string) { syncView.SetDetail(tName, d) }
-				return syncTransientDetailed(ctx, cwd, repo.Remote, setDetail, warnFn)
+				return withSyncSpan(ctx, repo.Host+"/"+repo.Path, func(ctx context.Context, span trace.Span) error {
+					return syncTransientDetailed(ctx, cwd, repo.Remote, span, setDetail, warnFn)
+				})
 			},
 		}
 	}
@@ -183,7 +186,7 @@ func dedupRepos(repos []DiscoveredRepo) []DiscoveredRepo {
 
 // syncTransientDetailed clones or pulls a single transiently-discovered remote,
 // reporting progress via setDetail.
-func syncTransientDetailed(ctx context.Context, cwd, remote string, setDetail func(string), warnFn func(string)) error {
+func syncTransientDetailed(ctx context.Context, cwd, remote string, span trace.Span, setDetail func(string), warnFn func(string)) error {
 	localDir, err := config.LocalDirForRemote(remote)
 	if err != nil {
 		return err
@@ -208,6 +211,14 @@ func syncTransientDetailed(ctx context.Context, cwd, remote string, setDetail fu
 	}
 
 	branch := getCurrentBranch(ctx, projectPath)
+	if span.IsRecording() {
+		dirty, err := hasLocalChanges(ctx, projectPath)
+		if err != nil {
+			return err
+		}
+		setGitContextAttrs(span, branch, getHeadSHA(ctx, projectPath), dirty)
+	}
+
 	if branch == "" {
 		return fmt.Errorf("cannot determine current branch in %s", projectPath)
 	}
