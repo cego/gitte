@@ -202,10 +202,12 @@ func syncTransientDetailed(ctx context.Context, cwd, remote string, span trace.S
 		return nil
 	}
 
+	if err := checkRepositorySafety(ctx, projectPath); err != nil {
+		return err
+	}
 	if err := fetchOrigin(ctx, projectPath); err != nil {
 		warnFn(fmt.Sprintf("fetch failed for %s: %v", localDir, err))
-		setDetail("unknown: fetch failed")
-		return nil
+		return fmt.Errorf("fetching %s: %w", localDir, err)
 	}
 
 	branch := getCurrentBranch(ctx, projectPath)
@@ -219,28 +221,16 @@ func syncTransientDetailed(ctx context.Context, cwd, remote string, span trace.S
 		return nil
 	}
 
-	dirty, err := hasLocalChanges(ctx, projectPath)
-	if err != nil {
-		return err
-	}
 	if span.IsRecording() {
+		dirty, err := hasLocalChanges(ctx, projectPath)
+		if err != nil {
+			return err
+		}
 		setGitContextAttrs(span, branch, getHeadSHA(ctx, projectPath), dirty)
 	}
-	if dirty {
-		if branch != defaultBranch {
-			divergence, err := divergenceFrom(ctx, projectPath, "origin/"+defaultBranch)
-			if err != nil {
-				warnFn(fmt.Sprintf("default branch status failed for %s: %v", localDir, err))
-				setDetail("unknown: default branch status failed")
-				return nil
-			}
-			if divergence.behind > 0 {
-				setDetail(behindDetail(defaultBranch, divergence, true))
-				return nil
-			}
-		}
-		setDetail("skipped")
-		return nil
+	trackedChanges, err := hasTrackedChanges(ctx, projectPath)
+	if err != nil {
+		return err
 	}
 
 	upToDate, err := mergeFastForward(ctx, projectPath, "origin/"+branch)
@@ -254,7 +244,7 @@ func syncTransientDetailed(ctx context.Context, cwd, remote string, span trace.S
 		return nil
 	}
 	if divergence.behind > 0 {
-		setDetail(behindDetail(defaultBranch, divergence, false))
+		setDetail(behindDetail(defaultBranch, divergence, trackedChanges))
 		return nil
 	}
 	if upToDate {
