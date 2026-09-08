@@ -40,6 +40,20 @@ func (r *ValidationResult) HasErrors() bool {
 func ValidateConfig(cfg *GitteConfig) *ValidationResult {
 	result := &ValidationResult{}
 
+	for name, check := range cfg.StartupChecks {
+		if guidance := check.GetGuidance(); guidance != nil {
+			if strings.TrimSpace(guidance.Shell) == "" {
+				result.AddError("startup."+name+".guidance.shell", "shell is required")
+			}
+			if strings.TrimSpace(guidance.Script) == "" {
+				result.AddError("startup."+name+".guidance.script", "script is required")
+			}
+			if strings.TrimSpace(check.GetHint()) == "" {
+				result.AddWarning("startup."+name+".hint", "provide a fallback for unavailable guidance and older versions")
+			}
+		}
+	}
+
 	// Validate projects
 	for name, project := range cfg.Projects {
 		validateProject(result, cfg, name, project)

@@ -110,7 +110,7 @@ Gitte will run startup checks, pull all repos, then execute the `start` action f
 |---------|-------------|
 | `gitte run [action] [group] [projects]` | Full pipeline: startup checks → git sync → actions |
 | `gitte actions [action] [group] [projects]` | Run actions only (skip startup and git sync) |
-| `gitte startup` | Run startup checks only |
+| `gitte startup [check...]` | Run all checks, or selected checks and their prerequisites |
 | `gitte gitops [--discover]` | Clone/pull all repos; `--discover` also fetches from configured sources |
 | `gitte list` | List all projects and their available actions |
 | `gitte toggle` | Interactive TUI to enable/disable projects per machine |

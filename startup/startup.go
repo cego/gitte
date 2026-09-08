@@ -17,16 +17,20 @@ import (
 
 // Run executes all startup checks and streams status to stdout.
 // mode controls whether to use the plain text or TUI output.
-func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.OutputMode) error {
-	if len(cfg.StartupChecks) == 0 {
+func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.OutputMode, names ...string) error {
+	checks, err := selectChecks(cfg.StartupChecks, names)
+	if err != nil {
+		return err
+	}
+	if len(checks) == 0 {
 		return nil
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tasks := make([]executor.Task, 0, len(cfg.StartupChecks))
-	for name, check := range cfg.StartupChecks {
+	tasks := make([]executor.Task, 0, len(checks))
+	for name, check := range checks {
 		name := name
 		check := check
 		tasks = append(tasks, executor.Task{
@@ -52,17 +56,17 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 				stdout := &handlerWriter{ctx: ctx, handler: logHandler, taskName: taskName, stream: executor.StdoutStream}
 				stderr := &handlerWriter{ctx: ctx, handler: logHandler, taskName: taskName, stream: executor.StderrStream}
 				if cerr := check.Check(ctx, cwd, stdout, stderr); cerr != nil {
-					hint := check.GetHint()
-					if hint != "" {
-						return fmt.Errorf("%s\nhint: %s", cerr.Error(), hint)
-					}
-					return cerr
+					return describeFailure(ctx, check, name, cwd, cerr)
 				}
 				return nil
 			},
 		})
 	}
 
+	// Validate before starting a terminal program that needs completion events.
+	if err := executor.ValidateNoCycles(tasks); err != nil {
+		return fmt.Errorf("startup checks have invalid dependencies: %w", err)
+	}
 	// Build the view before creating the executor so we can pass hook closures.
 	view := newView(mode, tasks, cancel)
 
@@ -75,9 +79,7 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	}
 	runErr := exec.Execute(ctx)
 	view.Wait()
-	if runErr != nil && mode != output.ModePlain {
-		// TUI view already printed a human-readable failure summary; return a
-		// terse sentinel so root.go only prints "startup checks failed".
+	if runErr != nil {
 		return errors.New("startup checks failed")
 	}
 	return runErr
@@ -112,7 +114,7 @@ func startCheckSpan(ctx context.Context, name string) (context.Context, trace.Sp
 // newView picks the right view implementation based on output mode.
 func newView(mode output.OutputMode, tasks []executor.Task, cancel context.CancelFunc) View {
 	if mode == output.ModePlain {
-		return newPlainView()
+		return newPlainView(tasks)
 	}
 
 	// Collect names in a stable order for the TUI list.
@@ -122,5 +124,5 @@ func newView(mode output.OutputMode, tasks []executor.Task, cancel context.Cance
 	}
 	sort.Strings(names)
 
-	return newTUIView(names, cancel)
+	return newTUIView(names, tasks, cancel)
 }

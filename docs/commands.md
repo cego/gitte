@@ -38,21 +38,40 @@ gitte actions stop local myservice
 
 ## gitte startup
 
-Run startup checks only.
+Run all startup checks, or select checks by name. Named checks always include
+their transitive prerequisites; unrelated checks are not executed. Unknown names
+and dependency cycles fail before checks run.
 
 ```bash
 gitte startup
+gitte startup jq-present
+gitte startup docker-present jq-present
 ```
 
-Exits non-zero if any check fails. In TTY mode shows a live progress list; in non-TTY mode prints structured lines:
+Exits non-zero if any check fails. TTY mode shows a live progress list. Both modes
+finish with diagnostics and instructions for failed checks, followed by checks
+blocked by those failures. Command diagnostics retain the final 16 KiB of stderr,
+or stdout when stderr is empty. In plain mode, progress looks like:
 
+```text
+[startup:docker-present] RUNNING
+[startup:docker-present] FAILED (2ms)
+[startup:docker-network] BLOCKED (0ms)
+
+Startup: 1 failed · 1 blocked · 0 passed
+
+FAILED docker-present  2ms
+  executable file not found in PATH
+
+  How to fix
+  Install Docker using your package manager.
+
+Blocked by failed prerequisites
+  – docker-network: waiting for docker-present
 ```
-[startup:git-present] RUNNING
-[startup:git-present] OK (12ms)
-[startup:docker-version] RUNNING
-[startup:docker-version] FAILED (45ms): shell script exited with code 1
-hint: Docker must be at least version 25.0.0
-```
+
+The command name supports tab completion. To retry a failed check, run
+`gitte startup <check>`; run `gitte startup` again to verify the complete setup.
 
 ---
 

@@ -2,11 +2,15 @@ package startup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cego/gitte/executor"
+	"golang.org/x/term"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -25,28 +29,34 @@ type View interface {
 // ---- Plain view --------------------------------------------------------
 
 type plainView struct {
-	mu sync.Mutex
+	mu      sync.Mutex
+	summary *checkSummary
 }
 
-func newPlainView() *plainView { return &plainView{} }
+func newPlainView(tasks []executor.Task) *plainView {
+	return &plainView{summary: newCheckSummary(tasks)}
+}
 
 func (v *plainView) OnStart(name string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	_, _ = fmt.Fprintf(os.Stdout, "[startup:%s] RUNNING\n", name)
+	_, _ = fmt.Fprintf(os.Stdout, "[startup:%s] RUNNING\n", cleanText(name))
 }
 
 func (v *plainView) OnFinish(name string, err error, elapsed time.Duration) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stdout, "[startup:%s] FAILED (%s): %s\n", name, fmtDuration(elapsed), err)
-	} else {
-		_, _ = fmt.Fprintf(os.Stdout, "[startup:%s] OK (%s)\n", name, fmtDuration(elapsed))
+	v.summary.record(name, err, elapsed)
+	status := "OK"
+	if errors.Is(err, executor.ErrTaskSkipped) {
+		status = "BLOCKED"
+	} else if err != nil {
+		status = "FAILED"
 	}
+	_, _ = fmt.Fprintf(os.Stdout, "[startup:%s] %s (%s)\n", cleanText(name), status, fmtDuration(elapsed))
 }
 
-func (v *plainView) Wait() {}
+func (v *plainView) Wait() { fmt.Print(v.summary.render(false, 80)) }
 
 // ---- TUI view ----------------------------------------------------------
 
@@ -57,6 +67,7 @@ const (
 	checkRunning
 	checkOK
 	checkFailed
+	checkBlocked
 )
 
 type checkEntry struct {
@@ -79,23 +90,16 @@ type allDoneMsg struct{}
 
 type tuiTickMsg time.Time
 
-type failureRecord struct {
-	name    string
-	errMsg  string
-	hint    string
-	elapsed time.Duration
-}
-
 type tuiView struct {
 	program   *tea.Program
 	msgCh     chan tuiUpdateMsg
 	doneCh    chan error
+	stopped   chan struct{}
 	drainedCh chan struct{} // closed by listen() after the last buffered message is consumed
-	mu        sync.Mutex
-	failures  []failureRecord
+	summary   *checkSummary
 }
 
-func newTUIView(checkNames []string, cancel context.CancelFunc) *tuiView {
+func newTUIView(checkNames []string, tasks []executor.Task, cancel context.CancelFunc) *tuiView {
 	msgCh := make(chan tuiUpdateMsg, 100)
 	drainedCh := make(chan struct{})
 	m := newStartupModel(checkNames, msgCh, drainedCh, cancel)
@@ -103,34 +107,42 @@ func newTUIView(checkNames []string, cancel context.CancelFunc) *tuiView {
 	p := tea.NewProgram(m)
 
 	v := &tuiView{
+		summary:   newCheckSummary(tasks),
 		program:   p,
 		msgCh:     msgCh,
 		doneCh:    make(chan error, 1),
+		stopped:   make(chan struct{}),
 		drainedCh: drainedCh,
 	}
 
 	go func() {
 		_, err := p.Run()
 		v.doneCh <- err
+		close(v.stopped)
 	}()
 
 	return v
 }
 
 func (v *tuiView) OnStart(name string) {
-	v.msgCh <- tuiUpdateMsg{name: name, state: checkRunning}
+	select {
+	case v.msgCh <- tuiUpdateMsg{name: name, state: checkRunning}:
+	case <-v.stopped:
+	}
 }
 
 func (v *tuiView) OnFinish(name string, err error, elapsed time.Duration) {
+	v.summary.record(name, err, elapsed)
 	state := checkOK
-	if err != nil {
+	if errors.Is(err, executor.ErrTaskSkipped) {
+		state = checkBlocked
+	} else if err != nil {
 		state = checkFailed
-		errMsg, hint := splitErrHint(err)
-		v.mu.Lock()
-		v.failures = append(v.failures, failureRecord{name: name, errMsg: errMsg, hint: hint, elapsed: elapsed})
-		v.mu.Unlock()
 	}
-	v.msgCh <- tuiUpdateMsg{name: name, state: state, elapsed: elapsed, err: err}
+	select {
+	case v.msgCh <- tuiUpdateMsg{name: name, state: state, elapsed: elapsed, err: err}:
+	case <-v.stopped:
+	}
 }
 
 // Wait closes the message channel (signalling no more updates), waits until
@@ -139,29 +151,22 @@ func (v *tuiView) OnFinish(name string, err error, elapsed time.Duration) {
 // a summary of any failed checks.
 func (v *tuiView) Wait() {
 	close(v.msgCh)
-	<-v.drainedCh    // last message consumed → renderer has the final frame
+	select {
+	case <-v.drainedCh:
+	case <-v.stopped:
+	}
 	v.program.Quit() // safe to quit now
 	<-v.doneCh
 	v.printFailureSummary()
 }
 
-// printFailureSummary prints a clean per-failure block after the TUI exits.
 func (v *tuiView) printFailureSummary() {
-	v.mu.Lock()
-	failures := v.failures
-	v.mu.Unlock()
-	if len(failures) == 0 {
-		return
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		width = 80
 	}
-	fmt.Println()
-	for _, f := range failures {
-		fmt.Printf(" %s %s  %s\n", failStyle.Render("✗"), failStyle.Render(f.name), dimStyle.Render(fmtDuration(f.elapsed)))
-		fmt.Printf("   %s\n", dimStyle.Render(f.errMsg))
-		if f.hint != "" {
-			fmt.Printf("   %s %s\n", hintLabelStyle.Render("hint:"), f.hint)
-		}
-		fmt.Println()
-	}
+	_, noColor := os.LookupEnv("NO_COLOR")
+	fmt.Print(v.summary.render(!noColor, width))
 }
 
 // ---- BubbleTea model ---------------------------------------------------
@@ -322,6 +327,10 @@ func (m *startupModel) renderEntry(c *checkEntry, colW int) string {
 		icon = okStyle.Render("✓")
 		nameStr = okStyle.Render(c.name)
 		extra = dimStyle.Render("  " + fmtDuration(c.elapsed))
+	case checkBlocked:
+		icon = pendingStyle.Render("–")
+		nameStr = dimStyle.Render(c.name)
+		extra = dimStyle.Render("  blocked")
 	case checkFailed:
 		icon = failStyle.Render("✗")
 		nameStr = failStyle.Render(c.name)
@@ -392,19 +401,6 @@ func truncateToVisualWidth(s string, maxWidth int) string {
 		vis++
 	}
 	return result.String()
-}
-
-// splitErrHint splits an error message of the form "msg\nhint: hint" into its
-// two parts. If there is no hint suffix the second return value is empty.
-// Startup checks emit hints by appending "\nhint: <text>" to their error
-// message (see startup.go where checks call check.GetHint()).
-func splitErrHint(err error) (string, string) {
-	const sep = "\nhint: "
-	msg := err.Error()
-	if i := strings.Index(msg, sep); i >= 0 {
-		return msg[:i], msg[i+len(sep):]
-	}
-	return msg, ""
 }
 
 func fmtDuration(d time.Duration) string {
