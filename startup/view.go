@@ -33,8 +33,8 @@ type plainView struct {
 	summary *checkSummary
 }
 
-func newPlainView(tasks []executor.Task) *plainView {
-	return &plainView{summary: newCheckSummary(tasks)}
+func newPlainView() *plainView {
+	return &plainView{summary: newCheckSummary()}
 }
 
 func (v *plainView) OnStart(name string) {
@@ -99,7 +99,7 @@ type tuiView struct {
 	summary   *checkSummary
 }
 
-func newTUIView(checkNames []string, tasks []executor.Task, cancel context.CancelFunc) *tuiView {
+func newTUIView(checkNames []string, cancel context.CancelFunc) *tuiView {
 	msgCh := make(chan tuiUpdateMsg, 100)
 	drainedCh := make(chan struct{})
 	m := newStartupModel(checkNames, msgCh, drainedCh, cancel)
@@ -107,7 +107,7 @@ func newTUIView(checkNames []string, tasks []executor.Task, cancel context.Cance
 	p := tea.NewProgram(m)
 
 	v := &tuiView{
-		summary:   newCheckSummary(tasks),
+		summary:   newCheckSummary(),
 		program:   p,
 		msgCh:     msgCh,
 		doneCh:    make(chan error, 1),

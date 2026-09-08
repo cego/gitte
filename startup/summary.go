@@ -21,15 +21,10 @@ type checkResult struct {
 type checkSummary struct {
 	mu      sync.Mutex
 	results map[string]checkResult
-	needs   map[string][]string
 }
 
-func newCheckSummary(tasks []executor.Task) *checkSummary {
-	s := &checkSummary{results: make(map[string]checkResult), needs: make(map[string][]string)}
-	for _, task := range tasks {
-		s.needs[task.Name] = task.Needs
-	}
-	return s
+func newCheckSummary() *checkSummary {
+	return &checkSummary{results: make(map[string]checkResult)}
 }
 
 func (s *checkSummary) record(name string, err error, elapsed time.Duration) {
@@ -41,22 +36,21 @@ func (s *checkSummary) record(name string, err error, elapsed time.Duration) {
 func (s *checkSummary) render(styled bool, width int) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var failed, blocked []string
-	passed := 0
+	var failed []string
+	passed, blocked := 0, 0
 	for name, result := range s.results {
 		switch {
 		case result.err == nil:
 			passed++
 		case errors.Is(result.err, executor.ErrTaskSkipped):
-			blocked = append(blocked, name)
+			blocked++
 		default:
 			failed = append(failed, name)
 		}
 	}
 	sort.Strings(failed)
-	sort.Strings(blocked)
 	var b strings.Builder
-	fmt.Fprintf(&b, "\nStartup: %d failed · %d blocked · %d passed\n", len(failed), len(blocked), passed)
+	fmt.Fprintf(&b, "\nStartup: %d failed · %d blocked · %d passed\n", len(failed), blocked, passed)
 	for _, name := range failed {
 		result := s.results[name]
 		fmt.Fprintf(&b, "\n%s %s  %s\n", styleText("FAILED", failStyle.Bold(true), styled), styleText(cleanText(name), labelStyle.Bold(true), styled), styleText(fmtDuration(result.elapsed), dimStyle, styled))
@@ -67,35 +61,7 @@ func (s *checkSummary) render(styled bool, width int) string {
 			b.WriteString(renderGuidance(failure.hint, styled, width-2, failure.markdown))
 		}
 	}
-	if len(blocked) > 0 {
-		fmt.Fprintf(&b, "\n%s\n", styleText("Blocked by failed prerequisites", hintLabelStyle, styled))
-		for _, name := range blocked {
-			roots := s.failedPrerequisites(name, make(map[string]bool))
-			sort.Strings(roots)
-			fmt.Fprintf(&b, "  – %s: waiting for %s\n", cleanText(name), cleanText(strings.Join(roots, ", ")))
-		}
-	}
 	return b.String()
-}
-
-func (s *checkSummary) failedPrerequisites(name string, seen map[string]bool) []string {
-	var roots []string
-	for _, dep := range s.needs[name] {
-		if seen[dep] {
-			continue
-		}
-		seen[dep] = true
-		result, ok := s.results[dep]
-		if !ok || result.err == nil {
-			continue
-		}
-		if errors.Is(result.err, executor.ErrTaskSkipped) {
-			roots = append(roots, s.failedPrerequisites(dep, seen)...)
-		} else {
-			roots = append(roots, dep)
-		}
-	}
-	return roots
 }
 
 func styleText(text string, style lipgloss.Style, styled bool) string {

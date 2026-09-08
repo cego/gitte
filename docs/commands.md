@@ -49,9 +49,9 @@ gitte startup docker-present jq-present
 ```
 
 Exits non-zero if any check fails. TTY mode shows a live progress list. Both modes
-finish with diagnostics and instructions for failed checks, followed by checks
-blocked by those failures. Command diagnostics retain the final 16 KiB of stderr,
-or stdout when stderr is empty. In plain mode, progress looks like:
+finish with diagnostics and instructions for failed checks, plus counts of
+failed, blocked, and passed checks. Command diagnostics retain the final 16 KiB
+of stderr, or stdout when stderr is empty. In plain mode, progress looks like:
 
 ```text
 [startup:docker-present] RUNNING
@@ -65,9 +65,6 @@ FAILED docker-present  2ms
 
   How to fix
   Install Docker using your package manager.
-
-Blocked by failed prerequisites
-  – docker-network: waiting for docker-present
 ```
 
 The command name supports tab completion. To retry a failed check, run

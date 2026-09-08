@@ -114,7 +114,7 @@ func startCheckSpan(ctx context.Context, name string) (context.Context, trace.Sp
 // newView picks the right view implementation based on output mode.
 func newView(mode output.OutputMode, tasks []executor.Task, cancel context.CancelFunc) View {
 	if mode == output.ModePlain {
-		return newPlainView(tasks)
+		return newPlainView()
 	}
 
 	// Collect names in a stable order for the TUI list.
@@ -124,5 +124,5 @@ func newView(mode output.OutputMode, tasks []executor.Task, cancel context.Cance
 	}
 	sort.Strings(names)
 
-	return newTUIView(names, tasks, cancel)
+	return newTUIView(names, cancel)
 }
