@@ -61,7 +61,6 @@ startup:
       Install jq with your package manager:
         Homebrew (macOS or Linux): brew install jq
         Ubuntu/Debian: sudo apt-get install jq
-      Then run gitte startup.
     guidance:
       shell: bash
       script: |
@@ -72,7 +71,7 @@ startup:
         else
           exit 1
         fi
-        printf 'Install **jq**:\n\n~~~sh\n%s\n~~~\n\nThen run `gitte startup`.\n' "$install_command"
+        printf 'Install **jq**:\n\n~~~sh\n%s\n~~~\n' "$install_command"
 ```
 
 Conditions are ordinary shell expressions, including `&&`, `||`, `case`, and

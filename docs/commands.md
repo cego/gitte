@@ -68,7 +68,7 @@ FAILED docker-present  2ms
 ```
 
 The command name supports tab completion. To retry a failed check, run
-`gitte startup <check>`; run `gitte startup` again to verify the complete setup.
+`gitte startup <check>`.
 
 ---
 
