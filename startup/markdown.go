@@ -8,7 +8,7 @@ import (
 )
 
 var inlineMarkup = regexp.MustCompile("`[^`]+`|\\*\\*[^*]+\\*\\*")
-var commandStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("51"))
+var commandStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("51")).TabWidth(lipgloss.NoTabConversion)
 
 // renderGuidance supports paragraphs, lists, bold, inline code and fenced code.
 // Code lines are never wrapped so commands remain suitable for copying.
@@ -31,7 +31,12 @@ func renderGuidance(text string, styled bool, width int, markdown bool) string {
 				continue
 			}
 		}
-		if fence != "" || (!markdown && (strings.HasPrefix(line, "  ") || strings.HasPrefix(line, "\t"))) {
+		if fence != "" {
+			b.WriteString(styleText(line, commandStyle, styled))
+			b.WriteByte('\n')
+			continue
+		}
+		if !markdown && (strings.HasPrefix(line, "  ") || strings.HasPrefix(line, "\t")) {
 			b.WriteString(indentText(styleText(line, commandStyle, styled), "    "))
 			continue
 		}

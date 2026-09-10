@@ -92,6 +92,9 @@ func runStartupCommand(ctx context.Context, cmd *exec.Cmd, label string, stdout,
 		if ctx.Err() != nil {
 			return fmt.Errorf("%s: %w", label, ctx.Err())
 		}
+		if errors.Is(err, exec.ErrWaitDelay) {
+			return nil
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			detail := errOut.String()

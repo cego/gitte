@@ -3,6 +3,7 @@ package startup
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -129,21 +130,31 @@ func stripEscapes(text string) string {
 	return b.String()
 }
 
-// wrapText wraps prose at whitespace, leaving long paths and tokens intact.
+var listMarker = regexp.MustCompile(`^(?:[-+*]|[0-9]{1,9}[.)])[ \t]+`)
+
+// wrapText preserves indentation and aligns wrapped list content after its marker.
+// Long paths and tokens remain intact.
 func wrapText(text string, width int) string {
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
 		if lipgloss.Width(line) <= width {
 			continue
 		}
+		content := strings.TrimLeft(line, " \t")
+		indent := line[:len(line)-len(content)]
+		marker := listMarker.FindString(content)
+		content = strings.TrimPrefix(content, marker)
+		continuation := indent + strings.Repeat(" ", lipgloss.Width(marker))
 		var b strings.Builder
-		column := 0
-		for _, word := range strings.Fields(line) {
+		b.WriteString(indent + marker)
+		column := lipgloss.Width(indent + marker)
+		for j, word := range strings.Fields(content) {
 			wordWidth := lipgloss.Width(word)
-			if column > 0 {
+			if j > 0 {
 				if column+1+wordWidth > width {
 					b.WriteByte('\n')
-					column = 0
+					b.WriteString(continuation)
+					column = lipgloss.Width(continuation)
 				} else {
 					b.WriteByte(' ')
 					column++
