@@ -96,7 +96,7 @@ Execution contract:
   up after execution. On other systems, cancellation terminates the interpreter.
 
 Generated output supports paragraphs, numbered/bulleted lists, **bold**, inline
-code, and code fences using three backticks or tildes. Commands in code blocks
+code, and code fences using at least three backticks or tildes. Commands in code blocks
 are highlighted and kept intact for copying. Plain output preserves the content
 and indentation without colour or Markdown delimiters. `NO_COLOR` disables
 colour in the final TTY summary. Legacy hints preserve their indented command

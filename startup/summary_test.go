@@ -18,7 +18,14 @@ func TestSummary_BlockedCountAndFailureDiagnostics(t *testing.T) {
 	s.record("swarm", executor.ErrTaskSkipped, 0)
 	for _, styled := range []bool{false, true} {
 		text := cleanText(s.render(styled, 80))
-		for _, want := range []string{"1 failed · 2 blocked · 1 passed", "FAILED daemon", "permission denied\n  check socket ownership", "How to fix", "docker info"} {
+		counts := "1 failed, 2 blocked, 1 passed"
+		if styled {
+			counts = "1 failed · 2 blocked · 1 passed"
+		}
+		if !strings.Contains(text, counts) {
+			t.Errorf("summary missing %q: %s", counts, text)
+		}
+		for _, want := range []string{"FAILED daemon", "permission denied\n  check socket ownership", "How to fix", "docker info"} {
 			if !strings.Contains(text, want) {
 				t.Errorf("summary missing %q:\n%s", want, text)
 			}
@@ -52,5 +59,49 @@ func TestGuidanceRendering_FallbackIndentationAndControlSequences(t *testing.T) 
 	got := renderGuidance("Run:\n  tool --arg value\n\x1b[31mvisible\x1b[0m\x1b]0;injected title\a", false, 80, false)
 	if !strings.Contains(got, "      tool --arg value\n") || strings.Contains(got, "\x1b") || strings.Contains(got, "injected title") {
 		t.Fatalf("unsafe or malformed output: %q", got)
+	}
+}
+
+func TestSummary_SuccessHasNoSummary(t *testing.T) {
+	for _, styled := range []bool{false, true} {
+		s := newCheckSummary()
+		if got := s.render(styled, 80); got != "" {
+			t.Fatalf("empty run summary = %q", got)
+		}
+		s.record("tool", nil, time.Millisecond)
+		if got := s.render(styled, 80); got != "" {
+			t.Fatalf("successful run summary = %q", got)
+		}
+	}
+}
+
+func TestGuidanceRendering_NestedLists(t *testing.T) {
+	text := "- parent\n  - **child**\n    1. `nested` item"
+	for _, styled := range []bool{false, true} {
+		got := cleanText(renderGuidance(text, styled, 80, true))
+		want := "  - parent\n    - child\n      1. nested item\n"
+		if got != want {
+			t.Errorf("nested list = %q, want %q", got, want)
+		}
+	}
+}
+
+func TestGuidanceRendering_ClosingFences(t *testing.T) {
+	for _, tc := range []struct {
+		name, input, want string
+	}{
+		{"longer closer", "```sh\ncommand\n`````\n**after**", "    command\n  after\n"},
+		{"longer opener", "````sh\n```\ncommand\n````\n**after**", "    ```\n    command\n  after\n"},
+		{"tilde fence", "~~~~sh\n~~~\ncommand\n~~~~~  \n**after**", "    ~~~\n    command\n  after\n"},
+		{"different marker", "```sh\n~~~\ncommand\n```\n**after**", "    ~~~\n    command\n  after\n"},
+		{"trailing text", "```sh\n``` trailing\ncommand\n```\n**after**", "    ``` trailing\n    command\n  after\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, styled := range []bool{false, true} {
+				if got := cleanText(renderGuidance(tc.input, styled, 80, true)); got != tc.want {
+					t.Errorf("rendered = %q, want %q", got, tc.want)
+				}
+			}
+		})
 	}
 }

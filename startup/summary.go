@@ -48,9 +48,16 @@ func (s *checkSummary) render(styled bool, width int) string {
 			failed = append(failed, name)
 		}
 	}
+	if len(failed) == 0 && blocked == 0 {
+		return ""
+	}
 	sort.Strings(failed)
 	var b strings.Builder
-	fmt.Fprintf(&b, "\nStartup: %d failed · %d blocked · %d passed\n", len(failed), blocked, passed)
+	separator := ", "
+	if styled {
+		separator = " · "
+	}
+	fmt.Fprintf(&b, "\nStartup: %d failed%s%d blocked%s%d passed\n", len(failed), separator, blocked, separator, passed)
 	for _, name := range failed {
 		result := s.results[name]
 		fmt.Fprintf(&b, "\n%s %s  %s\n", styleText("FAILED", failStyle.Bold(true), styled), styleText(cleanText(name), labelStyle.Bold(true), styled), styleText(fmtDuration(result.elapsed), dimStyle, styled))

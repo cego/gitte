@@ -62,7 +62,7 @@ func TestStartup_SelectedChecksAndPrerequisites(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(cwd, "should-not-exist")); !os.IsNotExist(err) {
 		t.Fatal("unrelated check or successful check guidance ran")
 	}
-	if !strings.Contains(text, "0 failed · 0 blocked · 2 passed") {
+	if strings.Contains(text, "Startup:") || !strings.Contains(text, "[startup:selected] OK") {
 		t.Fatalf("summary=%s", text)
 	}
 }
@@ -94,7 +94,7 @@ func TestStartup_FailedAndBlockedGuidance(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected failure")
 	}
-	for _, want := range []string{"diagnostic", "Generated instructions", "1 failed · 1 blocked · 0 passed", "[startup:blocked] BLOCKED"} {
+	for _, want := range []string{"diagnostic", "Generated instructions", "1 failed, 1 blocked, 0 passed", "[startup:blocked] BLOCKED"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("missing %q in %s", want, text)
 		}
@@ -120,5 +120,25 @@ func TestStartup_RejectsUnknownNamesAndCyclesBeforeRunning(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(cwd, "should-not-exist")); !os.IsNotExist(err) {
 			t.Fatal("invalid selection ran")
 		}
+	}
+}
+
+func TestStartup_UndefinedDependencyError(t *testing.T) {
+	cfg := &config.GitteConfig{StartupChecks: config.StartupCheckMap{
+		"selected":     &config.ShellStartupCheck{BaseStartupCheck: config.BaseStartupCheck{Needs: []string{"prerequisite"}}},
+		"prerequisite": &config.ShellStartupCheck{BaseStartupCheck: config.BaseStartupCheck{Needs: []string{"missing"}}},
+	}}
+	for _, tc := range []struct {
+		name, want string
+	}{
+		{"missing", `unknown startup check "missing"`},
+		{"selected", `startup check "prerequisite" requires undefined check "missing"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Run(context.Background(), cfg, t.TempDir(), output.ModeTTY, tc.name)
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("Run() error = %v, want %s", err, tc.want)
+			}
+		})
 	}
 }

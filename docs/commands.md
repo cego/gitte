@@ -58,7 +58,7 @@ of stderr, or stdout when stderr is empty. In plain mode, progress looks like:
 [startup:docker-present] FAILED (2ms)
 [startup:docker-network] BLOCKED (0ms)
 
-Startup: 1 failed · 1 blocked · 0 passed
+Startup: 1 failed, 1 blocked, 0 passed
 
 FAILED docker-present  2ms
   executable file not found in PATH

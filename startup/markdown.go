@@ -18,16 +18,20 @@ func renderGuidance(text string, styled bool, width int, markdown bool) string {
 	for _, line := range strings.Split(strings.TrimRight(cleanText(text), "\n"), "\n") {
 		trimmed := strings.TrimSpace(line)
 		if markdown {
-			if fence != "" && trimmed == fence {
+			if fence != "" && strings.HasPrefix(trimmed, fence) && strings.Trim(trimmed, fence[:1]) == "" {
 				fence = ""
 				continue
 			}
 			if fence == "" && (strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")) {
-				fence = trimmed[:3]
+				end := 3
+				for end < len(trimmed) && trimmed[end] == trimmed[0] {
+					end++
+				}
+				fence = trimmed[:end]
 				continue
 			}
 		}
-		if fence != "" || strings.HasPrefix(line, "  ") || strings.HasPrefix(line, "\t") {
+		if fence != "" || (!markdown && (strings.HasPrefix(line, "  ") || strings.HasPrefix(line, "\t"))) {
 			b.WriteString(indentText(styleText(line, commandStyle, styled), "    "))
 			continue
 		}

@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"sync"
+	"time"
 
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -69,10 +72,19 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	}
 	// Build the view before creating the executor so we can pass hook closures.
 	view := newView(mode, tasks, cancel)
+	var failuresMu sync.Mutex
+	var failedNames []string
 
 	exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
-		OnTaskStart:  view.OnStart,
-		OnTaskFinish: view.OnFinish,
+		OnTaskStart: view.OnStart,
+		OnTaskFinish: func(name string, err error, elapsed time.Duration) {
+			if err != nil && !errors.Is(err, executor.ErrTaskSkipped) {
+				failuresMu.Lock()
+				failedNames = append(failedNames, name)
+				failuresMu.Unlock()
+			}
+			view.OnFinish(name, err, elapsed)
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("startup checks have invalid dependencies: %w", err)
@@ -80,6 +92,10 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 	runErr := exec.Execute(ctx)
 	view.Wait()
 	if runErr != nil {
+		failuresMu.Lock()
+		sort.Strings(failedNames)
+		trace.SpanFromContext(ctx).SetAttributes(attribute.StringSlice("startup.failed_checks", failedNames))
+		failuresMu.Unlock()
 		return errors.New("startup checks failed")
 	}
 	return runErr

@@ -162,7 +162,7 @@ func (v *tuiView) Wait() {
 
 func (v *tuiView) printFailureSummary() {
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
+	if err != nil || width <= 0 {
 		width = 80
 	}
 	_, noColor := os.LookupEnv("NO_COLOR")

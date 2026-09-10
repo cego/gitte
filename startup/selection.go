@@ -23,8 +23,11 @@ func selectChecks(checks config.StartupCheckMap, names []string) (config.Startup
 		}
 		selected[name] = check
 		for _, dep := range check.GetNeeds() {
+			if _, ok := checks[dep]; !ok {
+				return fmt.Errorf("startup check %q requires undefined check %q", name, dep)
+			}
 			if err := visit(dep); err != nil {
-				return fmt.Errorf("startup check %q: %w", name, err)
+				return err
 			}
 		}
 		return nil
