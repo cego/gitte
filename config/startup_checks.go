@@ -1,14 +1,15 @@
 package config
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	goyaml "github.com/goccy/go-yaml"
 	"gopkg.in/yaml.v3"
@@ -18,19 +19,28 @@ import (
 type StartupCheck interface {
 	GetType() string
 	GetHint() string
+	GetGuidance() *StartupGuidance
 	GetNeeds() []string
 	Check(ctx context.Context, cwd string, stdout, stderr io.Writer) error
 }
 
 // BaseStartupCheck holds common fields for all check types
 type BaseStartupCheck struct {
-	Type  string   `yaml:"type"`
-	Hint  string   `yaml:"hint,omitempty"`
-	Needs []string `yaml:"needs,omitempty"`
+	Type     string           `yaml:"type"`
+	Hint     string           `yaml:"hint,omitempty"`
+	Needs    []string         `yaml:"needs,omitempty"`
+	Guidance *StartupGuidance `yaml:"guidance,omitempty"`
 }
 
-func (b *BaseStartupCheck) GetHint() string { return b.Hint }
-func (b *BaseStartupCheck) GetType() string { return b.Type }
+// StartupGuidance generates Markdown instructions after a failed check.
+type StartupGuidance struct {
+	Shell  string `yaml:"shell"`
+	Script string `yaml:"script"`
+}
+
+func (b *BaseStartupCheck) GetGuidance() *StartupGuidance { return b.Guidance }
+func (b *BaseStartupCheck) GetHint() string               { return b.Hint }
+func (b *BaseStartupCheck) GetType() string               { return b.Type }
 func (b *BaseStartupCheck) GetNeeds() []string {
 	if b.Needs == nil {
 		return []string{}
@@ -48,23 +58,7 @@ type ShellStartupCheck struct {
 func (s *ShellStartupCheck) Check(ctx context.Context, cwd string, stdout, stderr io.Writer) error {
 	cmd := exec.CommandContext(ctx, s.Shell, "-c", s.Script) //nolint:gosec
 	cmd.Dir = cwd
-	var stderrBuf bytes.Buffer
-	if stderr == nil {
-		stderr = io.Discard
-	}
-	cmd.Stdout = stdout
-	cmd.Stderr = io.MultiWriter(stderr, &stderrBuf)
-	if err := cmd.Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			stderrStr := strings.TrimSpace(stderrBuf.String())
-			if stderrStr != "" {
-				return fmt.Errorf("shell script exited with code %d: %s", exitErr.ExitCode(), stderrStr)
-			}
-			return fmt.Errorf("shell script exited with code %d", exitErr.ExitCode())
-		}
-		return err
-	}
-	return nil
+	return runStartupCommand(ctx, cmd, "shell script", stdout, stderr)
 }
 
 // CommandStartupCheck runs a command and checks exit code
@@ -79,15 +73,71 @@ func (s *CommandStartupCheck) Check(ctx context.Context, cwd string, stdout, std
 	}
 	cmd := exec.CommandContext(ctx, s.Command[0], s.Command[1:]...) //nolint:gosec
 	cmd.Dir = cwd
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
+	return runStartupCommand(ctx, cmd, "command", stdout, stderr)
+}
+
+// runStartupCommand retains bounded diagnostics while forwarding output to the caller.
+func runStartupCommand(ctx context.Context, cmd *exec.Cmd, label string, stdout, stderr io.Writer) error {
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	if stderr == nil {
+		stderr = io.Discard
+	}
+	out, errOut := &diagnosticBuffer{}, &diagnosticBuffer{}
+	cmd.Stdout = io.MultiWriter(stdout, out)
+	cmd.Stderr = io.MultiWriter(stderr, errOut)
+	cmd.WaitDelay = time.Second
 	if err := cmd.Run(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return fmt.Errorf("command exited with code %d", exitErr.ExitCode())
+		if ctx.Err() != nil {
+			return fmt.Errorf("%s: %w", label, ctx.Err())
+		}
+		if errors.Is(err, exec.ErrWaitDelay) {
+			return nil
+		}
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			detail := errOut.String()
+			if detail == "" {
+				detail = out.String()
+			}
+			if detail != "" {
+				return fmt.Errorf("%s exited with code %d: %s", label, exitErr.ExitCode(), detail)
+			}
+			return fmt.Errorf("%s exited with code %d", label, exitErr.ExitCode())
 		}
 		return err
 	}
 	return nil
+}
+
+// diagnosticBuffer retains the final 16 KiB without blocking command output.
+type diagnosticBuffer struct {
+	data      []byte
+	truncated bool
+}
+
+func (b *diagnosticBuffer) Write(p []byte) (int, error) {
+	const limit = 16 * 1024
+	n := len(p)
+	if len(b.data)+n > limit {
+		b.truncated = true
+		if n >= limit {
+			b.data = append(b.data[:0], p[n-limit:]...)
+			return n, nil
+		}
+		b.data = b.data[len(b.data)+n-limit:]
+	}
+	b.data = append(b.data, p...)
+	return n, nil
+}
+
+func (b *diagnosticBuffer) String() string {
+	text := strings.TrimSpace(string(b.data))
+	if b.truncated {
+		return "[earlier output omitted]\n" + text
+	}
+	return text
 }
 
 // YamlPathPresentStartupCheck checks that a YAML path exists in a file

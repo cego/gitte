@@ -2,6 +2,9 @@ package startup
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -79,5 +82,70 @@ func TestRun_ExportsStartupCommandOutputWithSpanCorrelation(t *testing.T) {
 		if !record.TraceID().IsValid() || !record.SpanID().IsValid() {
 			t.Fatalf("startup log is not span-correlated: trace=%s span=%s", record.TraceID(), record.SpanID())
 		}
+	}
+}
+
+func TestRun_RecordsFailedNamesWithoutGuidance(t *testing.T) {
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exp))
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { otel.SetTracerProvider(prev); _ = tp.Shutdown(context.Background()) })
+
+	cfg, err := config.LoadGitteConfigFromYAML([]byte(`startup:
+  z-failure:
+    type: shell
+    shell: sh
+    script: "printf failure-diagnostic >&2; exit 1"
+    guidance:
+      shell: sh
+      script: "printf private-guidance-marker"
+  a-failure:
+    type: shell
+    shell: sh
+    script: "exit 1"
+    hint: private-hint-marker
+  passed:
+    type: shell
+    shell: sh
+    script: "true"
+  blocked:
+    type: shell
+    shell: sh
+    script: "true"
+    needs: [z-failure]
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, parent := tp.Tracer("test").Start(context.Background(), "startup")
+	err = Run(ctx, cfg, t.TempDir(), output.ModePlain)
+	parent.End()
+	if err == nil || err.Error() != "startup checks failed" {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	foundNames, foundCause := false, false
+	for _, span := range exp.GetSpans() {
+		if span.Name == "startup" {
+			for _, attr := range span.Attributes {
+				if attr.Key == "startup.failed_checks" {
+					got := attr.Value.AsStringSlice()
+					if !slices.Equal(got, []string{"a-failure", "z-failure"}) {
+						t.Errorf("failed checks = %v", got)
+					}
+					foundNames = true
+				}
+			}
+		}
+		if span.Name == "startup.check z-failure" && strings.Contains(span.Status.Description, "failure-diagnostic") {
+			foundCause = true
+		}
+		if text := fmt.Sprintf("%+v", span); strings.Contains(text, "private-guidance-marker") || strings.Contains(text, "private-hint-marker") {
+			t.Error("guidance or hint leaked into telemetry")
+		}
+	}
+	if !foundNames || !foundCause {
+		t.Fatalf("missing failure telemetry: parent names=%t, child cause=%t", foundNames, foundCause)
 	}
 }

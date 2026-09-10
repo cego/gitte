@@ -46,6 +46,66 @@ Startup checks run before anything else when using `gitte run` or `gitte startup
 
 Checks support `needs` for ordering (e.g. check Docker version only after confirming Docker is installed).
 
+### Failure guidance
+
+`hint` remains a plain string and is the fallback for all failures. Optional
+`guidance` runs a shell script to generate environment-specific Markdown after a
+check fails. Older gitte versions ignore `guidance` and display `hint`.
+
+```yaml
+startup:
+  jq-present:
+    type: command
+    cmd: ["jq", "--version"]
+    hint: |
+      Install jq with your package manager:
+        Homebrew (macOS or Linux): brew install jq
+        Ubuntu/Debian: sudo apt-get install jq
+    guidance:
+      shell: bash
+      script: |
+        if command -v brew >/dev/null 2>&1; then
+          install_command="brew install jq"
+        elif [ "$(uname -s)" = Linux ] && command -v apt-get >/dev/null 2>&1; then
+          install_command="sudo apt-get install jq"
+        else
+          exit 1
+        fi
+        printf 'Install **jq**:\n\n~~~sh\n%s\n~~~\n' "$install_command"
+```
+
+Conditions are ordinary shell expressions, including `&&`, `||`, `case`, and
+nested branches. The example prefers Homebrew when both package managers are
+available, including on Linux. Upgrade guidance should inspect the executable
+in PATH and its package ownership before recommending a package manager.
+
+Execution contract:
+
+- Runs only for checks that actually fail, never successful or blocked checks.
+- Runs in the resolved workspace with the inherited environment and
+  `GITTE_CHECK_NAME` set to the failing check's name. `$PWD` is the workspace;
+  `$SHELL` is the inherited user-shell preference, not the guidance interpreter.
+- No interactive stdin. Scripts should inspect the environment and print
+  instructions; gitte does not execute commands printed in their output.
+- Requires an explicit `shell` and `script`. No additional shell flags are added.
+- Successful, nonempty stdout replaces `hint`. Failures, empty output, a
+  three-second timeout, or output exceeding 16 KiB use the fallback.
+- Stderr is discarded, and guidance output is not sent to telemetry. Do not print
+  credentials in instructions. Scripts have the same access as startup scripts.
+- On Unix, the guidance process group is terminated on cancellation and cleaned
+  up after execution. On other systems, cancellation terminates the interpreter.
+
+Generated output supports paragraphs, numbered/bulleted lists, **bold**, inline
+code, and code fences using at least three backticks or tildes. Commands in code blocks
+are highlighted and kept intact for copying. Plain output preserves the content
+and indentation without colour or Markdown delimiters. `NO_COLOR` disables
+colour in the final TTY summary. Legacy hints preserve their indented command
+lines and support inline emphasis.
+
+Use YAML anchors to share a guidance script between checks, dispatching on
+`GITTE_CHECK_NAME` when needed. Do not put required check behavior in guidance:
+older versions ignore it, and the script only generates instructions.
+
 ### type: command
 
 Runs a command and checks the exit code.

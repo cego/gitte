@@ -6,27 +6,34 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"sync"
+	"time"
 
 	"github.com/cego/gitte/config"
 	"github.com/cego/gitte/executor"
 	"github.com/cego/gitte/output"
 	"github.com/cego/gitte/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // Run executes all startup checks and streams status to stdout.
 // mode controls whether to use the plain text or TUI output.
-func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.OutputMode) error {
-	if len(cfg.StartupChecks) == 0 {
+func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.OutputMode, names ...string) error {
+	checks, err := selectChecks(cfg.StartupChecks, names)
+	if err != nil {
+		return err
+	}
+	if len(checks) == 0 {
 		return nil
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tasks := make([]executor.Task, 0, len(cfg.StartupChecks))
-	for name, check := range cfg.StartupChecks {
+	tasks := make([]executor.Task, 0, len(checks))
+	for name, check := range checks {
 		name := name
 		check := check
 		tasks = append(tasks, executor.Task{
@@ -52,32 +59,43 @@ func Run(ctx context.Context, cfg *config.GitteConfig, cwd string, mode output.O
 				stdout := &handlerWriter{ctx: ctx, handler: logHandler, taskName: taskName, stream: executor.StdoutStream}
 				stderr := &handlerWriter{ctx: ctx, handler: logHandler, taskName: taskName, stream: executor.StderrStream}
 				if cerr := check.Check(ctx, cwd, stdout, stderr); cerr != nil {
-					hint := check.GetHint()
-					if hint != "" {
-						return fmt.Errorf("%s\nhint: %s", cerr.Error(), hint)
-					}
-					return cerr
+					return describeFailure(ctx, check, name, cwd, cerr)
 				}
 				return nil
 			},
 		})
 	}
 
+	// Validate before starting a terminal program that needs completion events.
+	if err := executor.ValidateNoCycles(tasks); err != nil {
+		return fmt.Errorf("startup checks have invalid dependencies: %w", err)
+	}
 	// Build the view before creating the executor so we can pass hook closures.
 	view := newView(mode, tasks, cancel)
+	var failuresMu sync.Mutex
+	var failedNames []string
 
 	exec, err := executor.NewExecutor(tasks, executor.ExecutorOptions{
-		OnTaskStart:  view.OnStart,
-		OnTaskFinish: view.OnFinish,
+		OnTaskStart: view.OnStart,
+		OnTaskFinish: func(name string, err error, elapsed time.Duration) {
+			if err != nil && !errors.Is(err, executor.ErrTaskSkipped) {
+				failuresMu.Lock()
+				failedNames = append(failedNames, name)
+				failuresMu.Unlock()
+			}
+			view.OnFinish(name, err, elapsed)
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("startup checks have invalid dependencies: %w", err)
 	}
 	runErr := exec.Execute(ctx)
 	view.Wait()
-	if runErr != nil && mode != output.ModePlain {
-		// TUI view already printed a human-readable failure summary; return a
-		// terse sentinel so root.go only prints "startup checks failed".
+	if runErr != nil {
+		failuresMu.Lock()
+		sort.Strings(failedNames)
+		trace.SpanFromContext(ctx).SetAttributes(attribute.StringSlice("startup.failed_checks", failedNames))
+		failuresMu.Unlock()
 		return errors.New("startup checks failed")
 	}
 	return runErr
